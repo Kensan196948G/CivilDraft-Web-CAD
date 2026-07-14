@@ -1,0 +1,50 @@
+{
+  "project": {
+    "name": "CivilDraft-Web-CAD",
+    "start_date": "2026-07-15",
+    "release_deadline": "2027-01-15",
+    "phase_mode": "development"
+  },
+  "session": {
+    "session_start_utc": "2026-07-14T23:22:09Z",
+    "max_duration_minutes": 300,
+    "hard_stop_utc": "2026-07-15T04:22:09Z"
+  },
+  "goal": "Mission: CTO主導自律開発によりRelease Ready/Production Ready状態へ到達。現セッションはPhase 0（Civil-Draw棚卸し）完了とPhase 1 MVPスキャフォールド着手を目標とする。全テスト通過・CI成功・blocker=0・PR作成済み、または5時間到達、または20ターン到達で終了。",
+  "phase": "Monitor",
+  "kpi": {
+    "success_rate_target": 0.9,
+    "ci_success_rate": 0.0,
+    "test_pass_rate": 0.0,
+    "security_critical": 0,
+    "blocker_count": 0
+  },
+  "execution": {
+    "max_duration_minutes": 300,
+    "repair_count": 0,
+    "max_repair": 3,
+    "same_error_limit": 2
+  },
+  "automation": {
+    "auto_issue_generation": true,
+    "self_evolution": true
+  },
+  "roadmap": {
+    "current_phase": "Phase 0",
+    "phases": [
+      "Phase 0: Civil-Draw棚卸し・ADR",
+      "Phase 1: 基本CAD・保存復旧・PDF出力（MVP開始）",
+      "Phase 2: 土木座標・測量・線形",
+      "Phase 3: 仮設・重機・土工パラメトリック",
+      "Phase 4: 属性・数量集計",
+      "Phase 5: 断面・施工ステップ",
+      "Phase 6: DXF強化・差分・Workers・Neon・承認"
+    ]
+  },
+  "completed_issues": [],
+  "blocked_issues": [],
+  "learning": {
+    "failure_patterns": [],
+    "success_patterns": []
+  }
+}
