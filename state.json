@@ -10,8 +10,8 @@
     "max_duration_minutes": 300,
     "hard_stop_utc": "2026-07-15T09:16:26Z"
   },
-  "goal": "Mission: CTO主導自律開発によりRelease Ready/Production Ready状態へ到達。2026-07-15午後セッションでPhase 1 MVPコア（幾何演算17種・Canvas描画・作図ツール・Undo/Redo・DXF/PDF入出力・自動保存・認証部品・SBOM・運用文書）を完成。本番デプロイのみ残した承認待ち状態で停止。",
-  "phase": "Verify",
+  "goal": "Phase 1完了（全6PRマージ済み・人間承認2026-07-15）。ホーム画面デザイン適用・PDF日本語フォント同梱・ホスティング=Cloudflare Workers確定。次: wrangler.jsonc追加とWorkersデプロイ（人間実行）、Phase 2（土木座標・測量・線形）着手。",
+  "phase": "Improve",
   "kpi": {
     "success_rate_target": 0.9,
     "ci_success_rate": 1.0,
@@ -55,17 +55,17 @@
     { "issue": 21, "closed": "2026-07-15", "note": "rulerUtils+gridRenderer移植（純粋関数化）" },
     { "issue": 22, "closed": "2026-07-15", "note": "仕様書§6.2のSplineGeometry欠落修正（前セッション）" }
   ],
-  "issues_pr_ready": [
-    { "issue": 3, "pr": 14, "title": "プロジェクトスキャフォールド作成" },
-    { "issue": 4, "pr": 14, "title": "型システム基盤の実装" },
-    { "issue": 11, "pr": 14, "title": "CI品質ゲート構築" },
-    { "issue": 15, "pr": 16, "title": "内部座標基準の確定（ADR-0012、DD-TBD-002解消）" },
-    { "issue": 2, "pr": 1, "title": "Phase 0 棚卸し成果物一式" }
+  "issues_pr_ready": [],
+  "merged_prs": [
+    { "pr": 1, "merged": "2026-07-15", "note": "Phase 0成果物（Issue #2）" },
+    { "pr": 14, "merged": "2026-07-15", "note": "スキャフォールド+CI（Issue #3/#4/#11）" },
+    { "pr": 16, "merged": "2026-07-15", "note": "Phase 1コア実装（Issue #15ほか10件）" },
+    { "pr": 27, "merged": "2026-07-15", "note": "CIトリガー全ブランチ化+SBOMジョブ（Issue #17/#12）" },
+    { "pr": 28, "merged": "2026-07-15", "note": "ホーム画面デザイン100%適用（Claude Design Home.dc.html）" },
+    { "pr": 29, "merged": "2026-07-15", "note": "PDF日本語フォント同梱（DD-TBD-006確定）+Workers配信手順" }
   ],
   "blocked_issues": [],
   "open_issues_next": [
-    { "issue": 17, "title": "stacked PR（base≠main）でCIが起動しない", "priority": "P2", "note": "ci.ymlトリガー変更は人間承認待ち。PR #14マージ→#16のbase更新でCI実機確認可能" },
-    { "issue": 12, "title": "SBOM残スコープ（ci.ymlへの組込のみ）", "priority": "P2", "note": "sbom/notices scripts・生成物・docs完了済み（commit e52b5aa）。CIステップ追加はIssue #17と併せ人間承認待ち" },
     { "issue": 23, "title": "Arc掃引方向（CW/CCW）の規約確定", "priority": "P2", "note": "描画実機検証（ブラウザ）後に規約確定。GeometryRenderer/pdfExporterは暫定規約で一致済み。鏡像swap問題も同Issueに追記済み" },
     { "issue": 24, "title": "スナップエンジン改善（残: 回転図形対応のみ）", "priority": "P2", "note": "許容差注入・楕円center/象限は完了（commit 7531f43）。回転図形は#25と併せ描画検証後" },
     { "issue": 25, "title": "rectangle/ellipse 90°回転の二重適用疑い", "priority": "P2", "note": "GeometryRendererはrotationDegを描画適用するため要実機検証→transformShape修正方針決定" },
