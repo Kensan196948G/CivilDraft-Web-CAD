@@ -19,7 +19,17 @@ import { createStore } from 'zustand'
 import { GeometryIndex } from '@/domain/geometry/spatialIndex'
 import { unionBBox } from '@/domain/geometry/shapeBBox'
 import type { EditorCommand } from '@/domain/commands/editorCommand'
-import type { DrawingLayer, Geometry, GeometryId, GeometryStyle, LayerId } from '@/shared/types'
+import { createAddGeometryCommand } from '@/domain/commands/geometryCommands'
+import { defaultCreationContext, type GeometryCreationContext } from '@/domain/geometry/geometryFactory'
+import {
+  AUTO_COMMIT_POINT_COUNT,
+  buildDraftFields,
+  buildDraftPreview,
+  composeDraftGeometry,
+  type DraftShapeFields,
+  type ToolType,
+} from '@/domain/tools/draftGeometry'
+import type { DrawingLayer, Geometry, GeometryId, GeometryStyle, LayerId, Point } from '@/shared/types'
 
 export const MIN_ZOOM = 0.001
 export const MAX_ZOOM = 50
@@ -120,7 +130,40 @@ export interface HistorySlice {
   clearHistory: () => void
 }
 
-export type EditorState = DocumentSlice & ViewportSlice & LayerSlice & SelectionSlice & HistorySlice
+/**
+ * 作図ツール状態機械（詳細設計仕様書 §8.1 / Issue #8）。
+ * activate/addPoint/commit/cancel の 4 遷移で作図ドラフトを管理し、確定時に
+ * AddGeometryCommand を HistorySlice.dispatchCommand へ発行する（作図＝履歴・監査可能な 1 操作）。
+ * draftCursor はプレビュー専用でコマンド化しない（ドラッグ中の連続座標を履歴化しない、§7.2）。
+ */
+export interface ToolSlice {
+  readonly activeTool: ToolType
+  /** 確定済みクリック点列（domain 座標=mm）。 */
+  readonly draftPoints: readonly Point[]
+  /** 現在のカーソル位置（プレビュー用。履歴化しない、§7.2）。 */
+  readonly draftCursor: Point | null
+  /** ツールを切り替える。作図中ドラフトは破棄する。 */
+  activateTool: (tool: ToolType) => void
+  /**
+   * 確定クリック点を追加する。line/rectangle/circle は必要点数（AUTO_COMMIT_POINT_COUNT）到達で
+   * 自動的に図形生成 → dispatchCommand(AddGeometryCommand) → ドラフト初期化する。
+   * polyline は点を溜め続け、commitDraft で確定する。select では何もしない。
+   */
+  addDraftPoint: (point: Point) => void
+  /** プレビュー用カーソル位置を更新する（コマンド不使用）。 */
+  updateDraftCursor: (point: Point | null) => void
+  /** polyline の明示確定（ダブルクリック/Enter 相当）。2 点以上で確定、未満は破棄。他ツールでは no-op。 */
+  commitDraft: () => void
+  /** 作図中ドラフトを破棄する（Esc 相当）。 */
+  cancelDraft: () => void
+}
+
+export type EditorState = DocumentSlice &
+  ViewportSlice &
+  LayerSlice &
+  SelectionSlice &
+  HistorySlice &
+  ToolSlice
 
 export type EditorStore = ReturnType<typeof createEditorStore>
 
@@ -162,7 +205,38 @@ function reconcileSelection(
   }
 }
 
-export function createEditorStore() {
+/** activeLayerId に対応するレイヤーを解決する（見つからなければ先頭、無ければ既定レイヤー）。 */
+function resolveActiveLayer(layers: readonly DrawingLayer[], activeLayerId: LayerId): DrawingLayer {
+  return layers.find((l) => l.id === activeLayerId) ?? layers[0] ?? createDefaultLayer()
+}
+
+/**
+ * ドラフト確定図形を GeometryBase 合成 → AddGeometryCommand として履歴へ積む。
+ * geometry.id とタイムスタンプ、コマンドの id/occurredAt はいずれも注入 ctx 由来（決定的テスト可能）。
+ */
+function emitDraftGeometry(
+  get: () => EditorState,
+  ctx: GeometryCreationContext,
+  fields: DraftShapeFields,
+): void {
+  const state = get()
+  const layer = resolveActiveLayer(state.layers, state.activeLayerId)
+  const timestamp = ctx.now()
+  const geometry = composeDraftGeometry(fields, {
+    id: ctx.newId(),
+    layerId: layer.id,
+    style: layer.defaultStyle,
+    createdAt: timestamp,
+    updatedAt: timestamp,
+  })
+  state.dispatchCommand(createAddGeometryCommand(geometry, ctx))
+}
+
+/**
+ * EditorStore を生成する。ctx（ADR-0013 の GeometryCreationContext）を注入すると作図で発番される
+ * 図形 ID・タイムスタンプ・コマンド ID を決定化できる（省略時は defaultCreationContext）。
+ */
+export function createEditorStore(ctx: GeometryCreationContext = defaultCreationContext) {
   // 空間索引はreactiveな状態ではなく、storeインスタンスに寄り添う可変構造として保持する
   // （R-treeを毎更新でコピーするのは非現実的なため。参照はgetIndex()経由で公開）。
   const index = new GeometryIndex()
@@ -322,6 +396,36 @@ export function createEditorStore() {
       })
     },
     clearHistory: () => set({ undoStack: [], redoStack: [] }),
+
+    // --- ToolSlice（Issue #8: 作図ツール状態機械, §8.1） ---
+    activeTool: 'select',
+    draftPoints: [],
+    draftCursor: null,
+    activateTool: (tool) => set({ activeTool: tool, draftPoints: [], draftCursor: null }),
+    updateDraftCursor: (point) => set({ draftCursor: point }),
+    cancelDraft: () => set({ draftPoints: [], draftCursor: null }),
+    addDraftPoint: (point) => {
+      const state = get()
+      if (state.activeTool === 'select') return // 選択ツールは作図しない
+      const nextPoints = [...state.draftPoints, point]
+      const required = AUTO_COMMIT_POINT_COUNT[state.activeTool]
+      // 自動確定ツール以外（polyline）・必要点数未満は、点を溜めるだけ（履歴化しない）。
+      if (required === undefined || nextPoints.length < required) {
+        set({ draftPoints: nextPoints })
+        return
+      }
+      // 必要点数到達: 図形生成 → コマンド発行 → ドラフト初期化（退化形状で null の場合も破棄）。
+      const fields = buildDraftFields(state.activeTool, nextPoints)
+      if (fields !== null) emitDraftGeometry(get, ctx, fields)
+      set({ draftPoints: [] })
+    },
+    commitDraft: () => {
+      const state = get()
+      if (state.activeTool !== 'polyline') return // 自動確定ツール/選択では明示確定は使わない
+      const fields = buildDraftFields(state.activeTool, state.draftPoints)
+      if (fields !== null) emitDraftGeometry(get, ctx, fields)
+      set({ draftPoints: [], draftCursor: null })
+    },
   }))
 
   return {
@@ -329,4 +433,20 @@ export function createEditorStore() {
     /** 空間索引（R-tree）。document系アクションと常に同期している。 */
     getIndex: () => index,
   }
+}
+
+/**
+ * 作図途中プレビュー図形を返すセレクタ（§9.1 GuideLayer 用）。CanvasStage が isPreview 描画に使う。
+ * draftPoints + draftCursor から途中図形を合成する。作図中でない・カーソル未設定なら null。
+ * 固定 ID（DRAFT_PREVIEW_ID）で、履歴・空間索引には登録しない。
+ */
+export function draftPreviewGeometry(state: EditorState): Geometry | null {
+  const layer = resolveActiveLayer(state.layers, state.activeLayerId)
+  return buildDraftPreview({
+    tool: state.activeTool,
+    draftPoints: state.draftPoints,
+    draftCursor: state.draftCursor,
+    layerId: layer.id,
+    style: layer.defaultStyle,
+  })
 }
