@@ -41,7 +41,23 @@
       "Phase 6: DXF強化・差分・Workers・Neon・承認"
     ]
   },
-  "completed_issues": [],
+  "completed_issues": [
+    {
+      "id": "phase0-inventory",
+      "title": "Phase 0: Civil-Draw 6観点棚卸し（46コンポーネント判定）",
+      "date": "2026-07-15",
+      "method": "Dynamic Workflow (wf_946d1dda-951)",
+      "result": "discard 7 / modify 20 / reference_only 8 / as_is 11"
+    },
+    {
+      "id": "phase0-deliverables",
+      "title": "Phase 0 成果物: 継承台帳・リスク台帳・依存/ライセンスレポート・性能ベースライン・ADR 11件",
+      "date": "2026-07-15",
+      "branch": "phase0/inheritance-ledger-adr",
+      "pr": "https://github.com/Kensan196948G/CivilDraft-Web-CAD/pull/1",
+      "pr_status": "merged"
+    }
+  ],
   "issues_pr_ready": [
     { "issue": 3, "pr": 14, "title": "プロジェクトスキャフォールド作成（ディレクトリ構成・Vite/TS/React初期化）" },
     { "issue": 4, "pr": 14, "title": "型システム基盤の実装（Brand ID型・Result<T,E>・単位付き座標値）" },
@@ -50,6 +66,7 @@
   "blocked_issues": [],
   "learning": {
     "failure_patterns": [
+      "Civil-DrawのE2E性能回帰テスト閾値がcommit 1f93474でavgFps>25/50からminFps>1へ実質無力化されていた（無関係なコミットメッセージの下）。CI品質ゲートは「存在すること」だけでなく「実効性」を検証する必要がある（ADR-0010）",
       {
         "date": "2026-07-15",
         "pattern": "npm install <パッケージ名>（バージョン未指定）で最新版を導入すると、別の既存パッケージが宣言するpeer/dependency範囲と非互換になり、npmが依存木の一部に重複コピーをnestすることがある",
@@ -58,6 +75,7 @@
       }
     ],
     "success_patterns": [
+      "6観点並列investigator + 統合synthesisのDynamic Workflow構成により、46コンポーネントの継承判定を単一セッション内で網羅的かつ根拠付きで完了できた",
       {
         "date": "2026-07-15",
         "pattern": "依存関係起因の原因不明エラーは、node_modules全体でWASM/native呼び出し箇所を横断grepし、npm ls <pkg> --allで重複バージョンの有無を確認することで根本原因を特定できる",
