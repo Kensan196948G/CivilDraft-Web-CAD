@@ -45,7 +45,7 @@ export interface GeometryBase {
 
 /**
  * 詳細設計仕様書 §6 図形データモデル
- * 12種類の図形種別。switch文の網羅性検査（exhaustiveness check）の基盤となる判別子。
+ * 13種類の図形種別。switch文の網羅性検査（exhaustiveness check）の基盤となる判別子。
  */
 export type GeometryType =
   | 'line'
