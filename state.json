@@ -115,6 +115,11 @@
         "date": "2026-07-15",
         "pattern": "Issue #5残ファイルのうち事前調査（get_file_contentsで直接内容確認）した2件で、単純な型置換だけでは済まない事情が判明した。(1) perfHarness.ts: generatePerfShapesがShape型4種(line/rect/circle/polyline)を直接組み立てており、Geometry移植にはGeometryBaseの全フィールド(layerId/style/constructionStepIds/locked/createdAt/updatedAt)を補完する追加作業が要る。runMicroBenchmark関数は型非依存で影響なし。(2) autosave.ts: localStorage.setItem/getItemで直接シリアライズしておりGitHub Projectsのバックログ項目『[Phase 1] 自動保存のIndexedDB移行（保存復旧）』と設計方針が重複する。単純as-is移植ではなくIndexedDB化を伴う可能性が高い",
         "fix": "次セッションでperfHarness.tsに着手する際はGeometryBase補完コストを見積もってから着手する。autosave.tsはIssue #5単独ではなくGitHub Projectsのバックログ項目と統合してスコープ再定義してから着手する（別Issue化を検討）"
+      },
+      {
+        "date": "2026-07-15",
+        "pattern": "viewportCulling.tsはselection.ts(getShapeBBox関数、本PRで移植したdomain/geometry/shapeBBox.tsとは別物)とspatialIndex.ts(shapeIndexというグローバルシングルトン)の両方に依存しており単独移植不可能。さらにspatialIndex.tsのグローバルシングルトンは、GitHub Projects Backlogの別項目『[Phase 1] 空間索引のインスタンス化改修（グローバルシングルトン解消）』が対象とする設計課題そのもので、単純移植ではなく設計変更を伴う",
+        "fix": "Issue #5残ファイルの着手順序はselection.ts→spatialIndex.ts（インスタンス化改修を含む設計判断が必要）→viewportCulling.tsとする。spatialIndex.tsはIssue #5単体ではなくProjects Backlog項目とスコープ調整してから着手する"
       }
     ]
   }
