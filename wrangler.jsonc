@@ -1,0 +1,23 @@
+{
+  // CivilDraft Web CAD — Cloudflare Workers 配信設定
+  // 正本: docs/operations/release-procedure.md §6.1
+  //
+  // 初回リリースは「静的配信のみ」（dist/ を Static Assets として配信する SPA）。
+  // Workers API（src/workers/index.ts）の有効化は Phase 6 後続で行う。
+  // デプロイ・wrangler login・リソース作成は人間決裁事項（本ファイルは構成定義のみ）。
+  "name": "civildraft-web-cad",
+  "compatibility_date": "2026-07-15",
+  "assets": {
+    "directory": "./dist",
+    "not_found_handling": "single-page-application"
+  }
+
+  // --- Phase 6 後続で API を有効化する際に追加する ---
+  // "main": "src/workers/index.ts",
+  // 静的アセットへ素通しさせず Worker を先に通す場合の設定例:
+  // "assets": {
+  //   "directory": "./dist",
+  //   "not_found_handling": "single-page-application",
+  //   "binding": "ASSETS"
+  // }
+}
