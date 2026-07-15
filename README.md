@@ -416,6 +416,13 @@ timeline
 | 2026-07-15 | 🔍 Issue #20実装をコードレビュー（Critical/Important級バグなし。コメント誤字を修正、仕様書§6.2の内部矛盾をIssue #22として起票） |
 | 2026-07-15 | ✅ Issue #22対応（仕様書§6.2にSplineGeometry追加、Arc以降8型の正本を実装ファイルに明文化）。Issue closed |
 | 2026-07-15 | ✅ Issue #5部分完了: `shapeBBox.ts`（外接矩形計算エンジン）移植、テスト12件追加、70/70 green |
+| 2026-07-15 | ✅ **Issue #5完了（closed）**: 幾何演算エンジン17/17ファイル移植。5並列エージェントで selection/spatialIndex/viewportCulling/trim/extend/offset/fillet/chamfer/shapeTransform/scale/array/snap/dimension/hatchGenerator を一括移植 |
+| 2026-07-15 | ✅ ADR-0013（図形ID発番: crypto.randomUUID + コンテキスト注入、nanoid不採用）制定・`geometryFactory.ts`実装 |
+| 2026-07-15 | ✅ Issue #7部分: `GeometryIndex`（R-tree空間索引）のインスタンス化改修・複数図面独立性テスト完了 |
+| 2026-07-15 | ✅ Issue #19部分: `symbolCatalog`（土木記号30種）・`templateCatalog`（テンプレート6種）移植 |
+| 2026-07-15 | ✅ Issue #6基盤: `CoordinateTransformer`（仕様書§9.2）・`EditorStore`（§8.1 Slice構成ファクトリ）・React供給層実装。konva/react-konva/zustand導入 |
+| 2026-07-15 | 🔍 継承元の潜在課題2件をIssue化: #23（Arc掃引方向の曖昧さ）・#24（スナップエンジン改善） |
+| 2026-07-15 | 🔄 Issue #18着手: dxf-parser/dxf-writer導入、dxfImporter/dxfExporter並列移植中（$INSUNITS→mm単位変換層、R-002/R-004回帰テスト付き） |
 
 ### Open Pull Request
 

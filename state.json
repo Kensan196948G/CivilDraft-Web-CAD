@@ -6,9 +6,9 @@
     "phase_mode": "development"
   },
   "session": {
-    "session_start_utc": "2026-07-14T23:22:09Z",
+    "session_start_utc": "2026-07-15T04:16:26Z",
     "max_duration_minutes": 300,
-    "hard_stop_utc": "2026-07-15T04:22:09Z"
+    "hard_stop_utc": "2026-07-15T09:16:26Z"
   },
   "goal": "Mission: CTO主導自律開発によりRelease Ready/Production Ready状態へ到達。現セッションはPhase 0（Civil-Draw棚卸し）完了とPhase 1 MVPスキャフォールド着手を目標とする。全テスト通過・CI成功・blocker=0・PR作成済み、または5時間到達、または20ターン到達で終了。",
   "phase": "Build",
@@ -41,7 +41,11 @@
       "Phase 6: DXF強化・差分・Workers・Neon・承認"
     ]
   },
-  "completed_issues": [],
+  "completed_issues": [
+    { "issue": 5, "closed": "2026-07-15", "note": "幾何演算エンジン群17/17ファイル移植完了（rulerUtilsは#21へ一本化）。5並列エージェントで11ファイル同時移植、テスト283/283。派生Issue #23(Arc掃引方向)・#24(スナップ改善)起票。commit 208de64" },
+    { "issue": 20, "closed": "2026-07-15", "note": "Geometry判別共用体13種実装（前セッション）" },
+    { "issue": 22, "closed": "2026-07-15", "note": "仕様書§6.2のSplineGeometry欠落修正（前セッション）" }
+  ],
   "issues_pr_ready": [
     { "issue": 3, "pr": 14, "title": "プロジェクトスキャフォールド作成（ディレクトリ構成・Vite/TS/React初期化）" },
     { "issue": 4, "pr": 14, "title": "型システム基盤の実装（Brand ID型・Result<T,E>・単位付き座標値）" },
@@ -54,10 +58,12 @@
   "blocked_issues": [],
   "open_issues_next": [
     { "issue": 17, "title": "stacked PR（base≠main）でCIが起動しない", "priority": "P2", "blocking": false },
-    { "issue": 5, "title": "幾何演算エンジン群の移植（残13/18ファイル）", "priority": "P1", "blocking": false, "note": "2026-07-15: shapeBBox.ts移植完了によりissues_pr_ready側へ移動。残13ファイル(chamferEngine/dimensionEngine/viewportCulling/trimEngine/filletEngine/selection/spatialIndex/snapEngine/shapeTransform/offsetEngine/extendEngine/arrayEngine/scaleEngine/perfHarness/autosave)は引き続きGeometry判別共用体への置き換えでブロック解除済み。注記: 前回記載のファイル列挙数と『残14』表記に数のズレがあったため、次セッション開始時に実ファイル数を再カウントして総数18を検証すること。次セッションで各ファイルのShape型依存箇所をGeometry型へ置き換えつつ移植着手可能" },
-    { "issue": 18, "title": "DXF変換ロジックの移植（dxfImporter.ts/dxfExporter.ts、単位変換層改修）", "priority": "P1", "blocking_reason": "Issue #15はPR#16で対応済み（マージ待ち）。Issue#20完了によりShape型依存もブロック解除", "note": "2026-07-15: 両ファイルともShape型依存をsearch_codeで確認済み、Issue#20完了によりGeometry型で着手可能" },
-    { "issue": 19, "title": "[Phase 1] 記号・テンプレートカタログの移植（symbolCatalog.ts as_is / templateCatalog.ts要Shape型設計）", "priority": "P3", "blocking": false, "note": "2026-07-15訂正・同日ブロック解除: symbolCatalog.tsはShape非依存でas_is可。templateCatalog.tsはDistributiveOmit<Shape,...>でShape型に依存していたが、Issue#20完了によりGeometry型で着手可能になった" },
-    { "issue": 21, "title": "Canvas描画補助ユーティリティの移植（rulerUtils.ts/gridRenderer.ts）", "priority": "P3", "blocking": false, "note": "2026-07-15新規起票: Issue#5スコープ確定時にShape型非依存と判明した2ファイルの受け皿。詳細設計仕様書§9(Konvaレイヤー構成・BackgroundLayerがグリッド担当、CoordinateTransformer経由の座標変換固定)を関連仕様として明記。Issue#5/#20とは独立着手可能だがCoordinateTransformer実装状況に依存する可能性あり" }
+    { "issue": 18, "title": "DXF変換ロジックの移植（dxfImporter.ts/dxfExporter.ts、単位変換層改修）", "priority": "P1", "status": "in_progress", "note": "2026-07-15午後: dxf-parser@1.1.2/dxf-writer@1.18.4導入済み。importer=port-snapエージェント、exporter=port-cornerエージェントに並列割当中。$INSUNITS→mm変換をdomain/units経由で実装、R-002/R-004回帰テスト必須と指示済み" },
+    { "issue": 19, "title": "[Phase 1] 記号・テンプレートカタログの移植", "priority": "P3", "status": "nearly_done", "note": "2026-07-15午後: symbolCatalog移植完了（30記号、10テスト、commit 208de64）。templateCatalogも移植完了見込み（テストは全体スイートでgreen確認済み、エージェント報告待ち）。両方完了したらIssue close可" },
+    { "issue": 21, "title": "Canvas描画補助ユーティリティの移植（rulerUtils.ts/gridRenderer.ts）", "priority": "P3", "status": "in_progress", "note": "2026-07-15午後: rulerUtils完了（12テスト、-0 quirk記録、commit 208de64）。gridRendererはport-edgeがCanvas小型コンポーネント4点と共に移植中" },
+    { "issue": 6, "title": "Canvas描画パイプラインの移植", "priority": "P1", "status": "in_progress", "note": "2026-07-15午後: 基盤完了（CoordinateTransformer§9.2 + EditorStore§8.1ファクトリ + React供給層、35テスト、commit ca64ad1/cf8a173）。konva@9.3.22+react-konva@19.2.5+zustand@5.0.14導入。GeometryRenderer=canvas-rendererエージェント、小型4点=port-edgeが移植中。残: CanvasStage統合とApp配線（親が実施予定）" },
+    { "issue": 23, "title": "Arc掃引方向（CW/CCW）の規約確定", "priority": "P2", "note": "2026-07-15起票: filletEngine移植で発見。描画/DXF出力層の実装前に規約確定要" },
+    { "issue": 24, "title": "スナップエンジン改善（回転図形・許容差注入・楕円）", "priority": "P2", "note": "2026-07-15起票: snapEngine移植で発見した継承元由来の課題群" }
   ],
   "learning": {
     "failure_patterns": [
@@ -76,6 +82,16 @@
       }
     ],
     "success_patterns": [
+      {
+        "date": "2026-07-15",
+        "pattern": "相互依存のない移植対象群（幾何演算エンジン11ファイル）は、ファイル単位の完全担当分割 + 共通規約プロンプト（型対応表・ADR参照・検証コマンド明記）で5並列エージェントに割り当てると、統合時のコンフリクトゼロ・全ゲート一発greenで完了できる",
+        "fix": "事前に(1)全対象のimport/exportをgrepして相互依存なしを確認、(2)共通基盤（geometryFactory/ADR-0013）を先に単独コミット、(3)エージェントにはcommit禁止・担当外ファイル変更禁止を明示、(4)遊休エージェントにはSendMessageで追加タスクを逐次投入。統合はテストファイル数を監視するBashウォッチャーで検知し、親が一括Verify→コミット"
+      },
+      {
+        "date": "2026-07-15",
+        "pattern": "vitest globals:false 環境では @testing-library/react の自動cleanupが効かず、2つ目以降のコンポーネントテストが「Found multiple elements」で落ちる",
+        "fix": "tests/setup.ts で afterEach(() => cleanup()) を明示登録する。また eslint react-hooks v7 は useRef の render中アクセス（遅延初期化パターン）を react-hooks/refs エラーにするため、useState(() => createXxx()) の initializer 方式を使う"
+      },
       {
         "date": "2026-07-15",
         "pattern": "依存関係起因の原因不明エラーは、node_modules全体でWASM/native呼び出し箇所を横断grepし、npm ls <pkg> --allで重複バージョンの有無を確認することで根本原因を特定できる",
