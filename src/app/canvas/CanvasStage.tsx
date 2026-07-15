@@ -17,7 +17,7 @@
  * 4. GuideLayer（スナップ候補・作図途中。ツール未実装のためプレースホルダ）
  * 5. OverlayLayer（ルーラー等のscreen座標系オーバーレイ）
  */
-import { useCallback, useEffect, useRef, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { Layer, Line, Rect, Stage } from 'react-konva'
 import type Konva from 'konva'
 import { CoordinateTransformer } from '@/domain/canvas/coordinateTransformer'
@@ -25,6 +25,7 @@ import { computeGridLines } from '@/domain/canvas/gridRenderer'
 import type { PaperOrientation, PaperSize } from '@/domain/canvas/paperSize'
 import { shapeBBox } from '@/domain/geometry/shapeBBox'
 import { getVisibleIds, shouldCull } from '@/domain/geometry/viewportCulling'
+import { draftPreviewGeometry } from '@/app/store/editorStore'
 import { useEditorStore, useEditorStoreApi } from '@/app/store/useEditorStore'
 import { GeometryRenderer } from './GeometryRenderer'
 import { PaperBoundary } from './PaperBoundary'
@@ -58,7 +59,18 @@ export function CanvasStage({ paperSize = 'A3', paperOrientation = 'landscape' }
   const geometries = useEditorStore((s) => s.geometries)
   const layers = useEditorStore((s) => s.layers)
   const selectedIds = useEditorStore((s) => s.selectedIds)
+  const activeTool = useEditorStore((s) => s.activeTool)
+  const draftPoints = useEditorStore((s) => s.draftPoints)
+  const draftCursor = useEditorStore((s) => s.draftCursor)
   const storeApi = useEditorStoreApi()
+
+  // 作図途中プレビュー。draft状態のprimitive購読を依存にして再計算する
+  // （selectorで直接合成するとスナップショット毎に新オブジェクトが返り警告になるため）。
+  const previewGeometry = useMemo(
+    () => draftPreviewGeometry(storeApi.getState()),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [activeTool, draftPoints, draftCursor, storeApi],
+  )
 
   // コンテナサイズ追従。jsdom等ResizeObserver非対応環境では初期実測+window resizeのみ。
   useEffect(() => {
@@ -81,10 +93,27 @@ export function CanvasStage({ paperSize = 'A3', paperOrientation = 'landscape' }
   }, [])
 
   // Spaceキー押下中はパンモード（継承元CanvasAreaの操作を踏襲）。
+  // Escape=作図キャンセル、Enter=polyline確定、Ctrl+Z/Ctrl+Y(Ctrl+Shift+Z)=Undo/Redo。
   const spacePressed = useRef(false)
   useEffect(() => {
     const down = (e: KeyboardEvent) => {
-      if (e.code === 'Space') spacePressed.current = true
+      if (e.code === 'Space') {
+        spacePressed.current = true
+        return
+      }
+      const state = storeApi.getState()
+      if (e.code === 'Escape') {
+        state.cancelDraft()
+      } else if (e.code === 'Enter') {
+        state.commitDraft()
+      } else if ((e.ctrlKey || e.metaKey) && e.code === 'KeyZ') {
+        e.preventDefault()
+        if (e.shiftKey) state.redo()
+        else state.undo()
+      } else if ((e.ctrlKey || e.metaKey) && e.code === 'KeyY') {
+        e.preventDefault()
+        state.redo()
+      }
     }
     const up = (e: KeyboardEvent) => {
       if (e.code === 'Space') spacePressed.current = false
@@ -95,7 +124,7 @@ export function CanvasStage({ paperSize = 'A3', paperOrientation = 'landscape' }
       window.removeEventListener('keydown', down)
       window.removeEventListener('keyup', up)
     }
-  }, [])
+  }, [storeApi])
 
   const panning = useRef(false)
   const lastPointer = useRef({ x: 0, y: 0 })
@@ -123,10 +152,23 @@ export function CanvasStage({ paperSize = 'A3', paperOrientation = 'landscape' }
 
   const handleMouseMove = useCallback(
     (e: Konva.KonvaEventObject<MouseEvent>) => {
-      if (!panning.current) return
-      const { panX: px, panY: py, setPan } = storeApi.getState()
-      setPan(px + e.evt.clientX - lastPointer.current.x, py + e.evt.clientY - lastPointer.current.y)
-      lastPointer.current = { x: e.evt.clientX, y: e.evt.clientY }
+      if (panning.current) {
+        const { panX: px, panY: py, setPan } = storeApi.getState()
+        setPan(px + e.evt.clientX - lastPointer.current.x, py + e.evt.clientY - lastPointer.current.y)
+        lastPointer.current = { x: e.evt.clientX, y: e.evt.clientY }
+        return
+      }
+      // 作図ツール中はカーソル位置をdraftへ反映（プレビュー用、履歴化しない§7.2）
+      const state = storeApi.getState()
+      if (state.activeTool === 'select') return
+      const pointer = e.target.getStage()?.getPointerPosition()
+      if (!pointer) return
+      const transformer = new CoordinateTransformer({
+        zoom: state.zoom,
+        panX: state.panX,
+        panY: state.panY,
+      })
+      state.updateDraftCursor(transformer.screenToDomain(pointer))
     },
     [storeApi],
   )
@@ -148,6 +190,14 @@ export function CanvasStage({ paperSize = 'A3', paperOrientation = 'landscape' }
         panY: state.panY,
       })
       const domainPoint = transformer.screenToDomain(pointer)
+
+      // 作図ツール中はクリック=作図点の確定（必要点数到達で自動的に図形確定）
+      if (state.activeTool !== 'select') {
+        state.addDraftPoint(domainPoint)
+        return
+      }
+
+      // 選択ツール: 空間索引ヒットテスト（§9.3）
       const toleranceMm = transformer.screenLengthToDomain(HIT_TOLERANCE_PX)
       const index = storeApi.getIndex()
       const hits = index.point(domainPoint.x, domainPoint.y, toleranceMm)
@@ -162,6 +212,11 @@ export function CanvasStage({ paperSize = 'A3', paperOrientation = 'landscape' }
     },
     [storeApi],
   )
+
+  // ダブルクリック=polylineの確定（§8.1 commit）
+  const handleDblClick = useCallback(() => {
+    storeApi.getState().commitDraft()
+  }, [storeApi])
 
   // 非表示レイヤーの図形は描画対象外（§6.3）。500図形以上でビューポートカリング（§9.4）。
   const visibleLayerIds = new Set(layers.filter((l) => l.visible).map((l) => l.id))
@@ -209,6 +264,7 @@ export function CanvasStage({ paperSize = 'A3', paperOrientation = 'landscape' }
         onMouseMove={handleMouseMove}
         onMouseUp={handleMouseUp}
         onClick={handleClick}
+        onDblClick={handleDblClick}
       >
         {/* 1. BackgroundLayer: 用紙（world座標系） */}
         <Layer x={panX} y={panY} scaleX={zoom} scaleY={zoom} listening={false}>
@@ -248,8 +304,12 @@ export function CanvasStage({ paperSize = 'A3', paperOrientation = 'landscape' }
             />
           ))}
         </Layer>
-        {/* 4. GuideLayer: スナップ候補・作図途中（ツール実装後にSnapMarker等を配置） */}
-        <Layer listening={false} />
+        {/* 4. GuideLayer: 作図途中プレビュー（world座標系）。スナップ候補表示は後続対応 */}
+        <Layer x={panX} y={panY} scaleX={zoom} scaleY={zoom} listening={false}>
+          {previewGeometry !== null && (
+            <GeometryRenderer geometry={previewGeometry} isPreview />
+          )}
+        </Layer>
         {/* 5. OverlayLayer: ルーラー（screen座標系） */}
         <Layer listening={false}>
           <Ruler zoom={zoom} panX={panX} panY={panY} width={size.width} height={size.height} />
