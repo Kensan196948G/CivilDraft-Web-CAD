@@ -117,6 +117,24 @@ describe('GeometryIndex / 点検索とtopmost', () => {
   })
 })
 
+describe('GeometryIndex / 複数インスタンスの独立性（Issue #7）', () => {
+  it('2つのインスタンス間で登録内容が混線しない', () => {
+    const drawing1 = new GeometryIndex()
+    const drawing2 = new GeometryIndex()
+    drawing1.load([circle('a', 0, 0, 5)])
+    drawing2.load([circle('b', 0, 0, 5)])
+
+    const rect = { minX: -10, minY: -10, maxX: 10, maxY: 10 }
+    expect(drawing1.search(rect)).toEqual(['a'])
+    expect(drawing2.search(rect)).toEqual(['b'])
+
+    drawing1.clear()
+    expect(drawing1.size).toBe(0)
+    expect(drawing2.size).toBe(1)
+    expect(drawing2.search(rect)).toEqual(['b'])
+  })
+})
+
 describe('GeometryIndex / BBox計算不可の図形', () => {
   it('parametricObjectは索引に登録されない（load/add両経路）', () => {
     const index = new GeometryIndex()
