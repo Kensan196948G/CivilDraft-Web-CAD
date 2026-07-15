@@ -3,8 +3,8 @@ name: CI
 on:
   push:
     branches: [main]
+  # Issue #17: stacked PR（base≠main）でもCIが起動するよう、全ブランチ宛PRを対象にする
   pull_request:
-    branches: [main]
 
 concurrency:
   group: ci-${{ github.workflow }}-${{ github.ref }}
@@ -46,3 +46,25 @@ jobs:
       - run: npm ci
 
       - run: npm audit --audit-level=high
+
+  # Issue #12: SBOM（CycloneDX）をビルド成果物として生成・保存する
+  sbom:
+    name: SBOM Generation
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 25
+          cache: npm
+
+      - run: npm ci
+
+      - run: npm run sbom
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: sbom-cyclonedx
+          path: sbom/civildraft-sbom.cdx.json
+          retention-days: 90
