@@ -29,7 +29,15 @@ import {
   type DraftShapeFields,
   type ToolType,
 } from '@/domain/tools/draftGeometry'
-import type { DrawingLayer, Geometry, GeometryId, GeometryStyle, LayerId, Point } from '@/shared/types'
+import type {
+  ConstructionStepId,
+  DrawingLayer,
+  Geometry,
+  GeometryId,
+  GeometryStyle,
+  LayerId,
+  Point,
+} from '@/shared/types'
 
 export const MIN_ZOOM = 0.001
 export const MAX_ZOOM = 50
@@ -110,6 +118,16 @@ export interface SelectionSlice {
 }
 
 /**
+ * 施工ステップ表示（仕様書§18 / Phase 5）。
+ * currentStepId=null は全表示。CanvasStage が filterGeometriesByStep で描画対象を絞る。
+ * ステップ未割当（constructionStepIds空）の図形は全ステップ共通として常に表示される。
+ */
+export interface StepSlice {
+  readonly currentStepId: ConstructionStepId | null
+  setCurrentStep: (id: ConstructionStepId | null) => void
+}
+
+/**
  * Undo/Redo（Command パターン、Issue #8 / 仕様書 §7）。
  * 履歴に積むのは差分コマンドのみ（全図形スナップショットを持たない）。
  * 履歴規則（§7.2）: 1 操作 = 1 コマンド / Undo 後の新規操作で Redo 破棄 / 件数上限で古い順に押し出す。
@@ -162,6 +180,7 @@ export type EditorState = DocumentSlice &
   ViewportSlice &
   LayerSlice &
   SelectionSlice &
+  StepSlice &
   HistorySlice &
   ToolSlice
 
@@ -347,6 +366,10 @@ export function createEditorStore(ctx: GeometryCreationContext = defaultCreation
       })),
     clearSelection: () => set({ selectedIds: [], hoveredId: null }),
     setHovered: (hoveredId) => set({ hoveredId }),
+
+    // --- StepSlice（仕様書§18: 施工ステップ表示） ---
+    currentStepId: null,
+    setCurrentStep: (currentStepId) => set({ currentStepId }),
 
     // --- HistorySlice（Issue #8: Undo/Redo Command パターン） ---
     undoStack: [],

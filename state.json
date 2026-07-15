@@ -10,7 +10,7 @@
     "max_duration_minutes": 300,
     "hard_stop_utc": "2026-07-15T09:16:26Z"
   },
-  "goal": "Phase 1完了（全6PRマージ済み・人間承認2026-07-15）。ホーム画面デザイン適用・PDF日本語フォント同梱・ホスティング=Cloudflare Workers確定。次: wrangler.jsonc追加とWorkersデプロイ（人間実行）、Phase 2（土木座標・測量・線形）着手。",
+  "goal": "Phase 2-6コード実装完了（PR #31、最終フェーズ完了マージはY/N承認待ち）。全ロードマップフェーズのドメイン+UI 7画面+Workers/Neon基盤を実装、テスト1030/1030。残る人間決裁: PR #31マージ・Neonマイグレーション適用・wrangler deploy・Workersエンドポイント本実装。",
   "phase": "Improve",
   "kpi": {
     "success_rate_target": 0.9,
@@ -30,7 +30,7 @@
     "self_evolution": true
   },
   "roadmap": {
-    "current_phase": "Phase 1",
+    "current_phase": "Phase 6（コード完了・デプロイ人間決裁待ち）",
     "phases": [
       "Phase 0: Civil-Draw棚卸し・ADR",
       "Phase 1: 基本CAD・保存復旧・PDF出力（MVP開始）",

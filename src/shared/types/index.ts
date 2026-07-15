@@ -24,6 +24,26 @@ export type {
 
 export type { Result, ValidationIssue } from './result'
 
+export type {
+  QuantityUnit,
+  QuantityMethod,
+  CivilAttribute,
+  CivilAttributePatch,
+  QuantitySource,
+  RoundingRule,
+  ManualAdjustment,
+  QuantityStatus,
+  QuantityItem,
+} from './civil'
+
+export type {
+  CoordinateSystemSettings,
+  SurveyPoint,
+  SurveyCoordinate,
+  SurveyCsvMapping,
+  ImportRowResult,
+} from './survey'
+
 export type { DrawingLayer } from './layer'
 
 export type {
