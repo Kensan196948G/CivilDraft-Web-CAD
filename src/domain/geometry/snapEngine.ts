@@ -23,6 +23,14 @@
  * - 引数の図形配列を `readonly Geometry[]` とし、noUncheckedIndexedAccess 下の平坦→Point
  *   走査には undefined ガードを付した。
  *
+ * Issue #24（スナップエンジン改善）での追加変更:
+ * - 項目2: 許容半径 SNAP_RADIUS(10mm) 固定を、SnapOptions.toleranceMm で UI 層から注入可能化。
+ *   未指定時は既定 10mm を維持（後方互換）。UI は screenLengthToDomain(px) で換算して渡す。
+ * - 項目3: 楕円 `ellipse` を中心スナップ対象に追加（従来は円・円弧のみ）。楕円の4象限点は
+ *   既存の endpoint 系抽出で既に対象（rotationDeg=0 前提）。回転楕円の象限点・許容差以外の
+ *   回転対応は項目1（回転図形対応・描画層検証が必要）で別途扱う。
+ * - いずれも追加的変更で、既存スナップ種別の優先順位・距離比較ロジックは変更していない。
+ *
  * アルゴリズム本体（各特徴点の抽出・距離比較・2段階の優先順位）は継承元を忠実に踏襲している。
  */
 import type { Geometry, Point } from '@/shared/types'
@@ -52,12 +60,20 @@ export interface SnapOptions {
   readonly snapTangent: boolean
   readonly snapNearest: boolean
   readonly snapIntersection: boolean
+  /**
+   * スナップ判定の許容半径（domain mm）。省略時は既定 SNAP_RADIUS(10mm)（後方互換）。
+   * Issue #24 項目2: 画面ズームに応じた許容差の調整をUI層から注入可能にする。
+   * UI層は固定ピクセル許容量を CoordinateTransformer.screenLengthToDomain(px) で
+   * domain mm へ換算した値を渡す想定（ズームしても画面上の吸着感度を一定に保つ）。
+   */
+  readonly toleranceMm?: number
 }
 
 /**
- * スナップ判定の許容半径。継承元の値 10 をそのまま踏襲する。
+ * スナップ判定の許容半径の既定値。継承元の値 10 をそのまま踏襲する。
  * ADR-0012 により内部座標は mm 単位のため、この値は「カーソルから 10mm 以内」を意味する。
- * 画面ズームに応じたピクセル→mm のスケール調整は本エンジンの責務外（UI 層で許容差を渡す想定）。
+ * Issue #24 項目2: 画面ズームに応じた許容差は本エンジンの責務外だが、SnapOptions.toleranceMm
+ * で UI 層から注入可能にした。未指定時のみこの既定値を使う（後方互換）。
  */
 const SNAP_RADIUS = 10
 
@@ -115,7 +131,9 @@ function getEndpoints(geometry: Geometry): Point[] {
       ]
     }
     case 'ellipse': {
-      // 継承元同様、rotationDeg は無視して主軸整列の4端点を返す。
+      // Issue #24 項目3: 楕円の4象限点（center±radiusX / center±radiusY）を endpoint 系
+      // スナップ点として扱う。rotationDeg=0 前提で主軸整列の4点を返す（回転楕円は象限点も
+      // 回転するため未対応。回転対応は項目1=回転図形対応と同時に行う）。
       const { center, radiusX, radiusY } = geometry
       return [
         { x: center.x, y: center.y - radiusY },
@@ -148,15 +166,18 @@ function getEndpoints(geometry: Geometry): Point[] {
   }
 }
 
-/** 図形の中心点を列挙する。継承元同様、円・円弧のみが対象。 */
+/** 図形の中心点を列挙する。円・円弧・楕円（Issue #24 で追加）が対象。 */
 function getCenterPoints(geometry: Geometry): Point[] {
   switch (geometry.type) {
     case 'circle':
     case 'arc':
       return [geometry.center]
+    case 'ellipse':
+      // Issue #24 項目3: 楕円中心をスナップ対象に追加（継承元は非対象だった）。
+      // 中心座標は rotationDeg に依存しないため、回転楕円でも正しい中心を返す。
+      return [geometry.center]
     case 'line':
     case 'rectangle':
-    case 'ellipse':
     case 'polyline':
     case 'spline':
     case 'text':
@@ -165,7 +186,7 @@ function getCenterPoints(geometry: Geometry): Point[] {
     case 'hatch':
     case 'symbol':
     case 'parametricObject':
-      // 継承元は円・円弧以外を中心スナップ対象としていない（ellipse 等も非対象を踏襲）。
+      // 上記以外は中心スナップ対象外（継承元踏襲）。
       return []
     default: {
       const exhaustive: never = geometry
@@ -453,8 +474,11 @@ export function computeSnap(
   gridSize: number,
   options: SnapOptions,
 ): SnapResult {
+  // Issue #24 項目2: 許容半径を UI 層から注入可能に。未指定時は既定 SNAP_RADIUS を使う。
+  const tolerance = options.toleranceMm ?? SNAP_RADIUS
+
   let best: SnapResult = { point: cursor, type: 'none' }
-  let bestDist = SNAP_RADIUS
+  let bestDist = tolerance
 
   if (options.snapEndpoint) {
     for (const geometry of geometries) {
@@ -515,7 +539,7 @@ export function computeSnap(
   // フェーズ2はフェーズ1（endpoint/center/midpoint/intersection）が何も見つけなかった場合のみ実行。
   if (best.type !== 'none') return best
 
-  bestDist = SNAP_RADIUS
+  bestDist = tolerance
 
   if (options.snapPerpendicular) {
     for (const geometry of geometries) {

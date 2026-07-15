@@ -242,10 +242,11 @@ describe('computeSnap / center（中心スナップ）', () => {
     expect(r.point).toEqual({ x: 5, y: 5 })
   })
 
-  it('楕円は中心スナップ対象外（継承元踏襲）', () => {
+  it('楕円の中心へ吸着する（Issue #24 項目3で追加。旧挙動=非対象から変更）', () => {
     const shapes = [ellipse('e', 0, 0, 50, 30)]
     const r = computeSnap({ x: 1, y: 1 }, shapes, GRID, opts({ snapCenter: true }))
-    expect(r.type).toBe('none')
+    expect(r.type).toBe('center')
+    expect(r.point).toEqual({ x: 0, y: 0 })
   })
 })
 
@@ -479,7 +480,7 @@ describe('computeSnap / 対象外・特殊図形種別', () => {
     expect(near.type).toBe('none')
   })
 
-  it('ellipseは4端点へ吸着するが中心・線分は持たない', () => {
+  it('ellipseは4端点へ吸着するが線分は持たない（中心はIssue #24でcenterスナップ対象化）', () => {
     const shapes = [ellipse('e', 0, 0, 50, 30)]
     const ep = computeSnap({ x: 50, y: 1 }, shapes, GRID, opts({ snapEndpoint: true }))
     expect(ep.type).toBe('endpoint')
@@ -500,5 +501,155 @@ describe('computeSnap / 対象外・特殊図形種別', () => {
     const r = computeSnap({ x: 0, y: 0 }, shapes, GRID, ALL_OFF)
     expect(r.type).toBe('none')
     expect(r.point).toEqual({ x: 0, y: 0 })
+  })
+})
+
+// QAカバレッジ補強: nearestOnArc の範囲外分岐・円弧接点フィルタ・退化ケースなど、
+// 既存テストで未到達だった実害寄りの分岐（0除算・端点フォールバック）を検証する。
+describe('computeSnap / 追加カバレッジ（実害分岐）', () => {
+  it('円弧の最近点は角度範囲外に射影されるとき近い方の端点を返す', () => {
+    // 円弧 中心(0,0) 半径10 0°→90°。端点は (10,0) と (0,10)。
+    const shapes = [arc('a', 0, 0, 10, 0, 90)]
+    // カーソル(12,-3) は約-14°（範囲外）→ 近い端点 (10,0)
+    const rs = computeSnap({ x: 12, y: -3 }, shapes, GRID, opts({ snapNearest: true }))
+    expect(rs.type).toBe('nearest')
+    expect(rs.point.x).toBeCloseTo(10)
+    expect(rs.point.y).toBeCloseTo(0)
+    // カーソル(-3,12) は約104°（範囲外）→ 近い端点 (0,10)
+    const re = computeSnap({ x: -3, y: 12 }, shapes, GRID, opts({ snapNearest: true }))
+    expect(re.type).toBe('nearest')
+    expect(re.point.x).toBeCloseTo(0)
+    expect(re.point.y).toBeCloseTo(10)
+  })
+
+  it('円弧への接点は角度範囲内のものだけを返す（範囲外の接点は除外）', () => {
+    // 半円弧 中心(0,0) 半径5 0°→180°。カーソル(10,0)からの接点は (2.5,±4.33)。
+    // 範囲内は上側 (2.5,+4.33) のみ。
+    const shapes = [arc('a', 0, 0, 5, 0, 180)]
+    const r = computeSnap({ x: 10, y: 0 }, shapes, GRID, opts({ snapTangent: true }))
+    expect(r.type).toBe('tangent')
+    expect(r.point.x).toBeCloseTo(2.5)
+    expect(r.point.y).toBeCloseTo(4.330127)
+  })
+
+  it('直線には接点が定義されないため接点スナップはnone', () => {
+    const shapes = [line('a', 0, 0, 10, 0)]
+    const r = computeSnap({ x: 5, y: 0 }, shapes, GRID, opts({ snapTangent: true }))
+    expect(r.type).toBe('none')
+  })
+
+  it('カーソルが円中心と一致する退化ケースでも最近点を返す（0除算回避）', () => {
+    const shapes = [circle('c', 0, 0, 5)]
+    const r = computeSnap({ x: 0, y: 0 }, shapes, GRID, opts({ snapNearest: true }))
+    expect(r.type).toBe('nearest')
+    expect(r.point).toEqual({ x: 5, y: 0 })
+  })
+
+  it('長さ0の線分では最近点は退化点を返し、垂線足は定義されずnone', () => {
+    const shapes = [line('a', 5, 5, 5, 5)]
+    const near = computeSnap({ x: 5, y: 8 }, shapes, GRID, opts({ snapNearest: true }))
+    expect(near.type).toBe('nearest')
+    expect(near.point).toEqual({ x: 5, y: 5 })
+    const perp = computeSnap({ x: 5, y: 8 }, shapes, GRID, opts({ snapPerpendicular: true }))
+    expect(perp.type).toBe('none')
+  })
+})
+
+// 以下 Issue #24 追加分（他エージェントの追記との競合回避のため末尾に配置）。
+describe('computeSnap / toleranceMm 注入（Issue #24 項目2）', () => {
+  it('大きいtoleranceMmなら既定10では非ヒットの点がヒットする', () => {
+    const shapes = [line('a', 0, 0, 100, 0)]
+    // 端点(0,0)まで距離15。既定10ではnone。
+    const dflt = computeSnap({ x: 0, y: 15 }, shapes, GRID, opts({ snapEndpoint: true }))
+    expect(dflt.type).toBe('none')
+    const wide = computeSnap(
+      { x: 0, y: 15 },
+      shapes,
+      GRID,
+      opts({ snapEndpoint: true, toleranceMm: 20 }),
+    )
+    expect(wide.type).toBe('endpoint')
+    expect(wide.point).toEqual({ x: 0, y: 0 })
+  })
+
+  it('小さいtoleranceMmなら既定10ではヒットする点が非ヒットになる', () => {
+    const shapes = [line('a', 0, 0, 100, 0)]
+    // 端点(0,0)まで距離5。既定10ではヒット。
+    const dflt = computeSnap({ x: 0, y: 5 }, shapes, GRID, opts({ snapEndpoint: true }))
+    expect(dflt.type).toBe('endpoint')
+    const narrow = computeSnap(
+      { x: 0, y: 5 },
+      shapes,
+      GRID,
+      opts({ snapEndpoint: true, toleranceMm: 3 }),
+    )
+    expect(narrow.type).toBe('none')
+  })
+
+  it('toleranceMm 省略時は既定10mmの挙動（d<10でヒット・d=10で非ヒット）', () => {
+    const shapes = [line('a', 0, 0, 100, 0)]
+    expect(computeSnap({ x: 0, y: 9.9 }, shapes, GRID, opts({ snapEndpoint: true })).type).toBe('endpoint')
+    expect(computeSnap({ x: 0, y: 10 }, shapes, GRID, opts({ snapEndpoint: true })).type).toBe('none')
+  })
+
+  it('距離 = toleranceMm ちょうどは吸着しない（d < tolerance の厳密比較）', () => {
+    const shapes = [line('a', 0, 0, 100, 0)]
+    const r = computeSnap({ x: 0, y: 5 }, shapes, GRID, opts({ snapEndpoint: true, toleranceMm: 5 }))
+    expect(r.type).toBe('none')
+  })
+
+  it('toleranceMm はフェーズ2（nearest）にも適用される', () => {
+    const shapes = [line('a', 0, 0, 10, 0)]
+    // 最近点(5,0)まで距離15。既定10ではnone。
+    const dflt = computeSnap({ x: 5, y: 15 }, shapes, GRID, opts({ snapNearest: true }))
+    expect(dflt.type).toBe('none')
+    const wide = computeSnap(
+      { x: 5, y: 15 },
+      shapes,
+      GRID,
+      opts({ snapNearest: true, toleranceMm: 20 }),
+    )
+    expect(wide.type).toBe('nearest')
+    expect(wide.point).toEqual({ x: 5, y: 0 })
+  })
+})
+
+describe('computeSnap / ellipse スナップ拡充（Issue #24 項目3）', () => {
+  it('楕円の中心へ center スナップする', () => {
+    const shapes = [ellipse('e', 100, 100, 50, 30)]
+    const r = computeSnap({ x: 102, y: 98 }, shapes, GRID, opts({ snapCenter: true }))
+    expect(r.type).toBe('center')
+    expect(r.point).toEqual({ x: 100, y: 100 })
+  })
+
+  it('楕円中心は snapCenter が必要（snapEndpointのみでは中心へ吸着しない）', () => {
+    const shapes = [ellipse('e', 100, 100, 50, 30)]
+    // 中心近傍だが4象限点は遠い → snapEndpointのみではnone
+    const r = computeSnap({ x: 102, y: 98 }, shapes, GRID, opts({ snapEndpoint: true }))
+    expect(r.type).toBe('none')
+  })
+
+  it('楕円の4象限点（rotationDeg=0）へ endpoint スナップする', () => {
+    const shapes = [ellipse('e', 0, 0, 50, 30)]
+    const top = computeSnap({ x: 1, y: -30 }, shapes, GRID, opts({ snapEndpoint: true }))
+    const right = computeSnap({ x: 50, y: 1 }, shapes, GRID, opts({ snapEndpoint: true }))
+    const bottom = computeSnap({ x: 1, y: 30 }, shapes, GRID, opts({ snapEndpoint: true }))
+    const left = computeSnap({ x: -50, y: 1 }, shapes, GRID, opts({ snapEndpoint: true }))
+    expect(top.point).toEqual({ x: 0, y: -30 })
+    expect(right.point).toEqual({ x: 50, y: 0 })
+    expect(bottom.point).toEqual({ x: 0, y: 30 })
+    expect(left.point).toEqual({ x: -50, y: 0 })
+    for (const r of [top, right, bottom, left]) expect(r.type).toBe('endpoint')
+  })
+
+  it('中心と象限点は共存し、より近い種別が返る', () => {
+    const shapes = [ellipse('e', 0, 0, 50, 30)]
+    const opt = opts({ snapCenter: true, snapEndpoint: true })
+    // 中心近傍 → center（4象限点は遠い）
+    expect(computeSnap({ x: 2, y: 2 }, shapes, GRID, opt).type).toBe('center')
+    // 右象限点近傍 → endpoint
+    const right = computeSnap({ x: 49, y: 1 }, shapes, GRID, opt)
+    expect(right.type).toBe('endpoint')
+    expect(right.point).toEqual({ x: 50, y: 0 })
   })
 })
