@@ -537,8 +537,19 @@ timeline
 | 2026-07-15 | ✅ Issue #7部分: `GeometryIndex`（R-tree空間索引）のインスタンス化改修・複数図面独立性テスト完了 |
 | 2026-07-15 | ✅ Issue #19部分: `symbolCatalog`（土木記号30種）・`templateCatalog`（テンプレート6種）移植 |
 | 2026-07-15 | ✅ Issue #6基盤: `CoordinateTransformer`（仕様書§9.2）・`EditorStore`（§8.1 Slice構成ファクトリ）・React供給層実装。konva/react-konva/zustand導入 |
-| 2026-07-15 | 🔍 継承元の潜在課題2件をIssue化: #23（Arc掃引方向の曖昧さ）・#24（スナップエンジン改善） |
-| 2026-07-15 | 🔄 Issue #18着手: dxf-parser/dxf-writer導入、dxfImporter/dxfExporter並列移植中（$INSUNITS→mm単位変換層、R-002/R-004回帰テスト付き） |
+| 2026-07-15 | 🔍 継承元の潜在課題をIssue化: #23（Arc掃引方向）・#24（スナップ改善）・#25（回転二重適用疑い） |
+| 2026-07-15 | ✅ **Issue #18完了**: DXF入出力移植（$INSUNITS→mm単位変換層、R-002/R-004不整合是正、継承元バグ5件修正、回帰テスト付き） |
+| 2026-07-15 | ✅ **Issue #6完了**: Canvas描画パイプライン（§9.1レイヤー構成・パン/ズーム/選択・カリング）+ GeometryRenderer 13種 |
+| 2026-07-15 | ✅ **Issue #7完了**: 空間索引+store層シングルトン解消。ベンチ実測32〜59倍高速（劣化なし実証） |
+| 2026-07-15 | ✅ **Issue #8完了**: Undo/Redo Commandパターン（メモリ約5,000倍改善実証、R-001解消）+ ToolSlice作図ツール |
+| 2026-07-15 | ✅ **Issue #9完了**: 自動保存IndexedDB移行+UI配線（起動時復元・容量超過警告、R-006握り潰し解消） |
+| 2026-07-15 | ✅ **Issue #10完了**: PDF出力新規実装（pdf-lib、用紙/縮尺/図面枠/表題欄、DD-TBD-006方式確定） |
+| 2026-07-15 | ✅ **Issue #13完了**: Cloudflare Access認証アプリ側（identity取得+ロール3種、テナント設定は人間確認事項） |
+| 2026-07-15 | ✅ **Issue #19/#21完了**: 記号30種・テンプレート6種・ルーラー/グリッド計算移植 |
+| 2026-07-15 | ✅ Issue #12部分: SBOM（CycloneDX）+ THIRD-PARTY-NOTICES自動生成（copyleft混入なし確認、ci.yml組込は人間承認待ち） |
+| 2026-07-15 | ✅ 結合テスト12件（エディタ全体フロー7+PDF経路5）、運用文書4点、アーキテクチャ図解（mermaid 8図）整備 |
+| 2026-07-15 | 🔒 セキュリティレビュー実施: 高信頼・実悪用可能な脆弱性0件（DXF/autosave/auth/CI/スクリプト全経路検査） |
+| 2026-07-15 | 📊 品質ゲート最終確認: **テスト632/632（3連続・STABLE）**・typecheck/lint/build green・脆弱性0 |
 
 ### Open Pull Request
 
@@ -546,42 +557,35 @@ timeline
 | --- | --- | --- |
 | [#1](../../pull/1) | Phase 0 継承台帳・リスク台帳・ADR 11件 | Draft・人間承認待ち |
 | [#14](../../pull/14) | Phase 1 スキャフォールド・共通型システム・CI品質ゲート | Draft・人間承認待ち |
-| [#16](../../pull/16) | Phase 1 内部座標基準確定（ADR-0012）・幾何演算エンジン移植（部分: 5/18ファイル）・Geometry判別共用体実装（Issue #20） | Draft・人間承認待ち |
+| [#16](../../pull/16) | **Phase 1 コア実装一式**（座標基準・幾何演算17種・Canvas描画・作図ツール・Undo/Redo・DXF/PDF入出力・自動保存・認証部品・SBOM・運用文書） | Draft・人間承認待ち |
 
 > 全PRとも`main`（default branch）宛のため、Mission制約により**人間の明示承認後にのみマージ**します。CTOによる自動mergeは対象外です。
 
 進捗の詳細は[GitHub Projects「CivilDraft-Web-CAD 開発司令盤」](../../projects)、Issue一覧は[Issues](../../issues)を参照してください。
 
-### 🔁 セッション終了時サマリー（2026-07-15）
+### 🔁 セッション終了時サマリー（2026-07-15 午後・Phase 1 コア完成）
 
-⏱ セッション時間: 2026-07-14T23:22:09Z 〜 2026-07-15T04:08:39Z UTC（ユーザー指示による中断。5時間上限04:22:09Zの手前、Claude再起動での再開を前提とした記録確定）
+⏱ セッション時間: 2026-07-15T04:16:26Z 開始（JST 13:16）、5時間上限 09:16:26Z
 
-📊 **本セッションの成果**
+📊 **本セッションの成果（6並列エージェント + CTO統合）**
 
-- ✅ Phase 0完了（継承台帳・ADR・リスク台帳、PR #1）
-- ✅ Phase 1スキャフォールド・CI品質ゲート・型システム基盤（PR #14）
-- ✅ ADR-0012（内部座標基準）確定・幾何演算エンジン5/18ファイル移植・**Geometry判別共用体13型を実装**（Issue #15, #5部分, #20完了、PR #16）
-- ✅ Issue #20実装をサブエージェントでコードレビュー・指摘反映（コメント誤字修正、仕様書内部矛盾をIssue #22として起票・対応・close）
-- ✅ `shapeBBox.ts`（図形の外接矩形計算エンジン、`shapeBBox`/`unionBBox`）移植完了
-- 🔍 Issue #5残ファイルのうちperfHarness/autosave/viewportCulling/selectionを事前調査（実装未着手・調査のみ）し、着手順序と設計上の注意点をstate.json/Issue #5コメントに記録
-- 📊 test 70/70・typecheck/lint/build/audit全通過（ローカル実行、CI自体はstacked PR構造によりIssue #17まで未起動）
-- 🔒 security critical 0・blocker 0
+- ✅ **Issue 10件クローズ**: #5(幾何演算17種)・#6(Canvas描画)・#7(空間索引+store刷新)・#8(Undo/Redo Command)・#9(自動保存IndexedDB)・#10(PDF出力)・#13(認証部品)・#18(DXF入出力)・#19(カタログ)・#21(ルーラー/グリッド)
+- ✅ ADR-0013制定（ID発番=crypto.randomUUID+コンテキスト注入）、DD-TBD-006方式確定（PDF=pdf-lib）
+- ✅ WebUIが動作: 作図（線/矩形/円/ポリライン）・選択・Undo/Redo・パン/ズーム・グリッド・DXF取込/出力・PDF出力・自動保存/復元
+- ✅ 継承元バグ是正: DXF単位不整合(R-002/R-004)・hatch無限ループ・DASHDOT不正DXF・rad二重変換・レイヤー色取り違え・autosave握り潰し(R-006)
+- ✅ 性能実証: 空間索引32〜59倍高速・Undo履歴メモリ約5,000倍改善(R-001)
+- 📊 **テスト 70 → 632件（+562、3連続green=STABLE）**、typecheck/lint/build green、脆弱性0
+- 🔒 セキュリティレビュー実施（DXF/autosave/auth/CI全経路、実悪用可能な所見0件）、シークレット露出なし
+- 📚 運用文書4点（リリース/ロールバック/運用/障害対応）・アーキテクチャ図解(mermaid 8図)・SBOM/NOTICES・README刷新
 
-📋 **次回セッションへの再開ポイント**
+📋 **残課題（次セッション/人間判断）**
 
-1. **Issue #5残13ファイル**（P1・ブロック解除済み）: chamferEngine/dimensionEngine/viewportCulling/trimEngine/filletEngine/selection/spatialIndex/snapEngine/shapeTransform/offsetEngine/extendEngine/arrayEngine/scaleEngine/perfHarness/autosave。全てGeometry型で着手可能（正確な残数は次セッション開始時にstate.jsonと突き合わせて再カウントすること）
-   - 推奨着手順序: `selection.ts`→`spatialIndex.ts`（グローバルシングルトン解消の設計判断要）→`viewportCulling.ts`
-   - `selection.ts`のうち`getShapeBBox`は本PRで移植済みの`domain/geometry/shapeBBox.ts`と機能的に等価なため**再実装不要**。`bboxContainsPoint`/`bboxIntersects`/`rectFromPoints`/`findShapesInRect`/`findShapeAtPoint`（BBox型のみ依存）のみ軽量移植すればよい
-   - `perfHarness.ts`は独立着手可（`GeometryBase`全フィールド補完コストを見積もってから）
-   - `autosave.ts`はGitHub Projects Backlogの「自動保存のIndexedDB移行」と統合してスコープ再定義してから着手
-2. **Issue #18**（P1・DXF変換ロジック移植）・**Issue #19**（P3・templateCatalog.ts）もIssue #20完了によりブロック解除済み
-3. **Issue #17**（P2・stacked PRでCI未起動）: `ci.yml`のブランチトリガー拡張は人間確認が必要なため方針決定待ち
-4. **Issue #21**（P3・rulerUtils/gridRenderer移植）は独立着手可能
-5. **PR #1・#14・#16**はいずれも`main`宛のため人間の明示承認（`y`回答）待ち。PR #14マージ後、PR #16のbaseを`main`へ更新しCI実機確認を行う
+1. 🚫 **人間承認待ち**: PR #1/#14/#16のマージ（main宛）、Issue #17（ci.ymlトリガー）、Issue #12残（CIへのSBOM組込）、Cloudflare Accessテナント設定（Issue #13コメントのチェックリスト）、日本語フォント同梱（DD-TBD-006配布条件）
+2. 🔍 **描画実機検証待ち**: Issue #23（Arc掃引方向）・#24残（回転図形スナップ）・#25（回転二重適用疑い）— 本端末のChrome起動不能（SIGTRAP）のため、ユーザーによるブラウザ確認が必要
+3. 📐 **Phase 2以降**: 土木座標・測量・線形（ロードマップどおり）。Issue #26（バンドル最適化、P3）
+4. Minimap/ContextMenu/スナップガイド表示/独自形式保存は必要時に別Issue起票
 
-🚫 **本セッションでは一切のmain直push・PRマージを実行していません**（Mission制約どおり人間確認待ちの状態を維持）。
-
-⏸️ **中断理由**: ユーザーからの明示指示「時間経過後にClaude再起動にて再開とする」により、5時間ハードストップを待たずセッションを終了。working tree clean・全コミットpush済み・PR 3件とも最新状態を維持した状態で記録を確定した。
+🚫 **本セッションでは main直push・PRマージ・本番デプロイを一切実行していません**（人間の明示承認待ちの状態を維持）。
 
 ---
 

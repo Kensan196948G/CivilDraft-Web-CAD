@@ -10,8 +10,8 @@
     "max_duration_minutes": 300,
     "hard_stop_utc": "2026-07-15T09:16:26Z"
   },
-  "goal": "Mission: CTO主導自律開発によりRelease Ready/Production Ready状態へ到達。現セッションはPhase 0（Civil-Draw棚卸し）完了とPhase 1 MVPスキャフォールド着手を目標とする。全テスト通過・CI成功・blocker=0・PR作成済み、または5時間到達、または20ターン到達で終了。",
-  "phase": "Build",
+  "goal": "Mission: CTO主導自律開発によりRelease Ready/Production Ready状態へ到達。2026-07-15午後セッションでPhase 1 MVPコア（幾何演算17種・Canvas描画・作図ツール・Undo/Redo・DXF/PDF入出力・自動保存・認証部品・SBOM・運用文書）を完成。本番デプロイのみ残した承認待ち状態で停止。",
+  "phase": "Verify",
   "kpi": {
     "success_rate_target": 0.9,
     "ci_success_rate": 1.0,
@@ -42,28 +42,34 @@
     ]
   },
   "completed_issues": [
-    { "issue": 5, "closed": "2026-07-15", "note": "幾何演算エンジン群17/17ファイル移植完了（rulerUtilsは#21へ一本化）。5並列エージェントで11ファイル同時移植、テスト283/283。派生Issue #23(Arc掃引方向)・#24(スナップ改善)起票。commit 208de64" },
+    { "issue": 5, "closed": "2026-07-15", "note": "幾何演算エンジン群17/17ファイル移植完了（rulerUtilsは#21へ一本化）。5並列エージェントで11ファイル同時移植。派生Issue #23/#24起票。commit 208de64" },
+    { "issue": 6, "closed": "2026-07-15", "note": "Canvas描画パイプライン（§9.1レイヤー構成・CoordinateTransformer§9.2・カリング§9.4・作図ツール配線）。Minimap/ContextMenuは対象外として必要時に別Issue" },
+    { "issue": 7, "closed": "2026-07-15", "note": "空間索引インスタンス化+store層シングルトン解消（EditorStoreファクトリ）。ベンチ実測32〜59倍高速で劣化なし実証" },
+    { "issue": 8, "closed": "2026-07-15", "note": "Commandパターン（差分ペイロード、メモリ約5000倍改善実証）+HistorySlice+ToolSlice配線。R-001解消" },
+    { "issue": 9, "closed": "2026-07-15", "note": "autosave IndexedDB移行+UI配線（起動時復元・デバウンス保存・容量超過警告）。R-006握り潰し解消" },
+    { "issue": 10, "closed": "2026-07-15", "note": "PDF出力新規実装（pdf-lib、§24.1、DD-TBD-006方式確定、フォント注入DI）。UIボタン配線済み" },
+    { "issue": 13, "closed": "2026-07-15", "note": "Cloudflare Access認証アプリ側（identity取得+ロール3種）。テナント設定チェックリストはIssueコメントに記録（人間確認事項）" },
+    { "issue": 18, "closed": "2026-07-15", "note": "DXF入出力移植。R-002/R-004単位不整合是正、DASHDOT不正DXF・rad二重変換・レイヤー色取り違え修正" },
+    { "issue": 19, "closed": "2026-07-15", "note": "symbolCatalog(30種as_is)+templateCatalog(6種Geometry化+instantiateTemplate)" },
     { "issue": 20, "closed": "2026-07-15", "note": "Geometry判別共用体13種実装（前セッション）" },
+    { "issue": 21, "closed": "2026-07-15", "note": "rulerUtils+gridRenderer移植（純粋関数化）" },
     { "issue": 22, "closed": "2026-07-15", "note": "仕様書§6.2のSplineGeometry欠落修正（前セッション）" }
   ],
   "issues_pr_ready": [
-    { "issue": 3, "pr": 14, "title": "プロジェクトスキャフォールド作成（ディレクトリ構成・Vite/TS/React初期化）" },
-    { "issue": 4, "pr": 14, "title": "型システム基盤の実装（Brand ID型・Result<T,E>・単位付き座標値）" },
-    { "issue": 11, "pr": 14, "title": "CI品質ゲート構築（lint実効性検証込み）" },
-    { "issue": 15, "pr": 16, "title": "内部座標基準の確定（ADR-0012, domain/units実装、DD-TBD-002解消）" },
-    { "issue": 5, "pr": 16, "title": "幾何演算エンジン群の移植（部分: coordParser.ts + formatters.ts相当 + areaCalculator.ts + orthoConstraint.ts + shapeBBox.ts、5/18ファイル）", "partial": true, "note": "残13ファイルはShape型（Geometry判別共用体）設計待ち解消済み。2026-07-15にshapeBBox.ts移植完了（テスト12件追加、70/70 green、typecheck/lint/build green、commit f7f4742）。残ファイルリストはopen_issues_next Issue#5参照" },
-    { "issue": 20, "pr": 16, "title": "Geometry型（Shape型）の詳細設計・未定義7具体型+spline型のフィールド確定", "note": "2026-07-15完了・Issue closed・GitHub Projects Doneへ更新済み。src/shared/types/geometry.tsにGeometryBase/GeometryStyle/GeometryType(13種)+未定義だった7具体型(Arc/Rectangle/Ellipse/Dimension/Leader/Hatch/Symbol)+SplineGeometryを実装。tests/unit/shared/geometry.test.ts新規追加(exhaustive switch検証込み3テスト)。pr-review-toolkit:code-reviewerによるレビュー実施済み(Critical/Important級バグなし、コメント誤字1件を385d4e9で修正、仕様書側の内部矛盾をIssue#22として起票)。test 58/58・typecheck/lint/build全通過。Issue#5残14ファイル・Issue#18・Issue#19(templateCatalog.ts)のブロック解除" },
-    { "issue": 22, "pr": 16, "title": "[docs] 詳細設計仕様書§6.2 Geometry共用体にSplineGeometryが欠落（内部矛盾の修正）", "note": "2026-07-15完了・Issue closed。CivilDraft_詳細設計仕様書_20260714.md §6.2のGeometry共用体にSplineGeometryを追加し、GeometryType(13種)と1対1対応させた。Arc以降8型のフィールド定義はsrc/shared/types/geometry.tsを正本とする旨を注記" }
+    { "issue": 3, "pr": 14, "title": "プロジェクトスキャフォールド作成" },
+    { "issue": 4, "pr": 14, "title": "型システム基盤の実装" },
+    { "issue": 11, "pr": 14, "title": "CI品質ゲート構築" },
+    { "issue": 15, "pr": 16, "title": "内部座標基準の確定（ADR-0012、DD-TBD-002解消）" },
+    { "issue": 2, "pr": 1, "title": "Phase 0 棚卸し成果物一式" }
   ],
   "blocked_issues": [],
   "open_issues_next": [
-    { "issue": 17, "title": "stacked PR（base≠main）でCIが起動しない", "priority": "P2", "blocking": false },
-    { "issue": 18, "title": "DXF変換ロジックの移植（dxfImporter.ts/dxfExporter.ts、単位変換層改修）", "priority": "P1", "status": "in_progress", "note": "2026-07-15午後: dxf-parser@1.1.2/dxf-writer@1.18.4導入済み。importer=port-snapエージェント、exporter=port-cornerエージェントに並列割当中。$INSUNITS→mm変換をdomain/units経由で実装、R-002/R-004回帰テスト必須と指示済み" },
-    { "issue": 19, "title": "[Phase 1] 記号・テンプレートカタログの移植", "priority": "P3", "status": "nearly_done", "note": "2026-07-15午後: symbolCatalog移植完了（30記号、10テスト、commit 208de64）。templateCatalogも移植完了見込み（テストは全体スイートでgreen確認済み、エージェント報告待ち）。両方完了したらIssue close可" },
-    { "issue": 21, "title": "Canvas描画補助ユーティリティの移植（rulerUtils.ts/gridRenderer.ts）", "priority": "P3", "status": "in_progress", "note": "2026-07-15午後: rulerUtils完了（12テスト、-0 quirk記録、commit 208de64）。gridRendererはport-edgeがCanvas小型コンポーネント4点と共に移植中" },
-    { "issue": 6, "title": "Canvas描画パイプラインの移植", "priority": "P1", "status": "in_progress", "note": "2026-07-15午後: 基盤完了（CoordinateTransformer§9.2 + EditorStore§8.1ファクトリ + React供給層、35テスト、commit ca64ad1/cf8a173）。konva@9.3.22+react-konva@19.2.5+zustand@5.0.14導入。GeometryRenderer=canvas-rendererエージェント、小型4点=port-edgeが移植中。残: CanvasStage統合とApp配線（親が実施予定）" },
-    { "issue": 23, "title": "Arc掃引方向（CW/CCW）の規約確定", "priority": "P2", "note": "2026-07-15起票: filletEngine移植で発見。描画/DXF出力層の実装前に規約確定要" },
-    { "issue": 24, "title": "スナップエンジン改善（回転図形・許容差注入・楕円）", "priority": "P2", "note": "2026-07-15起票: snapEngine移植で発見した継承元由来の課題群" }
+    { "issue": 17, "title": "stacked PR（base≠main）でCIが起動しない", "priority": "P2", "note": "ci.ymlトリガー変更は人間承認待ち。PR #14マージ→#16のbase更新でCI実機確認可能" },
+    { "issue": 12, "title": "SBOM残スコープ（ci.ymlへの組込のみ）", "priority": "P2", "note": "sbom/notices scripts・生成物・docs完了済み（commit e52b5aa）。CIステップ追加はIssue #17と併せ人間承認待ち" },
+    { "issue": 23, "title": "Arc掃引方向（CW/CCW）の規約確定", "priority": "P2", "note": "描画実機検証（ブラウザ）後に規約確定。GeometryRenderer/pdfExporterは暫定規約で一致済み。鏡像swap問題も同Issueに追記済み" },
+    { "issue": 24, "title": "スナップエンジン改善（残: 回転図形対応のみ）", "priority": "P2", "note": "許容差注入・楕円center/象限は完了（commit 7531f43）。回転図形は#25と併せ描画検証後" },
+    { "issue": 25, "title": "rectangle/ellipse 90°回転の二重適用疑い", "priority": "P2", "note": "GeometryRendererはrotationDegを描画適用するため要実機検証→transformShape修正方針決定" },
+    { "issue": 26, "title": "バンドルサイズ最適化（pdf-lib/dxf系コード分割）", "priority": "P3", "note": "gzip 708KB。dynamic import化で改善可能" }
   ],
   "learning": {
     "failure_patterns": [
