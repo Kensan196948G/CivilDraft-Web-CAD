@@ -18,10 +18,18 @@
 import { createStore } from 'zustand'
 import { GeometryIndex } from '@/domain/geometry/spatialIndex'
 import { unionBBox } from '@/domain/geometry/shapeBBox'
+import type { EditorCommand } from '@/domain/commands/editorCommand'
 import type { DrawingLayer, Geometry, GeometryId, GeometryStyle, LayerId } from '@/shared/types'
 
 export const MIN_ZOOM = 0.001
 export const MAX_ZOOM = 50
+
+/**
+ * 履歴（undo/redo）保持件数の上限（Issue #8）。詳細設計仕様書 §7.2 の
+ * 「件数とメモリ量の双方で制御」に対する暫定値。正式な上限（件数＋メモリ量の複合条件）は
+ * 性能試験で確定する。
+ */
+export const HISTORY_LIMIT = 100
 
 /** 既定レイヤーの表示属性（仕様書§6.3 defaultStyle）。 */
 const DEFAULT_LAYER_STYLE: GeometryStyle = {
@@ -91,13 +99,67 @@ export interface SelectionSlice {
   setHovered: (id: GeometryId | null) => void
 }
 
-export type EditorState = DocumentSlice & ViewportSlice & LayerSlice & SelectionSlice
+/**
+ * Undo/Redo（Command パターン、Issue #8 / 仕様書 §7）。
+ * 履歴に積むのは差分コマンドのみ（全図形スナップショットを持たない）。
+ * 履歴規則（§7.2）: 1 操作 = 1 コマンド / Undo 後の新規操作で Redo 破棄 / 件数上限で古い順に押し出す。
+ */
+export interface HistorySlice {
+  readonly undoStack: readonly EditorCommand[]
+  readonly redoStack: readonly EditorCommand[]
+  /**
+   * コマンドを実行して履歴へ積む。execute 適用 → 空間索引同期 → undoStack へ push →
+   * redoStack 破棄。undoStack が HISTORY_LIMIT を超えたら古い順に押し出す。
+   */
+  dispatchCommand: (command: EditorCommand) => void
+  /** 直近コマンドを取り消す（undoStack → redoStack）。空なら no-op。 */
+  undo: () => void
+  /** 取り消したコマンドを再実行する（redoStack → undoStack）。空なら no-op。 */
+  redo: () => void
+  /** 履歴を全消去する（新規作成・ファイル読込時など）。 */
+  clearHistory: () => void
+}
+
+export type EditorState = DocumentSlice & ViewportSlice & LayerSlice & SelectionSlice & HistorySlice
 
 export type EditorStore = ReturnType<typeof createEditorStore>
 
 function clampZoom(zoom: number): number {
   if (!Number.isFinite(zoom)) return 1
   return Math.min(MAX_ZOOM, Math.max(MIN_ZOOM, zoom))
+}
+
+/**
+ * コマンド適用後、新旧 geometries 配列の id 差分から空間索引を同期する。
+ * 既存の GeometryIndex.add/update/remove を流用し、コマンド側は索引を関知しない
+ * （EditorCommand.execute/undo は DocumentState のみを扱う純粋関数）。
+ * 注: 現状は O(N) の全走査。将来コマンドが affected id を宣言できれば差分同期に最適化できる。
+ */
+function syncIndexDiff(index: GeometryIndex, prev: readonly Geometry[], next: readonly Geometry[]): void {
+  const prevMap = new Map<GeometryId, Geometry>(prev.map((g) => [g.id, g]))
+  const nextMap = new Map<GeometryId, Geometry>(next.map((g) => [g.id, g]))
+  for (const g of next) {
+    const old = prevMap.get(g.id)
+    if (old === undefined) index.add(g)
+    else if (old !== g) index.update(g)
+  }
+  for (const g of prev) {
+    if (!nextMap.has(g.id)) index.remove(g.id)
+  }
+}
+
+/** コマンド適用後、存在しなくなった図形への選択/ホバー参照を除去する（removeGeometries と同じ整合則）。 */
+function reconcileSelection(
+  geometries: readonly Geometry[],
+  selectedIds: readonly GeometryId[],
+  hoveredId: GeometryId | null,
+): { selectedIds: readonly GeometryId[]; hoveredId: GeometryId | null } {
+  if (selectedIds.length === 0 && hoveredId === null) return { selectedIds, hoveredId }
+  const ids = new Set<GeometryId>(geometries.map((g) => g.id))
+  return {
+    selectedIds: selectedIds.filter((id) => ids.has(id)),
+    hoveredId: hoveredId !== null && ids.has(hoveredId) ? hoveredId : null,
+  }
 }
 
 export function createEditorStore() {
@@ -108,6 +170,9 @@ export function createEditorStore() {
 
   const store = createStore<EditorState>()((set, get) => ({
     // --- DocumentSlice ---
+    // 注（Issue #8）: Command 経由（HistorySlice.dispatchCommand/undo/redo）が正の編集経路。
+    // 以下の直接変更アクション（addGeometries/updateGeometry/removeGeometries/replaceDocument）は
+    // 履歴に積まれないため、ツール未整備期間の暫定として後方互換で残す（既存呼び出し・DXF読込用）。
     geometries: [],
     addGeometries: (geometries) => {
       for (const g of geometries) index.add(g)
@@ -208,6 +273,55 @@ export function createEditorStore() {
       })),
     clearSelection: () => set({ selectedIds: [], hoveredId: null }),
     setHovered: (hoveredId) => set({ hoveredId }),
+
+    // --- HistorySlice（Issue #8: Undo/Redo Command パターン） ---
+    undoStack: [],
+    redoStack: [],
+    dispatchCommand: (command) => {
+      const s = get()
+      const next = command.execute({ geometries: s.geometries, layers: s.layers })
+      syncIndexDiff(index, s.geometries, next.geometries)
+      const undoStack = [...s.undoStack, command]
+      set({
+        geometries: next.geometries,
+        layers: next.layers,
+        undoStack:
+          undoStack.length > HISTORY_LIMIT
+            ? undoStack.slice(undoStack.length - HISTORY_LIMIT)
+            : undoStack,
+        redoStack: [],
+        ...reconcileSelection(next.geometries, s.selectedIds, s.hoveredId),
+      })
+    },
+    undo: () => {
+      const s = get()
+      const command = s.undoStack[s.undoStack.length - 1]
+      if (command === undefined) return
+      const next = command.undo({ geometries: s.geometries, layers: s.layers })
+      syncIndexDiff(index, s.geometries, next.geometries)
+      set({
+        geometries: next.geometries,
+        layers: next.layers,
+        undoStack: s.undoStack.slice(0, -1),
+        redoStack: [...s.redoStack, command],
+        ...reconcileSelection(next.geometries, s.selectedIds, s.hoveredId),
+      })
+    },
+    redo: () => {
+      const s = get()
+      const command = s.redoStack[s.redoStack.length - 1]
+      if (command === undefined) return
+      const next = command.execute({ geometries: s.geometries, layers: s.layers })
+      syncIndexDiff(index, s.geometries, next.geometries)
+      set({
+        geometries: next.geometries,
+        layers: next.layers,
+        undoStack: [...s.undoStack, command],
+        redoStack: s.redoStack.slice(0, -1),
+        ...reconcileSelection(next.geometries, s.selectedIds, s.hoveredId),
+      })
+    },
+    clearHistory: () => set({ undoStack: [], redoStack: [] }),
   }))
 
   return {
