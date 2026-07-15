@@ -19,6 +19,7 @@ export type {
   LengthValue,
   AreaValue,
   VolumeValue,
+  AngleValue,
 } from './units'
 
 export type { Result, ValidationIssue } from './result'
