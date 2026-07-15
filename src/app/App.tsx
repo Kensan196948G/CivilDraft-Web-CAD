@@ -16,11 +16,15 @@ import type { AppView } from './layout/Sidebar'
 import { ConstructionStepsPage } from './pages/ConstructionStepsPage'
 import { CrossSectionPage } from './pages/CrossSectionPage'
 import { DrawingComparePage } from './pages/DrawingComparePage'
+import { DrawingSettingsPage } from './pages/DrawingSettingsPage'
 import { HomePage } from './pages/HomePage'
 import { PartsPalettePage } from './pages/PartsPalettePage'
+import { PrintExportPage } from './pages/PrintExportPage'
+import { ProjectDetailPage } from './pages/ProjectDetailPage'
 import { QuantitySummaryPage } from './pages/QuantitySummaryPage'
 import { ReviewApprovalPage } from './pages/ReviewApprovalPage'
 import { SurveyPointsPage } from './pages/SurveyPointsPage'
+import { SystemSettingsPage } from './pages/SystemSettingsPage'
 import { EditorStoreProvider } from './store/EditorStoreContext'
 import { useEditorStore, useEditorStoreApi } from './store/useEditorStore'
 import { TEMPLATE_CATALOG, instantiateTemplate } from '@/domain/catalog/templateCatalog'
@@ -300,6 +304,8 @@ function AppShell() {
   // ここへ登録すると Sidebar の disabled が自動解除される。
   const sidebarPages = useMemo<Partial<Record<AppView, React.ReactElement>>>(
     () => ({
+      project: <ProjectDetailPage onOpenEditor={() => setView('editor')} />,
+      drawingSettings: <DrawingSettingsPage />,
       survey: <SurveyPointsPage />,
       parts: <PartsPalettePage />,
       quantity: <QuantitySummaryPage />,
@@ -307,6 +313,8 @@ function AppShell() {
       steps: <ConstructionStepsPage />,
       compare: <DrawingComparePage autosaveStore={autosaveStore} />,
       approval: <ReviewApprovalPage />,
+      print: <PrintExportPage />,
+      settings: <SystemSettingsPage />,
     }),
     [autosaveStore],
   )
