@@ -6,7 +6,7 @@ import { Sidebar } from '@/app/layout/Sidebar'
 describe('Sidebar', () => {
   it('デザイン正本のナビ構成（4セクション13項目）とブランドを表示する', () => {
     render(
-      <Sidebar activeView="home" theme="light" onNavigate={() => {}} onToggleTheme={() => {}} />,
+      <Sidebar activeView="home" theme="light" implementedViews={['home', 'editor']} onNavigate={() => {}} onToggleTheme={() => {}} />,
     )
     expect(screen.getByText('CivilDraft')).toBeInTheDocument()
     expect(screen.getByText('土木施工図CAD')).toBeInTheDocument()
@@ -37,7 +37,7 @@ describe('Sidebar', () => {
   it('CAD編集クリックでeditorへナビゲートし、未実装項目はdisabled', async () => {
     const onNavigate = vi.fn()
     render(
-      <Sidebar activeView="home" theme="light" onNavigate={onNavigate} onToggleTheme={() => {}} />,
+      <Sidebar activeView="home" theme="light" implementedViews={['home', 'editor']} onNavigate={onNavigate} onToggleTheme={() => {}} />,
     )
     await userEvent.click(screen.getByRole('button', { name: /CAD編集/ }))
     expect(onNavigate).toHaveBeenCalledWith('editor')
@@ -47,14 +47,14 @@ describe('Sidebar', () => {
   it('テーマ切替ボタンはlight時「ダークモードに切替」、dark時「ライトモードに切替」', async () => {
     const onToggleTheme = vi.fn()
     const { rerender } = render(
-      <Sidebar activeView="home" theme="light" onNavigate={() => {}} onToggleTheme={onToggleTheme} />,
+      <Sidebar activeView="home" theme="light" implementedViews={['home', 'editor']} onNavigate={() => {}} onToggleTheme={onToggleTheme} />,
     )
     const toggle = screen.getByRole('button', { name: /ダークモードに切替/ })
     await userEvent.click(toggle)
     expect(onToggleTheme).toHaveBeenCalled()
 
     rerender(
-      <Sidebar activeView="home" theme="dark" onNavigate={() => {}} onToggleTheme={onToggleTheme} />,
+      <Sidebar activeView="home" theme="dark" implementedViews={['home', 'editor']} onNavigate={() => {}} onToggleTheme={onToggleTheme} />,
     )
     expect(screen.getByRole('button', { name: /ライトモードに切替/ })).toBeInTheDocument()
   })

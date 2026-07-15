@@ -6,11 +6,22 @@
  */
 import type { CSSProperties } from 'react'
 
-export type AppView = 'home' | 'editor'
+export type AppView =
+  | 'home'
+  | 'editor'
+  | 'survey'
+  | 'parts'
+  | 'quantity'
+  | 'section'
+  | 'steps'
+  | 'compare'
+  | 'approval'
 
 export interface SidebarProps {
   readonly activeView: AppView
   readonly theme: 'light' | 'dark'
+  /** 実装済み（ナビゲート可能）なビュー。含まれない項目は disabled 表示（Phase 2以降）。 */
+  readonly implementedViews: readonly AppView[]
   readonly onNavigate: (view: AppView) => void
   readonly onToggleTheme: () => void
 }
@@ -39,18 +50,18 @@ const NAV_SECTIONS: readonly NavSection[] = [
     items: [
       { icon: '✏️', label: 'CAD編集', view: 'editor' },
       { icon: '📐', label: '図面設定' },
-      { icon: '📍', label: '測点・座標一覧' },
-      { icon: '🧱', label: '土木部材パレット' },
+      { icon: '📍', label: '測点・座標一覧', view: 'survey' },
+      { icon: '🧱', label: '土木部材パレット', view: 'parts' },
     ],
   },
   {
     heading: '集計・照査',
     items: [
-      { icon: '🧮', label: '数量集計' },
-      { icon: '📉', label: '縦横断管理' },
-      { icon: '🕒', label: '施工ステップ' },
-      { icon: '🔍', label: '図面比較' },
-      { icon: '✅', label: '照査・承認' },
+      { icon: '🧮', label: '数量集計', view: 'quantity' },
+      { icon: '📉', label: '縦横断管理', view: 'section' },
+      { icon: '🕒', label: '施工ステップ', view: 'steps' },
+      { icon: '🔍', label: '図面比較', view: 'compare' },
+      { icon: '✅', label: '照査・承認', view: 'approval' },
     ],
   },
   {
@@ -92,7 +103,13 @@ function navItemStyle(active: boolean, implemented: boolean): CSSProperties {
   }
 }
 
-export function Sidebar({ activeView, theme, onNavigate, onToggleTheme }: SidebarProps) {
+export function Sidebar({
+  activeView,
+  theme,
+  implementedViews,
+  onNavigate,
+  onToggleTheme,
+}: SidebarProps) {
   return (
     <aside
       style={{
@@ -169,7 +186,7 @@ export function Sidebar({ activeView, theme, onNavigate, onToggleTheme }: Sideba
           <div key={section.heading} style={{ display: 'contents' }}>
             <div style={sectionHeadingStyle}>{section.heading}</div>
             {section.items.map((item) => {
-              const implemented = item.view !== undefined
+              const implemented = item.view !== undefined && implementedViews.includes(item.view)
               const active = item.view === activeView
               return (
                 <button

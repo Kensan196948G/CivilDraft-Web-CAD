@@ -284,10 +284,22 @@ function AutosaveManager({ autosaveStore }: AutosaveManagerProps) {
   )
 }
 
+/**
+ * ビューレジストリ: サイドバー付きで表示するページ群（editorのみ全画面レイアウト）。
+ * Phase 2以降の画面はここへ登録すると Sidebar の disabled が自動解除される。
+ */
+const SIDEBAR_PAGES: Partial<Record<AppView, React.ComponentType>> = {}
+
 function AppShell() {
   const [view, setView] = useState<AppView>('home')
   const [theme, setTheme] = useState<'light' | 'dark'>(loadTheme)
   const [autosaveStore] = useState<AutosaveStore>(() => createAutosaveStore())
+
+  const implementedViews: readonly AppView[] = [
+    'home',
+    'editor',
+    ...(Object.keys(SIDEBAR_PAGES) as AppView[]),
+  ]
 
   const toggleTheme = () => {
     const next = theme === 'light' ? 'dark' : 'light'
@@ -298,6 +310,8 @@ function AppShell() {
     }
     setTheme(next)
   }
+
+  const RegisteredPage = view !== 'home' && view !== 'editor' ? SIDEBAR_PAGES[view] : undefined
 
   return (
     <div
@@ -312,17 +326,7 @@ function AppShell() {
         color: 'var(--ink)',
       }}
     >
-      {view === 'home' ? (
-        <>
-          <Sidebar
-            activeView={view}
-            theme={theme}
-            onNavigate={setView}
-            onToggleTheme={toggleTheme}
-          />
-          <HomePage autosaveStore={autosaveStore} onOpenEditor={() => setView('editor')} />
-        </>
-      ) : (
+      {view === 'editor' ? (
         <div style={{ flex: 1, minWidth: 0, display: 'flex', flexDirection: 'column' }}>
           <EditorToolbar onGoHome={() => setView('home')} />
           <main style={{ flex: 1, minHeight: 0, background: 'var(--bg)' }}>
@@ -330,6 +334,21 @@ function AppShell() {
           </main>
           <AutosaveManager autosaveStore={autosaveStore} />
         </div>
+      ) : (
+        <>
+          <Sidebar
+            activeView={view}
+            theme={theme}
+            implementedViews={implementedViews}
+            onNavigate={setView}
+            onToggleTheme={toggleTheme}
+          />
+          {RegisteredPage !== undefined ? (
+            <RegisteredPage />
+          ) : (
+            <HomePage autosaveStore={autosaveStore} onOpenEditor={() => setView('editor')} />
+          )}
+        </>
       )}
     </div>
   )
