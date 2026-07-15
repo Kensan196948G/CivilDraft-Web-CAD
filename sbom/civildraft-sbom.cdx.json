@@ -5,7 +5,7 @@
   "serialNumber": "urn:uuid:***",
   "version": 1,
   "metadata": {
-    "timestamp": "2026-07-15T05:10:50.040Z",
+    "timestamp": "2026-07-15T05:53:17.929Z",
     "lifecycles": [
       {
         "phase": "build"
@@ -2507,6 +2507,116 @@
         {
           "alg": "SHA-512",
           "content": "cf3351f9275048327373c8e869e3fc410a0242bf0db98c76748232b65d507811191c9f6e5ba85e6ecad881bcfc849c1441aa374d608cb667d5f0dbb5b7038b03"
+        }
+      ],
+      "licenses": [
+        {
+          "license": {
+            "id": "MIT"
+          }
+        }
+      ]
+    },
+    {
+      "bom-ref": "@pdf-lib/fontkit@1.1.1",
+      "type": "library",
+      "name": "@pdf-lib/fontkit",
+      "version": "1.1.1",
+      "scope": "required",
+      "author": "Andrew Dillon <andrew.dillon.j@gmail.com>",
+      "description": "An advanced font engine for Node and the browser",
+      "purl": "pkg:npm/%40pdf-lib/fontkit@1.1.1",
+      "properties": [],
+      "externalReferences": [
+        {
+          "type": "distribution",
+          "url": "https://registry.npmjs.org/@pdf-lib/fontkit/-/fontkit-1.1.1.tgz"
+        },
+        {
+          "type": "vcs",
+          "url": "git://github.com/Hopding/fontkit.git"
+        },
+        {
+          "type": "website",
+          "url": "https://github.com/Hopding/fontkit"
+        },
+        {
+          "type": "issue-tracker",
+          "url": "https://github.com/Hopding/fontkit/issues"
+        }
+      ],
+      "hashes": [
+        {
+          "alg": "SHA-512",
+          "content": "2a331dee0acd6a92164bf0e6d20bdf1c48a54b202678bbeb10655ca8b1a2d1561e6eeaaacd36e0176f5e7c2c7bb6fc7e2046c6df341c8914969771a4512be366"
+        }
+      ],
+      "licenses": [
+        {
+          "license": {
+            "id": "MIT"
+          }
+        }
+      ]
+    },
+    {
+      "bom-ref": "@pdf-lib/standard-fonts@1.0.0",
+      "type": "library",
+      "name": "@pdf-lib/standard-fonts",
+      "version": "1.0.0",
+      "scope": "required",
+      "author": "Andrew Dillon <andrew.dillon.j@gmail.com>",
+      "description": "Metrics for the Standard 14 PDF fonts and their encodings",
+      "purl": "pkg:npm/%40pdf-lib/standard-fonts@1.0.0",
+      "properties": [],
+      "externalReferences": [
+        {
+          "type": "distribution",
+          "url": "https://registry.npmjs.org/@pdf-lib/standard-fonts/-/standard-fonts-1.0.0.tgz"
+        },
+        {
+          "type": "website",
+          "url": "https://github.com/Hopding/standard-fonts"
+        }
+      ],
+      "hashes": [
+        {
+          "alg": "SHA-512",
+          "content": "854df404af4850dfecbb4327f5576554ab16052e86ca155faa3c25d458d93784f13fa702c348cfdb0ed5dc77f9b97eccd00649d7abdecbdc84d27cbb49ae7d64"
+        }
+      ],
+      "licenses": [
+        {
+          "license": {
+            "id": "MIT"
+          }
+        }
+      ]
+    },
+    {
+      "bom-ref": "@pdf-lib/upng@1.0.1",
+      "type": "library",
+      "name": "@pdf-lib/upng",
+      "version": "1.0.1",
+      "scope": "required",
+      "author": "photopea (https://github.com/photopea)",
+      "description": "Small, fast and advanced PNG / APNG encoder and decoder",
+      "purl": "pkg:npm/%40pdf-lib/upng@1.0.1",
+      "properties": [],
+      "externalReferences": [
+        {
+          "type": "distribution",
+          "url": "https://registry.npmjs.org/@pdf-lib/upng/-/upng-1.0.1.tgz"
+        },
+        {
+          "type": "vcs",
+          "url": "https://github.com/Hopding/upng"
+        }
+      ],
+      "hashes": [
+        {
+          "alg": "SHA-512",
+          "content": "7502b6154310b68c153f4d26b4892cae56617455d064f0beb5a8a1d6ae02bcf679bea77147f2ca05a160d2801fcddd469476575d23dd41fcd09edf95886bc421"
         }
       ],
       "licenses": [
@@ -9278,6 +9388,37 @@
       ]
     },
     {
+      "bom-ref": "pako@1.0.11",
+      "type": "library",
+      "name": "pako",
+      "version": "1.0.11",
+      "scope": "required",
+      "description": "zlib port to javascript - fast, modularized, with browser support",
+      "purl": "pkg:npm/pako@1.0.11",
+      "properties": [],
+      "externalReferences": [
+        {
+          "type": "distribution",
+          "url": "https://registry.npmjs.org/pako/-/pako-1.0.11.tgz"
+        },
+        {
+          "type": "website",
+          "url": "https://github.com/nodeca/pako"
+        }
+      ],
+      "hashes": [
+        {
+          "alg": "SHA-512",
+          "content": "e212c1f0fcb8cd971ee6ce3277d5f3a29ab056fff218d855d4197c353982ab5efadc778adbe130553bfe95e19e2f5dc39e1db07dbaa8c153d70883b4cf8b5a63"
+        }
+      ],
+      "licenses": [
+        {
+          "expression": "(MIT AND Zlib)"
+        }
+      ]
+    },
+    {
       "bom-ref": "parse5@8.0.1",
       "type": "library",
       "name": "parse5",
@@ -9535,6 +9676,44 @@
         {
           "alg": "SHA-512",
           "content": "fff9ec8660f9e5ce3a16e170dbac55ff1140681e4717d5dd6a9ec7241067aca74077afc6c4305a340d7cef43bbf7ef6e7a0eb57192d255cf8e68595f98e6d855"
+        }
+      ],
+      "licenses": [
+        {
+          "license": {
+            "id": "MIT"
+          }
+        }
+      ]
+    },
+    {
+      "bom-ref": "pdf-lib@1.17.1",
+      "type": "library",
+      "name": "pdf-lib",
+      "version": "1.17.1",
+      "scope": "required",
+      "author": "Andrew Dillon <andrew.dillon.j@gmail.com>",
+      "description": "Create and modify PDF files with JavaScript",
+      "purl": "pkg:npm/pdf-lib@1.17.1",
+      "properties": [],
+      "externalReferences": [
+        {
+          "type": "distribution",
+          "url": "https://registry.npmjs.org/pdf-lib/-/pdf-lib-1.17.1.tgz"
+        },
+        {
+          "type": "website",
+          "url": "https://pdf-lib.js.org"
+        },
+        {
+          "type": "issue-tracker",
+          "url": "https://github.com/Hopding/pdf-lib/issues"
+        }
+      ],
+      "hashes": [
+        {
+          "alg": "SHA-512",
+          "content": "57f9a9c890284ec3787273f7d6f734c1f340d7ea76d1ebeaaa76a9d0a2e8454374624fe9df0379d83384b0be2804570b75befa865a4a3edcc9220a3aee3fd72f"
         }
       ],
       "licenses": [
@@ -11579,6 +11758,48 @@
       ]
     },
     {
+      "bom-ref": "tslib@1.14.1",
+      "type": "library",
+      "name": "tslib",
+      "version": "1.14.1",
+      "scope": "required",
+      "author": "Microsoft Corp.",
+      "description": "Runtime library for TypeScript helper functions",
+      "purl": "pkg:npm/tslib@1.14.1",
+      "properties": [],
+      "externalReferences": [
+        {
+          "type": "distribution",
+          "url": "https://registry.npmjs.org/tslib/-/tslib-1.14.1.tgz"
+        },
+        {
+          "type": "vcs",
+          "url": "https://github.com/Microsoft/tslib.git"
+        },
+        {
+          "type": "website",
+          "url": "https://www.typescriptlang.org/"
+        },
+        {
+          "type": "issue-tracker",
+          "url": "https://github.com/Microsoft/TypeScript/issues"
+        }
+      ],
+      "hashes": [
+        {
+          "alg": "SHA-512",
+          "content": "5e78b7e4d2b38e032bc1ebf2b074c202bb4b0e93efc9ef3357fd04e04c989f8dcfeffeeabd0c0f87d0469077b06ccba5567b5b8a099c4fbadd5f704da3dc1126"
+        }
+      ],
+      "licenses": [
+        {
+          "license": {
+            "id": "0BSD"
+          }
+        }
+      ]
+    },
+    {
       "bom-ref": "type-check@0.4.0",
       "type": "library",
       "name": "type-check",
@@ -12733,9 +12954,11 @@
     {
       "ref": "civildraft-web-cad@0.1.0",
       "dependsOn": [
+        "@pdf-lib/fontkit@1.1.1",
         "dxf-parser@1.1.2",
         "dxf-writer@1.18.4",
         "konva@9.3.22",
+        "pdf-lib@1.17.1",
         "rbush@4.0.1",
         "react@19.2.7",
         "react-dom@19.2.7",
@@ -13126,6 +13349,24 @@
       "dependsOn": [
         "@jridgewell/resolve-uri@3.1.2",
         "@jridgewell/sourcemap-codec@1.5.5"
+      ]
+    },
+    {
+      "ref": "@pdf-lib/fontkit@1.1.1",
+      "dependsOn": [
+        "pako@1.0.11"
+      ]
+    },
+    {
+      "ref": "@pdf-lib/standard-fonts@1.0.0",
+      "dependsOn": [
+        "pako@1.0.11"
+      ]
+    },
+    {
+      "ref": "@pdf-lib/upng@1.0.1",
+      "dependsOn": [
+        "pako@1.0.11"
       ]
     },
     {
@@ -14143,6 +14384,10 @@
       "dependsOn": []
     },
     {
+      "ref": "pako@1.0.11",
+      "dependsOn": []
+    },
+    {
       "ref": "parse5@8.0.1",
       "dependsOn": [
         "entities@8.0.0"
@@ -14174,6 +14419,15 @@
     {
       "ref": "pathval@2.0.1",
       "dependsOn": []
+    },
+    {
+      "ref": "pdf-lib@1.17.1",
+      "dependsOn": [
+        "@pdf-lib/standard-fonts@1.0.0",
+        "@pdf-lib/upng@1.0.1",
+        "pako@1.0.11",
+        "tslib@1.14.1"
+      ]
     },
     {
       "ref": "picocolors@1.1.1",
@@ -14446,6 +14700,10 @@
       "dependsOn": [
         "typescript@6.0.3"
       ]
+    },
+    {
+      "ref": "tslib@1.14.1",
+      "dependsOn": []
     },
     {
       "ref": "type-check@0.4.0",
