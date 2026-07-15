@@ -410,6 +410,8 @@ timeline
 | 2026-07-15 | ✅ Phase 1: プロジェクトスキャフォールド作成（Vite 7 + React 19 + TS 6、共通型システム） |
 | 2026-07-15 | ✅ Phase 1: CI品質ゲート構築（GitHub Actions: Lint/Typecheck/Test/Build + Dependency Audit） |
 | 2026-07-15 | ✅ `main`ブランチ保護設定（必須ステータスチェック・レビュー承認1件必須） |
+| 2026-07-15 | ✅ Phase 1: 内部座標基準の確定（ADR-0012）・幾何演算エンジン移植着手（coordParser/areaCalculator/orthoConstraint等、55テスト） |
+| 2026-07-15 | 🔍 Geometry型（Shape判別共用体）の未定義箇所を仕様書横断調査で発見、設計Issue化（Issue #20・後続移植作業の前提条件） |
 
 ### Open Pull Request
 
@@ -417,8 +419,9 @@ timeline
 | --- | --- | --- |
 | [#1](../../pull/1) | Phase 0 継承台帳・リスク台帳・ADR 11件 | Draft・人間承認待ち |
 | [#14](../../pull/14) | Phase 1 スキャフォールド・共通型システム・CI品質ゲート | Draft・人間承認待ち |
+| [#16](../../pull/16) | Phase 1 内部座標基準確定（ADR-0012）・幾何演算エンジン移植（部分: 4/18ファイル） | Draft・人間承認待ち |
 
-> 両PRとも`main`（default branch）宛のため、Mission制約により**人間の明示承認後にのみマージ**します。CTOによる自動mergeは対象外です。
+> 全PRとも`main`（default branch）宛のため、Mission制約により**人間の明示承認後にのみマージ**します。CTOによる自動mergeは対象外です。
 
 進捗の詳細は[GitHub Projects「CivilDraft-Web-CAD 開発司令盤」](../../projects)、Issue一覧は[Issues](../../issues)を参照してください。
 
