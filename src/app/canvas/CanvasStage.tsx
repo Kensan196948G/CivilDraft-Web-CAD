@@ -23,6 +23,7 @@ import type Konva from 'konva'
 import { CoordinateTransformer } from '@/domain/canvas/coordinateTransformer'
 import { computeGridLines } from '@/domain/canvas/gridRenderer'
 import type { PaperOrientation, PaperSize } from '@/domain/canvas/paperSize'
+import { filterGeometriesByStep } from '@/domain/construction-steps'
 import { shapeBBox } from '@/domain/geometry/shapeBBox'
 import { getVisibleIds, shouldCull } from '@/domain/geometry/viewportCulling'
 import { draftPreviewGeometry } from '@/app/store/editorStore'
@@ -59,6 +60,7 @@ export function CanvasStage({ paperSize = 'A3', paperOrientation = 'landscape' }
   const geometries = useEditorStore((s) => s.geometries)
   const layers = useEditorStore((s) => s.layers)
   const selectedIds = useEditorStore((s) => s.selectedIds)
+  const currentStepId = useEditorStore((s) => s.currentStepId)
   const activeTool = useEditorStore((s) => s.activeTool)
   const draftPoints = useEditorStore((s) => s.draftPoints)
   const draftCursor = useEditorStore((s) => s.draftCursor)
@@ -218,9 +220,13 @@ export function CanvasStage({ paperSize = 'A3', paperOrientation = 'landscape' }
     storeApi.getState().commitDraft()
   }, [storeApi])
 
-  // 非表示レイヤーの図形は描画対象外（§6.3）。500図形以上でビューポートカリング（§9.4）。
+  // 非表示レイヤーの図形は描画対象外（§6.3）、施工ステップで絞り込み（§18）、
+  // 500図形以上でビューポートカリング（§9.4）。
   const visibleLayerIds = new Set(layers.filter((l) => l.visible).map((l) => l.id))
-  let renderTargets = geometries.filter((g) => visibleLayerIds.has(g.layerId))
+  let renderTargets = filterGeometriesByStep(
+    geometries.filter((g) => visibleLayerIds.has(g.layerId)),
+    currentStepId,
+  )
   if (shouldCull(renderTargets.length)) {
     const visible = getVisibleIds(storeApi.getIndex(), {
       zoom,
