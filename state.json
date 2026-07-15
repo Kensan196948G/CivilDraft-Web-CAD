@@ -47,15 +47,15 @@
     { "issue": 4, "pr": 14, "title": "型システム基盤の実装（Brand ID型・Result<T,E>・単位付き座標値）" },
     { "issue": 11, "pr": 14, "title": "CI品質ゲート構築（lint実効性検証込み）" },
     { "issue": 15, "pr": 16, "title": "内部座標基準の確定（ADR-0012, domain/units実装、DD-TBD-002解消）" },
-    { "issue": 5, "pr": 16, "title": "幾何演算エンジン群の移植（部分: coordParser.ts + formatters.ts相当 + areaCalculator.ts + orthoConstraint.ts、4/18ファイル）", "partial": true, "note": "残14ファイルは全てShape型（Geometry判別共用体）設計待ち。2026-07-15にsearch_codeで残全ファイルの依存を一括確認済み（open_issues_next Issue#5参照）" }
+    { "issue": 5, "pr": 16, "title": "幾何演算エンジン群の移植（部分: coordParser.ts + formatters.ts相当 + areaCalculator.ts + orthoConstraint.ts、4/18ファイル）", "partial": true, "note": "残14ファイルは全てShape型（Geometry判別共用体）設計待ち。2026-07-15にsearch_codeで残全ファイルの依存を一括確認済み（open_issues_next Issue#5参照）" },
+    { "issue": 20, "pr": 16, "title": "Geometry型（Shape型）の詳細設計・未定義7具体型+spline型のフィールド確定", "note": "2026-07-15完了・Issue closed。src/shared/types/geometry.tsにGeometryBase/GeometryStyle/GeometryType(13種)+未定義だった7具体型(Arc/Rectangle/Ellipse/Dimension/Leader/Hatch/Symbol)+SplineGeometryを実装。tests/unit/shared/geometry.test.ts新規追加(exhaustive switch検証込み3テスト)。test 58/58・typecheck/lint/build全通過。Issue#5残14ファイル・Issue#18・Issue#19(templateCatalog.ts)のブロック解除" }
   ],
   "blocked_issues": [],
   "open_issues_next": [
     { "issue": 17, "title": "stacked PR（base≠main）でCIが起動しない", "priority": "P2", "blocking": false },
-    { "issue": 5, "title": "幾何演算エンジン群の移植（残14/18ファイル）", "priority": "P1", "blocking": false, "note": "2026-07-15: coordParser.ts+formatters.ts相当+areaCalculator.ts+orthoConstraint.ts(4ファイル)完了しPR#16へ統合(issues_pr_ready参照)。残全ファイルの依存有無をsearch_code(query: '\"types/geometry\" repo:Kensan196948G/Civil-Draw path:src/utils')で一括確認した結果、残14ファイル(chamferEngine/dimensionEngine/viewportCulling/trimEngine/filletEngine/selection/spatialIndex/snapEngine/shapeTransform/offsetEngine/extendEngine/arrayEngine/scaleEngine/perfHarness/shapeBBox/autosave)は全てShape型(Geometry判別共用体)に依存しており、Shape型設計Issue(8具体型フィールド確定+spline型欠落解消)が前提条件。dxfExporter.ts/dxfImporter.tsはIssue#18側、templateCatalog.tsはShape依存と判明しIssue#19側で再判定。rulerUtils.ts/gridRenderer.tsはShape非依存だがCanvas描画層(詳細設計仕様書§9)のスコープと判断しIssue#5から除外" },
-    { "issue": 18, "title": "DXF変換ロジックの移植（dxfImporter.ts/dxfExporter.ts、単位変換層改修）", "priority": "P1", "blocking_reason": "Issue #4・Issue #15（PR #16マージ待ち）に依存", "note": "2026-07-15: 両ファイルともShape型依存をsearch_codeで再確認済み" },
-    { "issue": 19, "title": "記号・テンプレートカタログの移植（symbolCatalog.ts/templateCatalog.ts）", "priority": "P3", "blocking": false, "note": "2026-07-15訂正: 当初as_is想定だったが、templateCatalog.tsは実際にはDistributiveOmit<Shape,...>を使いShape型に依存していることをsearch_codeで発見。symbolCatalog.tsはShape非依存でas_is可。着手時はtemplateCatalog.tsをShape型設計後に回す前提でスコープ再定義が必要" },
-    { "issue": 20, "title": "Geometry型（Shape型）の詳細設計・未定義7具体型+spline型のフィールド確定", "priority": "P1", "blocking": true, "note": "2026-07-15新規認識・同日訂正: 詳細設計仕様書§6のGeometry判別共用体は当初「12種類中8種類未定義」としたが、仕様書全体をgrepで再確認したところParametricGeometryは§15に完全定義済みと判明。正しくは7種類(Arc/Rectangle/Ellipse/Dimension/Leader/Hatch/Symbol)未定義+spline型がunionから漏れている、計8箇所。Civil-Draw Shape型14種類との対応表・命名不一致(Point2D vs 実装済みPoint)・仕様書に対応のないCloudShape/MLineShapeの扱いをIssue#20コメントに記録済み。Issue #5残14ファイル・Issue #18・Issue #19(templateCatalog.ts)全てがこのIssueの完了に依存するためP1かつblocking。次セッション最優先候補" },
+    { "issue": 5, "title": "幾何演算エンジン群の移植（残14/18ファイル）", "priority": "P1", "blocking": false, "note": "2026-07-15: Issue#20完了によりGeometry判別共用体が確定、残14ファイル(chamferEngine/dimensionEngine/viewportCulling/trimEngine/filletEngine/selection/spatialIndex/snapEngine/shapeTransform/offsetEngine/extendEngine/arrayEngine/scaleEngine/perfHarness/shapeBBox/autosave)のブロック解除。次セッションで各ファイルのShape型依存箇所をGeometry型へ置き換えつつ移植着手可能" },
+    { "issue": 18, "title": "DXF変換ロジックの移植（dxfImporter.ts/dxfExporter.ts、単位変換層改修）", "priority": "P1", "blocking_reason": "Issue #15はPR#16で対応済み（マージ待ち）。Issue#20完了によりShape型依存もブロック解除", "note": "2026-07-15: 両ファイルともShape型依存をsearch_codeで確認済み、Issue#20完了によりGeometry型で着手可能" },
+    { "issue": 19, "title": "[Phase 1] 記号・テンプレートカタログの移植（symbolCatalog.ts as_is / templateCatalog.ts要Shape型設計）", "priority": "P3", "blocking": false, "note": "2026-07-15訂正・同日ブロック解除: symbolCatalog.tsはShape非依存でas_is可。templateCatalog.tsはDistributiveOmit<Shape,...>でShape型に依存していたが、Issue#20完了によりGeometry型で着手可能になった" },
     { "issue": 21, "title": "Canvas描画補助ユーティリティの移植（rulerUtils.ts/gridRenderer.ts）", "priority": "P3", "blocking": false, "note": "2026-07-15新規起票: Issue#5スコープ確定時にShape型非依存と判明した2ファイルの受け皿。詳細設計仕様書§9(Konvaレイヤー構成・BackgroundLayerがグリッド担当、CoordinateTransformer経由の座標変換固定)を関連仕様として明記。Issue#5/#20とは独立着手可能だがCoordinateTransformer実装状況に依存する可能性あり" }
   ],
   "learning": {
@@ -104,6 +104,11 @@
         "date": "2026-07-15",
         "pattern": "GitHub Projects(ProjectV2)のGraphQL Global ID（project-id, item-id等）は人間には判読不能なBase64様の不透明文字列で、記憶やタイプミスにより1文字違いの誤りが起きやすい（例: PVT_kwHOClgkIc4Bda6X を PVT_kwHOClgkIc4BBda6 と誤記）",
         "fix": "gh project item-edit等でGraphQL IDを使う直前に毎回 gh project view <num> --owner <owner> --format json でid値を取得し直す。エラーメッセージ「Could not resolve to a node with the global id of '...'」が出た場合はID取り違えを疑い、記憶に頼らず再取得する"
+      },
+      {
+        "date": "2026-07-15",
+        "pattern": "Issue本文の前提（『型の一部が未定義』等）は起票時点のgrep調査に基づく推測であり、実装ファイルの実態と乖離することがある。Issue#20は当初『Geometry判別共用体の一部（7型+spline）が未定義』としていたが、src/shared/types/geometry.tsを直接読むとPoint型以外は何も実装されておらずGeometryBase等の基盤ごと未実装だった",
+        "fix": "設計Issueの実装着手前には必ず対象ファイルをReadで直接確認し、Issue本文の前提を検証してから着手する。前提が誤っていた場合はスコープが変わるため、実装順序（基盤→派生型）を実態に合わせて組み直す"
       }
     ]
   }
