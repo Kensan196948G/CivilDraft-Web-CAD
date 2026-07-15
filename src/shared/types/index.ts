@@ -24,6 +24,8 @@ export type {
 
 export type { Result, ValidationIssue } from './result'
 
+export type { DrawingLayer } from './layer'
+
 export type {
   Point,
   GeometryStyle,
