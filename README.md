@@ -414,6 +414,8 @@ timeline
 | 2026-07-15 | 🔍 Geometry型（Shape判別共用体）の未定義箇所を仕様書横断調査で発見、設計Issue化（Issue #20・後続移植作業の前提条件） |
 | 2026-07-15 | ✅ Phase 1: Geometry判別共用体を実装（Issue #20完了・13種のGeometryType全具体型を定義、58テスト）。Issue #5残14ファイル・Issue #18・Issue #19のブロック解除 |
 | 2026-07-15 | 🔍 Issue #20実装をコードレビュー（Critical/Important級バグなし。コメント誤字を修正、仕様書§6.2の内部矛盾をIssue #22として起票） |
+| 2026-07-15 | ✅ Issue #22対応（仕様書§6.2にSplineGeometry追加、Arc以降8型の正本を実装ファイルに明文化）。Issue closed |
+| 2026-07-15 | ✅ Issue #5部分完了: `shapeBBox.ts`（外接矩形計算エンジン）移植、テスト12件追加、70/70 green |
 
 ### Open Pull Request
 
@@ -421,7 +423,7 @@ timeline
 | --- | --- | --- |
 | [#1](../../pull/1) | Phase 0 継承台帳・リスク台帳・ADR 11件 | Draft・人間承認待ち |
 | [#14](../../pull/14) | Phase 1 スキャフォールド・共通型システム・CI品質ゲート | Draft・人間承認待ち |
-| [#16](../../pull/16) | Phase 1 内部座標基準確定（ADR-0012）・幾何演算エンジン移植（部分: 4/18ファイル）・Geometry判別共用体実装（Issue #20） | Draft・人間承認待ち |
+| [#16](../../pull/16) | Phase 1 内部座標基準確定（ADR-0012）・幾何演算エンジン移植（部分: 5/18ファイル）・Geometry判別共用体実装（Issue #20） | Draft・人間承認待ち |
 
 > 全PRとも`main`（default branch）宛のため、Mission制約により**人間の明示承認後にのみマージ**します。CTOによる自動mergeは対象外です。
 
@@ -435,17 +437,18 @@ timeline
 
 - ✅ Phase 0完了（継承台帳・ADR・リスク台帳、PR #1）
 - ✅ Phase 1スキャフォールド・CI品質ゲート・型システム基盤（PR #14）
-- ✅ ADR-0012（内部座標基準）確定・幾何演算エンジン4/18ファイル移植・**Geometry判別共用体13型を実装**（Issue #15, #5部分, #20完了、PR #16）
-- ✅ Issue #20実装をサブエージェントでコードレビュー・指摘反映（コメント誤字修正、仕様書内部矛盾をIssue #22化）
-- 📊 test 58/58・typecheck/lint/build/audit全通過（ローカル実行、CI自体はstacked PR構造によりIssue #17まで未起動）
+- ✅ ADR-0012（内部座標基準）確定・幾何演算エンジン5/18ファイル移植・**Geometry判別共用体13型を実装**（Issue #15, #5部分, #20完了、PR #16）
+- ✅ Issue #20実装をサブエージェントでコードレビュー・指摘反映（コメント誤字修正、仕様書内部矛盾をIssue #22として起票・対応・close）
+- ✅ `shapeBBox.ts`（図形の外接矩形計算エンジン、`shapeBBox`/`unionBBox`）移植完了
+- 📊 test 70/70・typecheck/lint/build/audit全通過（ローカル実行、CI自体はstacked PR構造によりIssue #17まで未起動）
 - 🔒 security critical 0・blocker 0
 
 📋 **次回セッションへの再開ポイント**
 
-1. **Issue #5残14ファイル**（P1・ブロック解除済み）: chamferEngine/dimensionEngine/viewportCulling/trimEngine/filletEngine/selection/spatialIndex/snapEngine/shapeTransform/offsetEngine/extendEngine/arrayEngine/scaleEngine/perfHarness/shapeBBox/autosave。全てGeometry型で着手可能
+1. **Issue #5残ファイル**（P1・ブロック解除済み）: chamferEngine/dimensionEngine/viewportCulling/trimEngine/filletEngine/selection/spatialIndex/snapEngine/shapeTransform/offsetEngine/extendEngine/arrayEngine/scaleEngine/perfHarness/autosave。全てGeometry型で着手可能（正確な残数は次セッション開始時にstate.jsonと突き合わせて再カウントすること）
 2. **Issue #18**（P1・DXF変換ロジック移植）・**Issue #19**（P3・templateCatalog.ts）もIssue #20完了によりブロック解除済み
 3. **Issue #17**（P2・stacked PRでCI未起動）: `ci.yml`のブランチトリガー拡張は人間確認が必要なため方針決定待ち
-4. **Issue #21**（P3・rulerUtils/gridRenderer移植）、**Issue #22**（P3・仕様書ドキュメント修正）は独立着手可能
+4. **Issue #21**（P3・rulerUtils/gridRenderer移植）は独立着手可能
 5. **PR #1・#14・#16**はいずれも`main`宛のため人間の明示承認（`y`回答）待ち。PR #14マージ後、PR #16のbaseを`main`へ更新しCI実機確認を行う
 
 🚫 **本セッションでは一切のmain直push・PRマージを実行していません**（Mission制約どおり人間確認待ちの状態を維持）。
