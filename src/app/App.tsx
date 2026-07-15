@@ -24,6 +24,7 @@ import type { ToolType } from '@/domain/tools/draftGeometry'
 import { createAutosaveStore } from '@/infrastructure/autosave/autosaveStore'
 import type { AutosaveStore } from '@/infrastructure/autosave/autosaveStore'
 import { scheduleAutosave } from '@/infrastructure/autosave/autosaveScheduler'
+import { loadJapaneseFont } from '@/infrastructure/pdf/fontLoader'
 import { createDefaultLayer } from './store/editorStore'
 import './home.css'
 
@@ -119,21 +120,25 @@ function EditorToolbar({ onGoHome }: EditorToolbarProps) {
 
   const handleExportPdf = async () => {
     const s = storeApi.getState()
+    // 同梱Noto Sans JPサブセットを注入（取得失敗時はフォント未注入の代替規則へ退避）
+    const fontResult = await loadJapaneseFont()
     const result = await exportPdf(s.geometries, s.layers, {
       paperSize: 'A3',
       orientation: 'landscape',
       scale: 100,
       titleBlock: { projectName: 'CivilDraft', drawingNumber: 'DRW-001' },
+      ...(fontResult.ok ? { japaneseFontBytes: fontResult.value } : {}),
     })
     if (!result.ok) {
       setIoMessage(`⚠️ PDF出力失敗: ${result.error.message}`)
       return
     }
+    const warnings = result.value.issues.length + (fontResult.ok ? 0 : 1)
     downloadBlob(new Blob([result.value.bytes.slice()], { type: 'application/pdf' }), 'civildraft.pdf')
     setIoMessage(
-      result.value.issues.length > 0
-        ? `📤 PDF出力完了（警告${result.value.issues.length}件: 日本語フォント未設定等）`
-        : '📤 PDF出力完了（A3横・1:100）',
+      warnings > 0
+        ? `📤 PDF出力完了（警告${warnings}件）`
+        : '📤 PDF出力完了（A3横・1:100・日本語フォント埋込）',
     )
   }
 
