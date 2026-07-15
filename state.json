@@ -11,7 +11,7 @@
     "hard_stop_utc": "2026-07-15T04:22:09Z"
   },
   "goal": "Mission: CTO主導自律開発によりRelease Ready/Production Ready状態へ到達。現セッションはPhase 0（Civil-Draw棚卸し）完了とPhase 1 MVPスキャフォールド着手を目標とする。全テスト通過・CI成功・blocker=0・PR作成済み、または5時間到達、または20ターン到達で終了。",
-  "phase": "Monitor",
+  "phase": "Build",
   "kpi": {
     "success_rate_target": 0.9,
     "ci_success_rate": 0.0,
@@ -41,10 +41,30 @@
       "Phase 6: DXF強化・差分・Workers・Neon・承認"
     ]
   },
-  "completed_issues": [],
+  "completed_issues": [
+    {
+      "id": "phase0-inventory",
+      "title": "Phase 0: Civil-Draw 6観点棚卸し（46コンポーネント判定）",
+      "date": "2026-07-15",
+      "method": "Dynamic Workflow (wf_946d1dda-951)",
+      "result": "discard 7 / modify 20 / reference_only 8 / as_is 11"
+    },
+    {
+      "id": "phase0-deliverables",
+      "title": "Phase 0 成果物: 継承台帳・リスク台帳・依存/ライセンスレポート・性能ベースライン・ADR 11件",
+      "date": "2026-07-15",
+      "branch": "phase0/inheritance-ledger-adr",
+      "pr": "https://github.com/Kensan196948G/CivilDraft-Web-CAD/pull/1",
+      "pr_status": "draft_awaiting_human_merge_approval"
+    }
+  ],
   "blocked_issues": [],
   "learning": {
-    "failure_patterns": [],
-    "success_patterns": []
+    "failure_patterns": [
+      "Civil-DrawのE2E性能回帰テスト閾値がcommit 1f93474でavgFps>25/50からminFps>1へ実質無力化されていた（無関係なコミットメッセージの下）。CI品質ゲートは「存在すること」だけでなく「実効性」を検証する必要がある（ADR-0010）"
+    ],
+    "success_patterns": [
+      "6観点並列investigator + 統合synthesisのDynamic Workflow構成により、46コンポーネントの継承判定を単一セッション内で網羅的かつ根拠付きで完了できた"
+    ]
   }
 }
