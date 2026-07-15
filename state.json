@@ -120,6 +120,11 @@
         "date": "2026-07-15",
         "pattern": "viewportCulling.tsはselection.ts(getShapeBBox関数、本PRで移植したdomain/geometry/shapeBBox.tsとは別物)とspatialIndex.ts(shapeIndexというグローバルシングルトン)の両方に依存しており単独移植不可能。さらにspatialIndex.tsのグローバルシングルトンは、GitHub Projects Backlogの別項目『[Phase 1] 空間索引のインスタンス化改修（グローバルシングルトン解消）』が対象とする設計課題そのもので、単純移植ではなく設計変更を伴う",
         "fix": "Issue #5残ファイルの着手順序はselection.ts→spatialIndex.ts（インスタンス化改修を含む設計判断が必要）→viewportCulling.tsとする。spatialIndex.tsはIssue #5単体ではなくProjects Backlog項目とスコープ調整してから着手する"
+      },
+      {
+        "date": "2026-07-15",
+        "pattern": "selection.ts本体をget_file_contentsで確認した結果、getShapeBBox関数はShape型14種に対するswitch文で、ロジック構造が本PRで移植済みのdomain/geometry/shapeBBox.ts（Geometry型13種対応）とほぼ1対1対応することが確定した（line/rect→rectangle/circle/arc/polyline/hatch/symbolは既に移植済みロジックと同一パターン、text/dimension/leader相当のcallout/cloud/mlineがShape側の追加型）",
+        "fix": "viewportCulling.ts移植時、getShapeBBoxを新規移植する必要はない。isInViewport相当のロジックはdomain/geometry/shapeBBox.tsのshapeBBox()をそのまま呼び出す設計にできる。selection.ts側で追加移植が要るのはbboxContainsPoint/bboxIntersects/rectFromPoints/findShapesInRect/findShapeAtPoint（BBox型のみに依存し図形型非依存）のみで、これらは軽量。次セッションのselection.ts着手時はgetShapeBBoxの再実装を避け、shapeBBox.tsのBBox型・関数を再利用する方針で見積もること"
       }
     ]
   }

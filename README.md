@@ -431,7 +431,7 @@ timeline
 
 ### 🔁 セッション終了時サマリー（2026-07-15）
 
-⏱ セッション時間: 2026-07-14T23:22:09Z 〜 2026-07-15T04:22:09Z UTC（5時間上限）
+⏱ セッション時間: 2026-07-14T23:22:09Z 〜 2026-07-15T04:08:39Z UTC（ユーザー指示による中断。5時間上限04:22:09Zの手前、Claude再起動での再開を前提とした記録確定）
 
 📊 **本セッションの成果**
 
@@ -440,18 +440,25 @@ timeline
 - ✅ ADR-0012（内部座標基準）確定・幾何演算エンジン5/18ファイル移植・**Geometry判別共用体13型を実装**（Issue #15, #5部分, #20完了、PR #16）
 - ✅ Issue #20実装をサブエージェントでコードレビュー・指摘反映（コメント誤字修正、仕様書内部矛盾をIssue #22として起票・対応・close）
 - ✅ `shapeBBox.ts`（図形の外接矩形計算エンジン、`shapeBBox`/`unionBBox`）移植完了
+- 🔍 Issue #5残ファイルのうちperfHarness/autosave/viewportCulling/selectionを事前調査（実装未着手・調査のみ）し、着手順序と設計上の注意点をstate.json/Issue #5コメントに記録
 - 📊 test 70/70・typecheck/lint/build/audit全通過（ローカル実行、CI自体はstacked PR構造によりIssue #17まで未起動）
 - 🔒 security critical 0・blocker 0
 
 📋 **次回セッションへの再開ポイント**
 
-1. **Issue #5残ファイル**（P1・ブロック解除済み）: chamferEngine/dimensionEngine/viewportCulling/trimEngine/filletEngine/selection/spatialIndex/snapEngine/shapeTransform/offsetEngine/extendEngine/arrayEngine/scaleEngine/perfHarness/autosave。全てGeometry型で着手可能（正確な残数は次セッション開始時にstate.jsonと突き合わせて再カウントすること）
+1. **Issue #5残13ファイル**（P1・ブロック解除済み）: chamferEngine/dimensionEngine/viewportCulling/trimEngine/filletEngine/selection/spatialIndex/snapEngine/shapeTransform/offsetEngine/extendEngine/arrayEngine/scaleEngine/perfHarness/autosave。全てGeometry型で着手可能（正確な残数は次セッション開始時にstate.jsonと突き合わせて再カウントすること）
+   - 推奨着手順序: `selection.ts`→`spatialIndex.ts`（グローバルシングルトン解消の設計判断要）→`viewportCulling.ts`
+   - `selection.ts`のうち`getShapeBBox`は本PRで移植済みの`domain/geometry/shapeBBox.ts`と機能的に等価なため**再実装不要**。`bboxContainsPoint`/`bboxIntersects`/`rectFromPoints`/`findShapesInRect`/`findShapeAtPoint`（BBox型のみ依存）のみ軽量移植すればよい
+   - `perfHarness.ts`は独立着手可（`GeometryBase`全フィールド補完コストを見積もってから）
+   - `autosave.ts`はGitHub Projects Backlogの「自動保存のIndexedDB移行」と統合してスコープ再定義してから着手
 2. **Issue #18**（P1・DXF変換ロジック移植）・**Issue #19**（P3・templateCatalog.ts）もIssue #20完了によりブロック解除済み
 3. **Issue #17**（P2・stacked PRでCI未起動）: `ci.yml`のブランチトリガー拡張は人間確認が必要なため方針決定待ち
 4. **Issue #21**（P3・rulerUtils/gridRenderer移植）は独立着手可能
 5. **PR #1・#14・#16**はいずれも`main`宛のため人間の明示承認（`y`回答）待ち。PR #14マージ後、PR #16のbaseを`main`へ更新しCI実機確認を行う
 
 🚫 **本セッションでは一切のmain直push・PRマージを実行していません**（Mission制約どおり人間確認待ちの状態を維持）。
+
+⏸️ **中断理由**: ユーザーからの明示指示「時間経過後にClaude再起動にて再開とする」により、5時間ハードストップを待たずセッションを終了。working tree clean・全コミットpush済み・PR 3件とも最新状態を維持した状態で記録を確定した。
 
 ---
 
