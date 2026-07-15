@@ -6,7 +6,7 @@
 > バックエンド / DB（Cloudflare Workers + Neon PostgreSQL）は Phase 6 で導入予定であり、
 > 本番ホスティングは**未選定・未デプロイ**です。したがって本書は
 > 「成果物（`dist/`）を生成・検証し、人間がリリース可否を判断できる状態に整える」
-> ところまでを正式手順とし、実際の本番配置手順は TBD として枠組みのみ示します。
+> ところまでを正式手順とし、本番配置は §6（Cloudflare Workers Static Assets、2026-07-15 確定）に従い人間が実行します。
 
 ---
 
@@ -15,7 +15,7 @@
 | 項目 | Phase 1 での実態 |
 | --- | --- |
 | リリース対象 | 静的成果物 `dist/`（Vite ビルド出力、SPA） |
-| 配置先 | ⚠️ **未確定（TBD）**。標準スタック方針は Systemd + GitHub + Cloudflare + Neon（Docker 不使用） |
+| 配置先 | ✅ **Cloudflare Workers（Static Assets）に確定**（2026-07-15 人間承認） |
 | バックエンド | Phase 6 まで無し（フロント単体で完結、IndexedDB ローカル保存） |
 | リリース判断者 | 🚫 **人間（バージョンタグ・本番配置は人間実行）**。CTO は提案・準備まで |
 
@@ -78,8 +78,8 @@ flowchart LR
     A["① 品質ゲート green"] --> B["② SBOM/NOTICES 再生成"]
     B --> C["③ ビルド・成果物検証"]
     C --> D["④ バージョンタグ<br>（人間実行）"]
-    D --> E["⑤ 配置（TBD）"]
-    E --> F["⑥ リリース後確認（TBD）"]
+    D --> E["⑤ 配置（Workers）"]
+    E --> F["⑥ リリース後確認"]
 ```
 
 ### 3.1 手順（番号付き）
@@ -92,7 +92,7 @@ flowchart LR
 6. **本番相当ビルド**を実行する: `npm run build`。`dist/` に成果物が生成されることを確認する。
 7. **成果物を検証**する（§4）。
 8. **バージョンタグを付与**する（§5、🚫 **人間が実行**。CTO は提案のみ）。
-9. **配置**する（§6、⚠️ **TBD**。ホスティング確定後に手順を確定）。
+9. **配置**する（§6、Cloudflare Workers Static Assets。人間実行）。
 
 > ⚠️ CTO（自動実行側）は **手順 1〜7 の準備と検証まで**を担い、手順 8 のタグ付与・手順 9 の本番配置は人間の明示実行を待つ。
 > `git commit` / `git push` / `git tag` / `main` 直 push はいずれも人間または統合担当（親）が行う。
@@ -143,30 +143,52 @@ npm run preview    # dist/ をローカルサーバーで配信し、実ブラ�
 
 ---
 
-## 🚀 6. （TBD）本番配置手順の枠組み
+## 🚀 6. 本番配置手順（Cloudflare Workers 静的配信）
 
-> ⚠️ **本番ホスティング未選定のため、以下は確定手順ではなく枠組みのみ。ホスティング確定時に本節を改訂する。**
+> ✅ **ホスティングは Cloudflare Workers（Static Assets）に確定**（2026-07-15 人間承認、選択式判断）。
+> リソース作成・公開 URL 切替・課金確認は引き続き人間の明示実行。CTO は手順準備・検証まで。
 
-標準スタック方針（Systemd + GitHub + Cloudflare + Neon、Docker 不使用）に基づく想定配置先と未確定事項:
-
-| 項目 | 想定 | 状態 |
+| 項目 | 決定内容 | 状態 |
 | --- | --- | --- |
-| フロント配信 | Cloudflare Pages（Access 配下で検証公開） | ⚠️ TBD（プロジェクト作成・公開 URL は人間決裁・課金確認要） |
+| フロント配信 | **Cloudflare Workers + Static Assets**（`dist/` を assets として配信） | ✅ 確定（2026-07-15） |
 | 配置単位 | `dist/` 静的成果物 | ✅ 生成手順は §4 で確定 |
-| ビルド実行元 | GitHub（Actions）or ローカル生成物のアップロード | ⚠️ TBD |
-| バックエンド | Cloudflare Workers（API・認証・認可） | ⚠️ Phase 6 |
+| バックエンド | 同一 Worker へ API を追加（Phase 6、自然に拡張可能） | ⚠️ Phase 6 |
 | DB | Neon PostgreSQL | ⚠️ Phase 6（ブランチ戦略は `rollback-procedure.md` 参照枠） |
 | 環境変数 / Secret | Workers Secret として管理（フロントには公開可の値のみ） | ⚠️ Phase 6 |
 
-### 配置手順の確定に必要な決定（TBD 一覧）
+### 6.1 初回セットアップ（人間実行）
+
+1. `wrangler.jsonc` をリポジトリに追加する（下記テンプレート、PR経由）:
+
+```jsonc
+{
+  "name": "civildraft-web-cad",
+  "compatibility_date": "2026-07-15",
+  "assets": {
+    "directory": "./dist",
+    "not_found_handling": "single-page-application"
+  }
+}
+```
+
+2. `npx wrangler login` で Cloudflare アカウントへ認証（人間・対話）。
+3. 初回デプロイ前に `npx wrangler deploy --dry-run` で構成を検証。
+
+### 6.2 リリース配置（人間実行、§2 チェックリスト全通過が前提）
+
+1. `npm ci && npm run build` — `dist/` を生成（§4）
+2. `npx wrangler deploy` — Workers Static Assets へ配置
+3. 発行された `*.workers.dev` URL で表示・作図・PDF/DXF 入出力を確認
+4. Cloudflare Access ポリシーを有効化（Issue #13 のテナント設定チェックリスト参照）
+
+### 6.3 残りの人間決裁事項（TBD 一覧）
 
 | # | 未確定事項 | 決定主体 |
 | --- | --- | --- |
-| T-1 | フロント配信先（Cloudflare Pages / 他）と公開 URL | 🚫 人間 |
-| T-2 | ビルド〜配置の自動化範囲（GitHub Actions からの deploy 有無） | 🚫 人間 |
-| T-3 | Cloudflare Access のアクセスポリシー | 🚫 人間 |
-| T-4 | カスタムドメイン・DNS | 🚫 人間 |
-| T-5 | Phase 6 の Workers / Neon 接続構成 | 🚫 人間（Phase 6 で ADR 化） |
+| T-2 | ビルド〜配置の自動化範囲（GitHub Actions からの deploy 有無・APIトークン管理） | 🚫 人間 |
+| T-3 | Cloudflare Access のアクセスポリシー（Issue #13 チェックリスト） | 🚫 人間 |
+| T-4 | カスタムドメイン・DNS（当面 `*.workers.dev` で検証公開） | 🚫 人間 |
+| T-5 | Phase 6 の Workers API / Neon 接続構成 | 🚫 人間（Phase 6 で ADR 化） |
 
 ---
 
