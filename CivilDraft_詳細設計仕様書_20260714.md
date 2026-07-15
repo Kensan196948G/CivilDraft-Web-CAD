@@ -363,10 +363,13 @@ export type Geometry =
   | LeaderGeometry
   | HatchGeometry
   | SymbolGeometry
+  | SplineGeometry
   | ParametricGeometry;
 ```
 
-各図形固有型は判別プロパティ`type`を必須とし、`switch`の網羅性検査を利用する。
+各図形固有型は判別プロパティ`type`を必須とし、`switch`の網羅性検査を利用する。`GeometryType`（6.1）は13種類のリテラルを持ち、`Geometry`共用体もこれに1対1対応する13メンバーで構成する（Issue #20実装レビューで判明した旧版の不整合を修正済み）。
+
+`ArcGeometry`/`RectangleGeometry`/`EllipseGeometry`/`DimensionGeometry`/`LeaderGeometry`/`HatchGeometry`/`SymbolGeometry`/`SplineGeometry`/`ParametricGeometry`のフィールド定義は`src/shared/types/geometry.ts`を正本とする（Issue #20で確定、`ParametricGeometry`は§15参照）。
 
 ### 6.3 レイヤー
 
