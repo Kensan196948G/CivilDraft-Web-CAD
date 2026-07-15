@@ -162,3 +162,72 @@ describe('validateScaleConfig', () => {
     })
   })
 })
+
+// QAカバレッジ補強: 既存テスト未到達の図形種別（arc/polyline/spline/hatch/symbol）の
+// スケール変換を検証する。非等方倍率(sx≠sy)で circle/arc の半径が max(sx,sy) 倍になること、
+// text/symbol が基準点のみスケールされ寸法(height/scale)を変えないことを確認する。
+describe('scaleShape / 追加カバレッジ（arc・polyline・spline・hatch・symbol）', () => {
+  const config: ScaleConfig = { cx: 0, cy: 0, sx: 2, sy: 4 }
+
+  it('arc は中心をスケールし半径を max(sx,sy) 倍にする（角度は不変）', () => {
+    const arc: Geometry = {
+      ...base, id: id('a'), type: 'arc',
+      center: { x: 10, y: 10 }, radius: 5, startAngleDeg: 0, endAngleDeg: 90,
+    }
+    const scaled: Geometry = {
+      ...base, id: id('a'), type: 'arc',
+      center: { x: 20, y: 40 }, radius: 20, startAngleDeg: 0, endAngleDeg: 90,
+    }
+    expect(scaleShape(arc, config, seqContext())).toEqual(withGenIdentity(scaled, 'gen-1'))
+  })
+
+  it('polyline は全頂点をスケールし closed を維持する', () => {
+    const poly: Geometry = {
+      ...base, id: id('p'), type: 'polyline',
+      points: [{ x: 1, y: 1 }, { x: 2, y: 2 }], closed: true,
+    }
+    const scaled: Geometry = {
+      ...base, id: id('p'), type: 'polyline',
+      points: [{ x: 2, y: 4 }, { x: 4, y: 8 }], closed: true,
+    }
+    expect(scaleShape(poly, config, seqContext())).toEqual(withGenIdentity(scaled, 'gen-1'))
+  })
+
+  it('spline は全頂点をスケールし tension を維持する', () => {
+    const sp: Geometry = {
+      ...base, id: id('s'), type: 'spline',
+      points: [{ x: 1, y: 1 }, { x: 3, y: 2 }], tension: 0.5,
+    }
+    const scaled: Geometry = {
+      ...base, id: id('s'), type: 'spline',
+      points: [{ x: 2, y: 4 }, { x: 6, y: 8 }], tension: 0.5,
+    }
+    expect(scaleShape(sp, config, seqContext())).toEqual(withGenIdentity(scaled, 'gen-1'))
+  })
+
+  it('hatch は境界点をスケールし pattern/angleDeg/spacing を維持する', () => {
+    const h: Geometry = {
+      ...base, id: id('h'), type: 'hatch',
+      boundaryPoints: [{ x: 0, y: 0 }, { x: 10, y: 0 }, { x: 10, y: 10 }],
+      pattern: 'concrete', angleDeg: 45, spacing: 2,
+    }
+    const scaled: Geometry = {
+      ...base, id: id('h'), type: 'hatch',
+      boundaryPoints: [{ x: 0, y: 0 }, { x: 20, y: 0 }, { x: 20, y: 40 }],
+      pattern: 'concrete', angleDeg: 45, spacing: 2,
+    }
+    expect(scaleShape(h, config, seqContext())).toEqual(withGenIdentity(scaled, 'gen-1'))
+  })
+
+  it('symbol は基準点(position)のみスケールし scale 値は変えない（継承元踏襲）', () => {
+    const sym: Geometry = {
+      ...base, id: id('sy'), type: 'symbol',
+      symbolId: 'cone', position: { x: 5, y: 5 }, rotationDeg: 30, scale: 2,
+    }
+    const scaled: Geometry = {
+      ...base, id: id('sy'), type: 'symbol',
+      symbolId: 'cone', position: { x: 10, y: 20 }, rotationDeg: 30, scale: 2,
+    }
+    expect(scaleShape(sym, config, seqContext())).toEqual(withGenIdentity(scaled, 'gen-1'))
+  })
+})

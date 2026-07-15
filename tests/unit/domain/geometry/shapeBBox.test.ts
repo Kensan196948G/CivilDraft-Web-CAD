@@ -142,3 +142,40 @@ describe('unionBBox', () => {
     expect(unionBBox([parametric])).toBeNull()
   })
 })
+
+// QAカバレッジ補強: 既存テスト未到達の図形種別（ellipse/text/dimension/leader）のAABBを検証する。
+// text/leader は文字幅メトリクスを持たない簡易近似（height/textHeight の10倍）の契約を固定する。
+describe('shapeBBox / 追加カバレッジ（ellipse・text・dimension・leader）', () => {
+  it('ellipse は rotationDeg を無視し中心±radiusX/radiusY のAABBを返す', () => {
+    const e: Geometry = {
+      ...base, id: id('g20'), type: 'ellipse',
+      center: { x: 0, y: 0 }, radiusX: 40, radiusY: 20, rotationDeg: 30,
+    }
+    expect(shapeBBox(e)).toEqual({ minX: -40, minY: -20, maxX: 40, maxY: 20 })
+  })
+
+  it('text は anchor 基準の簡易近似AABB（幅=height*10・上方=height）を返す', () => {
+    const t: Geometry = {
+      ...base, id: id('g21'), type: 'text',
+      anchor: { x: 10, y: 10 }, text: 'ABC', height: 5, rotationDeg: 0, horizontalAlign: 'left',
+    }
+    expect(shapeBBox(t)).toEqual({ minX: 10, minY: 5, maxX: 60, maxY: 10 })
+  })
+
+  it('dimension は始点・終点のAABBを返す', () => {
+    const d: Geometry = {
+      ...base, id: id('g22'), type: 'dimension',
+      start: { x: 0, y: 0 }, end: { x: 100, y: 30 },
+      orientation: 'horizontal', offset: 10, textHeight: 3, arrowSize: 2,
+    }
+    expect(shapeBBox(d)).toEqual({ minX: 0, minY: 0, maxX: 100, maxY: 30 })
+  })
+
+  it('leader は始点・終点のAABBに注記テキスト分（textHeight×10 / textHeight）を加える', () => {
+    const l: Geometry = {
+      ...base, id: id('g23'), type: 'leader',
+      start: { x: 0, y: 0 }, end: { x: 50, y: 20 }, text: 'note', textHeight: 10,
+    }
+    expect(shapeBBox(l)).toEqual({ minX: 0, minY: 0, maxX: 150, maxY: 30 })
+  })
+})

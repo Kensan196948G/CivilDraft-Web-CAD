@@ -289,3 +289,37 @@ describe('exportDxf / レイヤー', () => {
     expect(dxf).toContain('LINE')
   })
 })
+
+// QAカバレッジ補強: 既存テスト未到達の分岐（double線種フォールバック・縦長ellipseの主軸向き・
+// 左向きleader）を検証する。いずれも実装済みだが回帰しやすい方向・分岐。
+describe('exportDxf / 追加カバレッジ（double線種・縦長ellipse・左向きleader）', () => {
+  it('lineType=double は DXF標準に無いため CONTINUOUS へフォールバックする（不正参照を作らない）', () => {
+    const dblLayer: DrawingLayer = {
+      ...LAYER, id: 'lydb' as LayerId, defaultStyle: { ...style, lineType: 'double' },
+    }
+    expect(() => exportDxf([line(0, 0, 100, 0, 'lydb')], [dblLayer])).not.toThrow()
+    const dxf = exportDxf([line(0, 0, 100, 0, 'lydb')], [dblLayer])
+    expect(dxf).toContain('CONTINUOUS')
+    // 'DOUBLE' という未定義linetypeへの dangling reference を生成しないこと。
+    expect(dxf).not.toContain('DOUBLE')
+  })
+
+  it('縦長ellipse（radiusX<radiusY）を主軸縦向きで例外なく出力する', () => {
+    const tall: Geometry = {
+      ...base, id: id('ET'), type: 'ellipse',
+      center: { x: 100, y: 100 }, radiusX: 20, radiusY: 40, rotationDeg: 0,
+    }
+    expect(() => exportDxf([tall], [LAYER])).not.toThrow()
+    expect(exportDxf([tall], [LAYER])).toContain('ELLIPSE')
+  })
+
+  it('左向きleader（end.x<start.x）を線分＋注記テキストとして例外なく出力する', () => {
+    const leader: Geometry = {
+      ...base, id: id('LDL'), type: 'leader',
+      start: { x: 50, y: 0 }, end: { x: 0, y: 30 }, text: '注記', textHeight: 10,
+    }
+    const dxf = exportDxf([leader], [LAYER])
+    expect(dxf).toContain('LINE')
+    expect(dxf).toContain('注記')
+  })
+})

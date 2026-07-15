@@ -174,3 +174,67 @@ describe('validateArrayConfig', () => {
     expect(validateArrayConfig({ kind: 'rect', rows: 2, cols: 2, rowSpacing: 10, colSpacing: 10 })).toBeNull()
   })
 })
+
+// QAカバレッジ補強: 既存テスト未到達の図形種別（rectangle/text/symbol/hatch）の平行移動と、
+// 列間隔0の検証経路（ARRAY_RECT_ZERO_COL_SPACING）を検証する。
+describe('applyArray / 追加カバレッジ（rectangle・text・symbol・hatch 平行移動）', () => {
+  it('rectangle は origin を平行移動する（width/height は不変）', () => {
+    const config: ArrayConfig = { kind: 'linear', count: 2, dx: 10, dy: 5 }
+    const rect: Geometry = {
+      ...base, id: id('r'), type: 'rectangle',
+      origin: { x: 1, y: 2 }, width: 10, height: 20, rotationDeg: 0,
+    }
+    const moved: Geometry = {
+      ...base, id: id('r'), type: 'rectangle',
+      origin: { x: 11, y: 7 }, width: 10, height: 20, rotationDeg: 0,
+    }
+    expect(applyArray([rect], config, seqContext())).toEqual([withGenIdentity(moved, 'gen-1')])
+  })
+
+  it('text は anchor を、symbol は position をそれぞれ平行移動する', () => {
+    const config: ArrayConfig = { kind: 'linear', count: 2, dx: 100, dy: 0 }
+    const text: Geometry = {
+      ...base, id: id('t'), type: 'text',
+      anchor: { x: 5, y: 5 }, text: 'A', height: 3, rotationDeg: 0, horizontalAlign: 'left',
+    }
+    const symbol: Geometry = {
+      ...base, id: id('s'), type: 'symbol',
+      symbolId: 'cone', position: { x: 0, y: 0 }, rotationDeg: 0, scale: 1,
+    }
+    const movedText: Geometry = {
+      ...base, id: id('t'), type: 'text',
+      anchor: { x: 105, y: 5 }, text: 'A', height: 3, rotationDeg: 0, horizontalAlign: 'left',
+    }
+    const movedSymbol: Geometry = {
+      ...base, id: id('s'), type: 'symbol',
+      symbolId: 'cone', position: { x: 100, y: 0 }, rotationDeg: 0, scale: 1,
+    }
+    expect(applyArray([text, symbol], config, seqContext())).toEqual([
+      withGenIdentity(movedText, 'gen-1'),
+      withGenIdentity(movedSymbol, 'gen-2'),
+    ])
+  })
+
+  it('hatch は boundaryPoints を平行移動する', () => {
+    const config: ArrayConfig = { kind: 'linear', count: 2, dx: 10, dy: 10 }
+    const hatch: Geometry = {
+      ...base, id: id('h'), type: 'hatch',
+      boundaryPoints: [{ x: 0, y: 0 }, { x: 10, y: 0 }, { x: 10, y: 10 }],
+      pattern: 'concrete', angleDeg: 0, spacing: 5,
+    }
+    const moved: Geometry = {
+      ...base, id: id('h'), type: 'hatch',
+      boundaryPoints: [{ x: 10, y: 10 }, { x: 20, y: 10 }, { x: 20, y: 20 }],
+      pattern: 'concrete', angleDeg: 0, spacing: 5,
+    }
+    expect(applyArray([hatch], config, seqContext())).toEqual([withGenIdentity(moved, 'gen-1')])
+  })
+})
+
+describe('validateArrayConfig / 追加カバレッジ（列間隔0）', () => {
+  it('rect で列間隔0かつ複数列は ARRAY_RECT_ZERO_COL_SPACING', () => {
+    expect(
+      validateArrayConfig({ kind: 'rect', rows: 1, cols: 2, rowSpacing: 10, colSpacing: 0 })?.code,
+    ).toBe('ARRAY_RECT_ZERO_COL_SPACING')
+  })
+})
