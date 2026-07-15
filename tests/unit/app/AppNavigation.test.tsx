@@ -60,11 +60,11 @@ describe('App ナビゲーション統合', () => {
     },
   )
 
-  it('CAD編集クリックでエディタ（全画面レイアウト）へ遷移し、ホームで戻れる', async () => {
+  it('CAD編集クリックでエディタへ遷移し、サイドバーのホームで戻れる', async () => {
     render(<App />)
     await userEvent.click(screen.getByRole('button', { name: /CAD編集/ }))
     expect(screen.getByTestId('canvas-stage')).toBeInTheDocument()
-    await userEvent.click(screen.getByRole('button', { name: /🏠 ホーム/ }))
+    await userEvent.click(screen.getByRole('button', { name: /ホーム・案件一覧/ }))
     expect(screen.getByPlaceholderText('案件名・図面番号で検索')).toBeInTheDocument()
   })
 })
