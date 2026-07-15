@@ -10,7 +10,7 @@
 | リポジトリ | `CivilDraft-Web-CAD` |
 | 既存技術資産 | [`Civil-Draw`](https://github.com/Kensan196948G/Civil-Draw) |
 | 開発基盤 | Claude Code on Linux＋GitHub＋Cloudflare＋Neon |
-| 現在の位置付け | Phase 0（棚卸し）完了。Phase 1（プロジェクト基盤・CI品質ゲート）着手中 |
+| 現在の位置付け | Phase 0（棚卸し）完了。**Phase 1 実装中**（幾何演算エンジン・Canvas描画・作図ツール・Undo/Redo・DXF入出力・自動保存を実装済み） |
 
 ---
 
@@ -39,13 +39,127 @@ flowchart LR
 | 対象 | CivilDraftで確認・実施できること | 最初に読む章 |
 | --- | --- | --- |
 | 👷 現場管理者 | 施工ヤード、仮設、重機範囲、搬入経路、施工順序の作成・説明 | [現場でできること](#-現場でできること) |
-| 📐 土木現場技術者 | 測点、座標、中心線、法面、断面、数量根拠の作成・確認 | [主な機能](#-主な機能) |
+| 📐 土木現場技術者 | 測点、座標、中心線、法面、断面、数量根拠の作成・確認 | [目指す機能](#-目指す機能) |
 | 🔬 土木建設研究者 | 図形・業務属性・数量・施工ステップを結び付けたデータモデルの検証 | [研究・技術的な価値](#-研究技術的な価値) |
 | 🧑‍💼 経営層 | 作図時間、転記、手戻り、照査負担を減らす狙いとKPI | [導入によって目指す効果](#-導入によって目指す効果) |
 | 🖥️ ITシステム部門 | Cloudflare、Neon、GitHub、認証、保存、監査、運用 | [システム構成](#%EF%B8%8F-システム構成) |
 | 🛠️ 開発者 | React、TypeScript、Konva、Zustand、IndexedDB、Workers | [開発を始める](#%EF%B8%8F-開発を始める) |
 
 CADやプログラミングに詳しくなくても、まず「何ができるか」と「何は自動判断しないか」を理解できる構成にしています。
+
+---
+
+## 🧭 いま何ができて、何を目指すか
+
+このREADMEは、**「いま実際に動くもの（Phase 1）」と「これから目指す姿（Phase 2 以降のロードマップ）」を分けて**説明します。以降の「解決したい課題」「主な対象図面」「目指す機能」等は**製品ビジョン（目標）**であり、そのすべてが現時点で動くわけではありません。現時点で実装済みの範囲は、次の「✅ 実装済み機能」を参照してください。
+
+| | いま動くこと（Phase 1・実装済み） | これから目指すこと（Phase 2〜6・ロードマップ） |
+| --- | --- | --- |
+| 🖥️ 動作環境 | Webブラウザ内だけで完結（サーバー・DB不要） | 共有版でCloudflare Workers + Neonを追加 |
+| ✏️ 作図 | 選択・線・矩形・円・ポリラインの作図、パン/ズーム/選択、Undo/Redo | 測点・仮設・重機・土工などの土木パラメトリック作図 |
+| 💾 保存 | ブラウザ内IndexedDBへ自動保存・起動時復元 | 案件・改訂・数量・監査をサーバーで共有 |
+| 🔄 相互運用 | DXF入出力（単位を内部mmへ変換） | DXF強化・独自形式・改訂/照査/承認 |
+| 🧮 業務属性 | （未実装） | 工種・規格・数量根拠・施工ステップの統合 |
+
+> つまり、現時点のCivilDraftは「土木記号・テンプレートを配置し、DXFで受け渡しでき、ブラウザに自動保存される基本的な2D作図ツール」です。土木業務属性（数量・測点・施工段階）はこれからの実装です。
+
+---
+
+## ✅ 実装済み機能（Phase 1 時点）
+
+以下は**実際にコードとして存在し、テスト済みの機能**です（正本＝根拠となる実装ファイル）。「実装済みだが未配線」の部品も正直に区別して記載します。
+
+| 機能 | 状態 | 概要 | 正本 |
+| --- | --- | --- | --- |
+| 幾何演算エンジン | ✅ 実装済み | トリム・延長・オフセット・フィレット・面取り・回転/ミラー・配列・尺度・スナップ・寸法・ハッチ生成・選択判定・空間索引(R-tree)・カリング・外接矩形・面積・座標パーサ 等 | `src/domain/geometry/`（19ファイル） |
+| Canvas描画・操作 | ✅ 実装済み | 6レイヤー構成の描画、パン・ズーム・クリック/Shiftクリック選択、レイヤー表示制御、500図形超でビューポートカリング | `src/app/canvas/`（`CanvasStage.tsx` 他） |
+| 作図ツール | ✅ 実装済み | 選択・線・矩形・円・ポリライン（ドラフトプレビュー・自動確定つき状態機械） | `src/domain/tools/draftGeometry.ts`・ToolSlice |
+| Undo / Redo | ✅ 実装済み | 「1操作＝1コマンド」方式、履歴上限100、差分のみ保持 | `src/domain/commands/`・`editorStore.ts` |
+| DXF入出力 | ✅ 実装済み | `$INSUNITS`(mm/cm/m)を内部mmへ変換して取込、書出時は単位宣言と座標を整合。未対応要素は警告(issues)に集約。ツールバーの📥取込/📤出力ボタンから操作可能 | `src/domain/dxf/` |
+| PDF出力 | ✅ 実装済み | A3等の用紙・縮尺・図面枠・表題欄つきベクター出力（pdf-lib）。日本語フォント未設定時は警告つき代替描画（文字化け黙殺なし）。ツールバーの📄ボタンから操作可能 | `src/domain/pdf/` |
+| 土木記号・テンプレート | ✅ 実装済み | 土木記号30種（仮設・車両・測量・土工・構造物）、作図テンプレート6種 | `src/domain/catalog/` |
+| 自動保存（IndexedDB） | ✅ 実装・**配線済み** | 起動時に最新下書きを復元、図形/レイヤー変更をデバウンス保存、保存失敗は握り潰さず警告表示 | `src/infrastructure/autosave/`・`App.tsx`（`AutosaveManager`） |
+| 認証（Cloudflare Access） | 🟡 **部品のみ・未配線** | Access配下のidentity取得層とロール定義は実装済みだが、まだ画面本体へ接続していない（配線は共有版=Phase 6） | `src/infrastructure/auth/accessIdentity.ts` |
+| SBOM・ライセンス衛生 | ✅ 実装済み | CycloneDX SBOM生成、サードパーティ表記生成、依存衛生手順 | `npm run sbom` / `npm run notices`・`docs/operations/dependency-hygiene.md` |
+
+> 🟡 の「未配線」は、部品（モジュール）としては実装・テスト済みだが、まだアプリ本体から呼び出していない状態を指します。誇張せずそのまま記載しています。
+
+---
+
+## 🗺️ システム構成図（現在の実装）
+
+### いま動いている構成（ブラウザ内で完結）
+
+```mermaid
+graph TB
+    subgraph BROWSER["🌐 Webブラウザ（現在はこの中だけで動作）"]
+        UI["React UI・ツールバー（App.tsx）"]
+        TOOLS["作図ツール（選択・線・矩形・円・ポリライン）"]
+        STORE["EditorStore（zustand）<br>図面・表示位置・レイヤー・選択・履歴"]
+        INDEX["GeometryIndex（R-tree）<br>図形を高速に探す索引"]
+        KONVA["Konva キャンバス（6レイヤー描画）"]
+        IDB["IndexedDB<br>自動保存・起動時復元"]
+        UI --> TOOLS
+        TOOLS --> STORE
+        STORE --> INDEX
+        STORE --> KONVA
+        STORE --> IDB
+    end
+```
+
+> ⚠️ サーバー・データベースはまだ使いません。認証（Cloudflare Access）は部品のみで未配線です。共有版（Workers + Neon）は Phase 6 で追加します。
+
+### レイヤー構造（依存の向き）
+
+内側ほど土木の計算そのもの、外側ほど画面・保存・通信です。**内側は外側を知らない**依存方向を、ESLintの`no-restricted-imports`で機械的に強制しています（domain層はReact/Konva/Zustandや上位層をimportできない等）。
+
+```mermaid
+graph TD
+    APP["app ✅（画面・Canvas・Store）"]
+    INFRA["infrastructure ✅一部（autosave配線済 / auth未配線）"]
+    APPLICATION["application ⬜雛形（ports・services）"]
+    DOMAIN["domain ✅（geometry・canvas・dxf・commands・catalog・tools・units）"]
+    SHARED["shared/types ✅（Geometry型・Result型）"]
+    APP --> APPLICATION
+    APP --> DOMAIN
+    INFRA --> DOMAIN
+    APPLICATION --> DOMAIN
+    DOMAIN --> SHARED
+```
+
+> 📖 図の詳細版（データフローのシーケンス図・座標系の解説・DXF入出力フロー・用語集）は
+> [`docs/architecture/overview.md`](./docs/architecture/overview.md) を参照してください。
+> ✅＝実装済み、⬜＝ディレクトリだけ用意した雛形（Phase 2 以降で実装）。
+
+---
+
+## 📁 ディレクトリ構造
+
+実際の `src/` の構成です（✅＝実装済み、⬜＝雛形）。
+
+```text
+src/
+├─ shared/          ✅ 共通型（Geometry判別共用体・Result型・Brand型）
+├─ domain/          ✅ 中核ロジック（React/Konvaに非依存・テスト容易）
+│  ├─ geometry/     ✅ 幾何演算エンジン19ファイル（トリム/オフセット/スナップ/空間索引 等）
+│  ├─ canvas/       ✅ 座標変換・グリッド・用紙・ルーラー
+│  ├─ commands/     ✅ Undo/Redo コマンド（1操作=1コマンド）
+│  ├─ dxf/          ✅ DXF入出力（単位変換）
+│  ├─ catalog/      ✅ 土木記号30種・テンプレート6種
+│  ├─ tools/        ✅ 作図ツール状態機械（ドラフト生成）
+│  ├─ units/        ✅ 単位換算
+│  ├─ pdf/          ✅ PDF出力（用紙・縮尺・図面枠・表題欄、pdf-lib）
+│  └─ （civil-attributes / coordinates / quantities / revisions / validation は雛形 ⬜）
+├─ app/             ✅ アプリ層（React）
+│  ├─ canvas/       ✅ CanvasStage・GeometryRenderer・Ruler・SnapMarker
+│  └─ store/        ✅ EditorStore（zustand）と供給層
+├─ infrastructure/  ✅一部
+│  ├─ autosave/     ✅ IndexedDB 自動保存（配線済み）
+│  └─ auth/         🟡 Cloudflare Access identity（部品のみ・未配線）
+├─ application/     ⬜ ユースケースの窓口（ports・services・commands）雛形
+├─ features/ pages/ stores/ components/ workers/   ⬜ 雛形（Phase 2 以降）
+└─ main.tsx         ✅ エントリポイント
+```
 
 ---
 
@@ -112,7 +226,9 @@ quadrantChart
 
 ---
 
-## ✨ 主な機能
+## ✨ 目指す機能
+
+> ⚠️ この節は**製品ビジョンとしての目標機能**を示します。現時点で動くのは「[✅ 実装済み機能](#-実装済み機能phase-1-時点)」に挙げた範囲で、測点・座標、仮設・重機、土工、数量、施工ステップ、改訂・照査の大半はPhaseロードマップのPhase 2以降で実装します。「ある」と読み取らないでください。
 
 ### 📐 基本作図・編集
 
@@ -301,8 +417,8 @@ flowchart LR
     B --> P["PDF・DXF・CSV"]
 ```
 
-- 編集中データはブラウザ内のIndexedDBへ自動保存します。
-- 長期保管や受渡しにはCivilDraftファイルを明示保存します。
+- 編集中データはブラウザ内のIndexedDBへ自動保存します（✅ Phase 1で実装・配線済み。起動時に最新下書きを復元）。
+- DXFでの受け渡し・PDF出力は実装済みです（✅）。CivilDraft独自形式での明示ファイル保存は整備中です（🔄）。
 - ブラウザデータを消去すると下書きが失われる可能性があります。
 - 重要な図面はブラウザ内だけに置かず、正式な保存手順に従います。
 
@@ -410,6 +526,30 @@ timeline
 | 2026-07-15 | ✅ Phase 1: プロジェクトスキャフォールド作成（Vite 7 + React 19 + TS 6、共通型システム） |
 | 2026-07-15 | ✅ Phase 1: CI品質ゲート構築（GitHub Actions: Lint/Typecheck/Test/Build + Dependency Audit） |
 | 2026-07-15 | ✅ `main`ブランチ保護設定（必須ステータスチェック・レビュー承認1件必須） |
+| 2026-07-15 | ✅ Phase 1: 内部座標基準の確定（ADR-0012）・幾何演算エンジン移植着手（coordParser/areaCalculator/orthoConstraint等、55テスト） |
+| 2026-07-15 | 🔍 Geometry型（Shape判別共用体）の未定義箇所を仕様書横断調査で発見、設計Issue化（Issue #20・後続移植作業の前提条件） |
+| 2026-07-15 | ✅ Phase 1: Geometry判別共用体を実装（Issue #20完了・13種のGeometryType全具体型を定義、58テスト）。Issue #5残14ファイル・Issue #18・Issue #19のブロック解除 |
+| 2026-07-15 | 🔍 Issue #20実装をコードレビュー（Critical/Important級バグなし。コメント誤字を修正、仕様書§6.2の内部矛盾をIssue #22として起票） |
+| 2026-07-15 | ✅ Issue #22対応（仕様書§6.2にSplineGeometry追加、Arc以降8型の正本を実装ファイルに明文化）。Issue closed |
+| 2026-07-15 | ✅ Issue #5部分完了: `shapeBBox.ts`（外接矩形計算エンジン）移植、テスト12件追加、70/70 green |
+| 2026-07-15 | ✅ **Issue #5完了（closed）**: 幾何演算エンジン17/17ファイル移植。5並列エージェントで selection/spatialIndex/viewportCulling/trim/extend/offset/fillet/chamfer/shapeTransform/scale/array/snap/dimension/hatchGenerator を一括移植 |
+| 2026-07-15 | ✅ ADR-0013（図形ID発番: crypto.randomUUID + コンテキスト注入、nanoid不採用）制定・`geometryFactory.ts`実装 |
+| 2026-07-15 | ✅ Issue #7部分: `GeometryIndex`（R-tree空間索引）のインスタンス化改修・複数図面独立性テスト完了 |
+| 2026-07-15 | ✅ Issue #19部分: `symbolCatalog`（土木記号30種）・`templateCatalog`（テンプレート6種）移植 |
+| 2026-07-15 | ✅ Issue #6基盤: `CoordinateTransformer`（仕様書§9.2）・`EditorStore`（§8.1 Slice構成ファクトリ）・React供給層実装。konva/react-konva/zustand導入 |
+| 2026-07-15 | 🔍 継承元の潜在課題をIssue化: #23（Arc掃引方向）・#24（スナップ改善）・#25（回転二重適用疑い） |
+| 2026-07-15 | ✅ **Issue #18完了**: DXF入出力移植（$INSUNITS→mm単位変換層、R-002/R-004不整合是正、継承元バグ5件修正、回帰テスト付き） |
+| 2026-07-15 | ✅ **Issue #6完了**: Canvas描画パイプライン（§9.1レイヤー構成・パン/ズーム/選択・カリング）+ GeometryRenderer 13種 |
+| 2026-07-15 | ✅ **Issue #7完了**: 空間索引+store層シングルトン解消。ベンチ実測32〜59倍高速（劣化なし実証） |
+| 2026-07-15 | ✅ **Issue #8完了**: Undo/Redo Commandパターン（メモリ約5,000倍改善実証、R-001解消）+ ToolSlice作図ツール |
+| 2026-07-15 | ✅ **Issue #9完了**: 自動保存IndexedDB移行+UI配線（起動時復元・容量超過警告、R-006握り潰し解消） |
+| 2026-07-15 | ✅ **Issue #10完了**: PDF出力新規実装（pdf-lib、用紙/縮尺/図面枠/表題欄、DD-TBD-006方式確定） |
+| 2026-07-15 | ✅ **Issue #13完了**: Cloudflare Access認証アプリ側（identity取得+ロール3種、テナント設定は人間確認事項） |
+| 2026-07-15 | ✅ **Issue #19/#21完了**: 記号30種・テンプレート6種・ルーラー/グリッド計算移植 |
+| 2026-07-15 | ✅ Issue #12部分: SBOM（CycloneDX）+ THIRD-PARTY-NOTICES自動生成（copyleft混入なし確認、ci.yml組込は人間承認待ち） |
+| 2026-07-15 | ✅ 結合テスト12件（エディタ全体フロー7+PDF経路5）、運用文書4点、アーキテクチャ図解（mermaid 8図）整備 |
+| 2026-07-15 | 🔒 セキュリティレビュー実施: 高信頼・実悪用可能な脆弱性0件（DXF/autosave/auth/CI/スクリプト全経路検査） |
+| 2026-07-15 | 📊 品質ゲート最終確認: **テスト632/632（3連続・STABLE）**・typecheck/lint/build green・脆弱性0 |
 
 ### Open Pull Request
 
@@ -417,10 +557,35 @@ timeline
 | --- | --- | --- |
 | [#1](../../pull/1) | Phase 0 継承台帳・リスク台帳・ADR 11件 | Draft・人間承認待ち |
 | [#14](../../pull/14) | Phase 1 スキャフォールド・共通型システム・CI品質ゲート | Draft・人間承認待ち |
+| [#16](../../pull/16) | **Phase 1 コア実装一式**（座標基準・幾何演算17種・Canvas描画・作図ツール・Undo/Redo・DXF/PDF入出力・自動保存・認証部品・SBOM・運用文書） | Draft・人間承認待ち |
 
-> 両PRとも`main`（default branch）宛のため、Mission制約により**人間の明示承認後にのみマージ**します。CTOによる自動mergeは対象外です。
+> 全PRとも`main`（default branch）宛のため、Mission制約により**人間の明示承認後にのみマージ**します。CTOによる自動mergeは対象外です。
 
 進捗の詳細は[GitHub Projects「CivilDraft-Web-CAD 開発司令盤」](../../projects)、Issue一覧は[Issues](../../issues)を参照してください。
+
+### 🔁 セッション終了時サマリー（2026-07-15 午後・Phase 1 コア完成）
+
+⏱ セッション時間: 2026-07-15T04:16:26Z 開始（JST 13:16）、5時間上限 09:16:26Z
+
+📊 **本セッションの成果（6並列エージェント + CTO統合）**
+
+- ✅ **Issue 10件クローズ**: #5(幾何演算17種)・#6(Canvas描画)・#7(空間索引+store刷新)・#8(Undo/Redo Command)・#9(自動保存IndexedDB)・#10(PDF出力)・#13(認証部品)・#18(DXF入出力)・#19(カタログ)・#21(ルーラー/グリッド)
+- ✅ ADR-0013制定（ID発番=crypto.randomUUID+コンテキスト注入）、DD-TBD-006方式確定（PDF=pdf-lib）
+- ✅ WebUIが動作: 作図（線/矩形/円/ポリライン）・選択・Undo/Redo・パン/ズーム・グリッド・DXF取込/出力・PDF出力・自動保存/復元
+- ✅ 継承元バグ是正: DXF単位不整合(R-002/R-004)・hatch無限ループ・DASHDOT不正DXF・rad二重変換・レイヤー色取り違え・autosave握り潰し(R-006)
+- ✅ 性能実証: 空間索引32〜59倍高速・Undo履歴メモリ約5,000倍改善(R-001)
+- 📊 **テスト 70 → 632件（+562、3連続green=STABLE）**、typecheck/lint/build green、脆弱性0
+- 🔒 セキュリティレビュー実施（DXF/autosave/auth/CI全経路、実悪用可能な所見0件）、シークレット露出なし
+- 📚 運用文書4点（リリース/ロールバック/運用/障害対応）・アーキテクチャ図解(mermaid 8図)・SBOM/NOTICES・README刷新
+
+📋 **残課題（次セッション/人間判断）**
+
+1. 🚫 **人間承認待ち**: PR #1/#14/#16のマージ（main宛）、Issue #17（ci.ymlトリガー）、Issue #12残（CIへのSBOM組込）、Cloudflare Accessテナント設定（Issue #13コメントのチェックリスト）、日本語フォント同梱（DD-TBD-006配布条件）
+2. 🔍 **描画実機検証待ち**: Issue #23（Arc掃引方向）・#24残（回転図形スナップ）・#25（回転二重適用疑い）— 本端末のChrome起動不能（SIGTRAP）のため、ユーザーによるブラウザ確認が必要
+3. 📐 **Phase 2以降**: 土木座標・測量・線形（ロードマップどおり）。Issue #26（バンドル最適化、P3）
+4. Minimap/ContextMenu/スナップガイド表示/独自形式保存は必要時に別Issue起票
+
+🚫 **本セッションでは main直push・PRマージ・本番デプロイを一切実行していません**（人間の明示承認待ちの状態を維持）。
 
 ---
 
@@ -506,8 +671,29 @@ npm run dev
 | `npm run typecheck` | TypeScript型検査（`tsc -b --noEmit`） |
 | `npm run test` | 単体・結合テスト（Vitest） |
 | `npm run test:watch` | Vitestをwatchモードで実行 |
+| `npm run sbom` | CycloneDX形式のSBOMを生成（`sbom/civildraft-sbom.cdx.json`） |
+| `npm run notices` | サードパーティ表記を生成（`THIRD-PARTY-NOTICES.md`） |
 
 > Playwright E2Eテストは未導入（将来のE2E整備時に追加予定）。導入後、本表に`npm run test:e2e`を追記します。
+
+### ✅ 品質ゲート（PR前・リリース前に全green必須）
+
+| # | ゲート | コマンド | 合格条件 |
+| --- | --- | --- | --- |
+| 1 | Lint | `npm run lint` | ESLintエラー0（レイヤー間依存も強制） |
+| 2 | 型検査 | `npm run typecheck` | `tsc -b --noEmit`エラー0 |
+| 3 | テスト | `npm run test` | Vitest全件pass |
+| 4 | ビルド | `npm run build` | `tsc -b && vite build`成功・`dist/`生成 |
+| 5 | 依存脆弱性 | `npm audit --audit-level=high` | high以上0件（CIの`Dependency Audit`と同一基準） |
+
+一括実行（1つでも失敗したら停止）:
+
+```bash
+npm run lint && npm run typecheck && npm run test && npm run build && npm audit --audit-level=high
+```
+
+> 上記1〜4はGitHub Actionsの`quality`ジョブ、5は`security`ジョブとしてPR時に自動実行されます（[⚙️ 現在のCI実態](#-現在のci実態phase-1時点)参照）。
+> リリース・ロールバック・障害対応の手順は [`docs/operations/`](./docs/operations/) を参照してください。
 
 ### 環境変数
 
@@ -539,7 +725,9 @@ flowchart LR
 
 ---
 
-## 📚 設計文書
+## 📚 ドキュメント
+
+### 設計文書
 
 | 文書 | 内容 |
 | --- | --- |
@@ -547,6 +735,24 @@ flowchart LR
 | [`CivilDraft_基本設計書_20260714.md`](./CivilDraft_基本設計書_20260714.md) | システム構成、画面、機能配置、データ・APIの全体方式 |
 | [`CivilDraft_詳細設計仕様書_20260714.md`](./CivilDraft_詳細設計仕様書_20260714.md) | コード、型、処理、DB、API、計算、テストの実装仕様 |
 | `README.md` | 製品概要、対象者別案内、導入、開発入口 |
+
+### アーキテクチャ・設計判断（ADR）
+
+| 文書 | 内容 |
+| --- | --- |
+| [`docs/architecture/overview.md`](./docs/architecture/overview.md) | 非エンジニア向けアーキテクチャ図解（構成・レイヤー・データフロー・座標系・DXF・用語集） |
+| [`docs/adr/0012-internal-coordinate-baseline.md`](./docs/adr/0012-internal-coordinate-baseline.md) | 内部座標基準（mm・X右・Y下、公開APIは度数法） |
+| [`docs/adr/0013-geometry-id-generation.md`](./docs/adr/0013-geometry-id-generation.md) | 図形ID発番（`crypto.randomUUID` + コンテキスト注入） |
+
+### 運用文書（Phase 1版）
+
+| 文書 | 内容 |
+| --- | --- |
+| [`docs/operations/release-procedure.md`](./docs/operations/release-procedure.md) | リリース前チェックリストと成果物生成・検証手順 |
+| [`docs/operations/rollback-procedure.md`](./docs/operations/rollback-procedure.md) | 切り戻し（git revert / タグ再ビルド）手順 |
+| [`docs/operations/operations-manual.md`](./docs/operations/operations-manual.md) | 開発サーバー・品質ゲート・SBOM/NOTICES・GitHub Projects運用 |
+| [`docs/operations/incident-response.md`](./docs/operations/incident-response.md) | 障害分類・初動・Auto Repair制約・エスカレーション |
+| [`docs/operations/dependency-hygiene.md`](./docs/operations/dependency-hygiene.md) | 依存衛生・ライセンス・リリース可否の人間判断（正本） |
 
 ```mermaid
 flowchart TD
@@ -556,6 +762,8 @@ flowchart TD
     M["README<br>全員の入口"] --> R
     M --> B
     M --> D
+    A["ADR<br>個別の設計判断"] --> D
+    O["architecture/overview<br>図解の入口"] --> D
 ```
 
 ---
@@ -563,7 +771,7 @@ flowchart TD
 ## 📌 現在の未決事項
 
 - `Civil-Draw`のコード、依存関係、素材、フォントのライセンスと再利用範囲
-- 内部座標の軸方向、角度正方向、基準単位、許容誤差
+- ~~内部座標の軸方向、角度正方向、基準単位、許容誤差~~ → ✅ ADR-0012で確定（mm・X右・Y下、公開APIは度数法）
 - CivilDraft独自ファイルの拡張子と圧縮方式
 - 対応するDXFバージョンと要素
 - 日本語PDFフォントの方式と配布条件

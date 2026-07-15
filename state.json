@@ -6,12 +6,12 @@
     "phase_mode": "development"
   },
   "session": {
-    "session_start_utc": "2026-07-14T23:22:09Z",
+    "session_start_utc": "2026-07-15T04:16:26Z",
     "max_duration_minutes": 300,
-    "hard_stop_utc": "2026-07-15T04:22:09Z"
+    "hard_stop_utc": "2026-07-15T09:16:26Z"
   },
-  "goal": "Mission: CTO主導自律開発によりRelease Ready/Production Ready状態へ到達。現セッションはPhase 0（Civil-Draw棚卸し）完了とPhase 1 MVPスキャフォールド着手を目標とする。全テスト通過・CI成功・blocker=0・PR作成済み、または5時間到達、または20ターン到達で終了。",
-  "phase": "Improve",
+  "goal": "Mission: CTO主導自律開発によりRelease Ready/Production Ready状態へ到達。2026-07-15午後セッションでPhase 1 MVPコア（幾何演算17種・Canvas描画・作図ツール・Undo/Redo・DXF/PDF入出力・自動保存・認証部品・SBOM・運用文書）を完成。本番デプロイのみ残した承認待ち状態で停止。",
+  "phase": "Verify",
   "kpi": {
     "success_rate_target": 0.9,
     "ci_success_rate": 1.0,
@@ -42,40 +42,62 @@
     ]
   },
   "completed_issues": [
-    {
-      "id": "phase0-inventory",
-      "title": "Phase 0: Civil-Draw 6観点棚卸し（46コンポーネント判定）",
-      "date": "2026-07-15",
-      "method": "Dynamic Workflow (wf_946d1dda-951)",
-      "result": "discard 7 / modify 20 / reference_only 8 / as_is 11"
-    },
-    {
-      "id": "phase0-deliverables",
-      "title": "Phase 0 成果物: 継承台帳・リスク台帳・依存/ライセンスレポート・性能ベースライン・ADR 11件",
-      "date": "2026-07-15",
-      "branch": "phase0/inheritance-ledger-adr",
-      "pr": "https://github.com/Kensan196948G/CivilDraft-Web-CAD/pull/1",
-      "pr_status": "merged"
-    }
+    { "issue": 5, "closed": "2026-07-15", "note": "幾何演算エンジン群17/17ファイル移植完了（rulerUtilsは#21へ一本化）。5並列エージェントで11ファイル同時移植。派生Issue #23/#24起票。commit 208de64" },
+    { "issue": 6, "closed": "2026-07-15", "note": "Canvas描画パイプライン（§9.1レイヤー構成・CoordinateTransformer§9.2・カリング§9.4・作図ツール配線）。Minimap/ContextMenuは対象外として必要時に別Issue" },
+    { "issue": 7, "closed": "2026-07-15", "note": "空間索引インスタンス化+store層シングルトン解消（EditorStoreファクトリ）。ベンチ実測32〜59倍高速で劣化なし実証" },
+    { "issue": 8, "closed": "2026-07-15", "note": "Commandパターン（差分ペイロード、メモリ約5000倍改善実証）+HistorySlice+ToolSlice配線。R-001解消" },
+    { "issue": 9, "closed": "2026-07-15", "note": "autosave IndexedDB移行+UI配線（起動時復元・デバウンス保存・容量超過警告）。R-006握り潰し解消" },
+    { "issue": 10, "closed": "2026-07-15", "note": "PDF出力新規実装（pdf-lib、§24.1、DD-TBD-006方式確定、フォント注入DI）。UIボタン配線済み" },
+    { "issue": 13, "closed": "2026-07-15", "note": "Cloudflare Access認証アプリ側（identity取得+ロール3種）。テナント設定チェックリストはIssueコメントに記録（人間確認事項）" },
+    { "issue": 18, "closed": "2026-07-15", "note": "DXF入出力移植。R-002/R-004単位不整合是正、DASHDOT不正DXF・rad二重変換・レイヤー色取り違え修正" },
+    { "issue": 19, "closed": "2026-07-15", "note": "symbolCatalog(30種as_is)+templateCatalog(6種Geometry化+instantiateTemplate)" },
+    { "issue": 20, "closed": "2026-07-15", "note": "Geometry判別共用体13種実装（前セッション）" },
+    { "issue": 21, "closed": "2026-07-15", "note": "rulerUtils+gridRenderer移植（純粋関数化）" },
+    { "issue": 22, "closed": "2026-07-15", "note": "仕様書§6.2のSplineGeometry欠落修正（前セッション）" }
   ],
   "issues_pr_ready": [
-    { "issue": 3, "pr": 14, "title": "プロジェクトスキャフォールド作成（ディレクトリ構成・Vite/TS/React初期化）" },
-    { "issue": 4, "pr": 14, "title": "型システム基盤の実装（Brand ID型・Result<T,E>・単位付き座標値）" },
-    { "issue": 11, "pr": 14, "title": "CI品質ゲート構築（lint実効性検証込み）" }
+    { "issue": 3, "pr": 14, "title": "プロジェクトスキャフォールド作成" },
+    { "issue": 4, "pr": 14, "title": "型システム基盤の実装" },
+    { "issue": 11, "pr": 14, "title": "CI品質ゲート構築" },
+    { "issue": 15, "pr": 16, "title": "内部座標基準の確定（ADR-0012、DD-TBD-002解消）" },
+    { "issue": 2, "pr": 1, "title": "Phase 0 棚卸し成果物一式" }
   ],
   "blocked_issues": [],
+  "open_issues_next": [
+    { "issue": 17, "title": "stacked PR（base≠main）でCIが起動しない", "priority": "P2", "note": "ci.ymlトリガー変更は人間承認待ち。PR #14マージ→#16のbase更新でCI実機確認可能" },
+    { "issue": 12, "title": "SBOM残スコープ（ci.ymlへの組込のみ）", "priority": "P2", "note": "sbom/notices scripts・生成物・docs完了済み（commit e52b5aa）。CIステップ追加はIssue #17と併せ人間承認待ち" },
+    { "issue": 23, "title": "Arc掃引方向（CW/CCW）の規約確定", "priority": "P2", "note": "描画実機検証（ブラウザ）後に規約確定。GeometryRenderer/pdfExporterは暫定規約で一致済み。鏡像swap問題も同Issueに追記済み" },
+    { "issue": 24, "title": "スナップエンジン改善（残: 回転図形対応のみ）", "priority": "P2", "note": "許容差注入・楕円center/象限は完了（commit 7531f43）。回転図形は#25と併せ描画検証後" },
+    { "issue": 25, "title": "rectangle/ellipse 90°回転の二重適用疑い", "priority": "P2", "note": "GeometryRendererはrotationDegを描画適用するため要実機検証→transformShape修正方針決定" },
+    { "issue": 26, "title": "バンドルサイズ最適化（pdf-lib/dxf系コード分割）", "priority": "P3", "note": "gzip 708KB。dynamic import化で改善可能" }
+  ],
   "learning": {
     "failure_patterns": [
-      "Civil-DrawのE2E性能回帰テスト閾値がcommit 1f93474でavgFps>25/50からminFps>1へ実質無力化されていた（無関係なコミットメッセージの下）。CI品質ゲートは「存在すること」だけでなく「実効性」を検証する必要がある（ADR-0010）",
       {
         "date": "2026-07-15",
         "pattern": "npm install <パッケージ名>（バージョン未指定）で最新版を導入すると、別の既存パッケージが宣言するpeer/dependency範囲と非互換になり、npmが依存木の一部に重複コピーをnestすることがある",
         "symptom": "一見無関係なエラー（vitest実行時のRangeError: WebAssembly.instantiate(): Out of memory）として現れ、パッケージ名だけでは原因箇所を特定できなかった",
         "root_cause": "vite@8.1.4（無指定インストールで解決）がvitest@3.2.7の宣言範囲(\"^5.0.0 || ^6.0.0 || ^7.0.0-0\")外だったため、npmがvitest配下に別バージョンのviteを丸ごとnest。Vite内蔵es-module-lexerのWASMモジュールが独立に2回インスタンス化され、V8のWASM guard-page仮想メモリ予約が積み上がりulimit -v 20,000,000KBを超過した"
+      },
+      {
+        "date": "2026-07-15",
+        "pattern": "未マージPR上に積む形（stacked PR、base≠main）で新規ブランチを作りPRを作成すると、ci.ymlのトリガー（push/pull_request: branches: [main]）に一致せずCIが一切起動しない",
+        "symptom": "gh pr checks でCodeRabbit以外のチェックが表示されず、gh run list --branch <branch> も0件",
+        "root_cause": "GitHub ActionsのworkflowトリガーがmainブランチのpushとPRのみを対象にしており、非mainブランチをbaseとするPRは対象外",
+        "fix_or_workaround": "ci.yml自体の変更はCI/CDパイプライン変更に該当し人間確認が必要なため保留。ローカルで typecheck/lint/test(3連続)/build/audit を実行して結果をPR本文に明記し、CI未実行である事実も併記して透明性を保つ。Issue #17として構造的課題を起票し、対応方針の決定を待つ"
       }
     ],
     "success_patterns": [
-      "6観点並列investigator + 統合synthesisのDynamic Workflow構成により、46コンポーネントの継承判定を単一セッション内で網羅的かつ根拠付きで完了できた",
+      {
+        "date": "2026-07-15",
+        "pattern": "相互依存のない移植対象群（幾何演算エンジン11ファイル）は、ファイル単位の完全担当分割 + 共通規約プロンプト（型対応表・ADR参照・検証コマンド明記）で5並列エージェントに割り当てると、統合時のコンフリクトゼロ・全ゲート一発greenで完了できる",
+        "fix": "事前に(1)全対象のimport/exportをgrepして相互依存なしを確認、(2)共通基盤（geometryFactory/ADR-0013）を先に単独コミット、(3)エージェントにはcommit禁止・担当外ファイル変更禁止を明示、(4)遊休エージェントにはSendMessageで追加タスクを逐次投入。統合はテストファイル数を監視するBashウォッチャーで検知し、親が一括Verify→コミット"
+      },
+      {
+        "date": "2026-07-15",
+        "pattern": "vitest globals:false 環境では @testing-library/react の自動cleanupが効かず、2つ目以降のコンポーネントテストが「Found multiple elements」で落ちる",
+        "fix": "tests/setup.ts で afterEach(() => cleanup()) を明示登録する。また eslint react-hooks v7 は useRef の render中アクセス（遅延初期化パターン）を react-hooks/refs エラーにするため、useState(() => createXxx()) の initializer 方式を使う"
+      },
       {
         "date": "2026-07-15",
         "pattern": "依存関係起因の原因不明エラーは、node_modules全体でWASM/native呼び出し箇所を横断grepし、npm ls <pkg> --allで重複バージョンの有無を確認することで根本原因を特定できる",
@@ -85,6 +107,46 @@
         "date": "2026-07-15",
         "pattern": "gh pr edit --body / --body-file がGitHub Projects Classic関連のGraphQLエラーで失敗する場合がある（本来のbody更新とは無関係な内部クエリが原因）",
         "fix": "GitHub MCPサーバーのmcp__plugin_github_github__update_pull_requestツールを使うと同エラーを回避してPR本文を更新できる"
+      },
+      {
+        "date": "2026-07-15",
+        "pattern": "継承台帳（inheritance-ledger.md）はコンポーネントをディレクトリ単位で機械的に集計するため、その数字（例: 幾何演算エンジン群27モジュール）がそのままIssueスコープ（機能責務単位）と一致するとは限らない",
+        "fix": "実装着手前に、継承元リポジトリの実ファイル一覧（GitHub MCP get_file_contentsで直接取得可、ローカルclone不要）と既存Issue本文を1件ずつ突き合わせ、重複帰属・Issue化漏れを洗い出してからIssue本文を再分類する。Issue #5は27→対象18/他Issue帰属4/新規Issue化2(#18,#19)/見送り1に整理した"
+      },
+      {
+        "date": "2026-07-15",
+        "pattern": "tsconfigのnoUncheckedIndexedAccess下では、配列.lengthのチェックだけではその後のインデックスアクセス（arr[0]等）のundefined型が解消されない（TypeScriptはlengthチェックとインデックスアクセスを相関付けて推論しない）。かといって分割代入（const [a,b]=arr）だけに置き換えると、今度は要素過多（arr=['1','2','3']でa,bだけ受け取り3番目を黙って捨てる）を型エラーなく見逃す",
+        "fix": "分割代入で余剰要素も明示的に受け取り（const [a,b,extra]=arr）、extra!==undefinedもチェック対象に含めることで、元のarr.length!==2と同等の厳密性を型安全な形で再現できる（src/domain/geometry/coordParser.ts parseCartesian/parseRelativePolar参照）"
+      },
+      {
+        "date": "2026-07-15",
+        "pattern": "移植対象ディレクトリが十数〜数十ファイル規模のとき、個別ファイルのget_file_contentsを繰り返すより、GitHub Code Search（search_code）に単一クエリ（例: '\"types/geometry\" repo:Kensan196948G/Civil-Draw path:src/utils'）を投げる方が圧倒的に高速",
+        "fix": "text_matchesのfragmentにimport文の内容がそのまま含まれるため、『対象型を全くimportしない』『Point等の部分型のみimport』『Shape union全体をimport』の3値分類が一括で得られる。この分類結果からareaCalculator.ts/orthoConstraint.ts（Shape非依存）を移植可能ファイルとして即座に特定でき、templateCatalog.tsが従来想定(as_is)と異なりShape依存であるという誤り訂正も同時に得られた"
+      },
+      {
+        "date": "2026-07-15",
+        "pattern": "GitHub Projects(ProjectV2)のGraphQL Global ID（project-id, item-id等）は人間には判読不能なBase64様の不透明文字列で、記憶やタイプミスにより1文字違いの誤りが起きやすい（例: PVT_kwHOClgkIc4Bda6X を PVT_kwHOClgkIc4BBda6 と誤記）",
+        "fix": "gh project item-edit等でGraphQL IDを使う直前に毎回 gh project view <num> --owner <owner> --format json でid値を取得し直す。エラーメッセージ「Could not resolve to a node with the global id of '...'」が出た場合はID取り違えを疑い、記憶に頼らず再取得する"
+      },
+      {
+        "date": "2026-07-15",
+        "pattern": "Issue本文の前提（『型の一部が未定義』等）は起票時点のgrep調査に基づく推測であり、実装ファイルの実態と乖離することがある。Issue#20は当初『Geometry判別共用体の一部（7型+spline）が未定義』としていたが、src/shared/types/geometry.tsを直接読むとPoint型以外は何も実装されておらずGeometryBase等の基盤ごと未実装だった",
+        "fix": "設計Issueの実装着手前には必ず対象ファイルをReadで直接確認し、Issue本文の前提を検証してから着手する。前提が誤っていた場合はスコープが変わるため、実装順序（基盤→派生型）を実態に合わせて組み直す"
+      },
+      {
+        "date": "2026-07-15",
+        "pattern": "Issue #5残ファイルのうち事前調査（get_file_contentsで直接内容確認）した2件で、単純な型置換だけでは済まない事情が判明した。(1) perfHarness.ts: generatePerfShapesがShape型4種(line/rect/circle/polyline)を直接組み立てており、Geometry移植にはGeometryBaseの全フィールド(layerId/style/constructionStepIds/locked/createdAt/updatedAt)を補完する追加作業が要る。runMicroBenchmark関数は型非依存で影響なし。(2) autosave.ts: localStorage.setItem/getItemで直接シリアライズしておりGitHub Projectsのバックログ項目『[Phase 1] 自動保存のIndexedDB移行（保存復旧）』と設計方針が重複する。単純as-is移植ではなくIndexedDB化を伴う可能性が高い",
+        "fix": "次セッションでperfHarness.tsに着手する際はGeometryBase補完コストを見積もってから着手する。autosave.tsはIssue #5単独ではなくGitHub Projectsのバックログ項目と統合してスコープ再定義してから着手する（別Issue化を検討）"
+      },
+      {
+        "date": "2026-07-15",
+        "pattern": "viewportCulling.tsはselection.ts(getShapeBBox関数、本PRで移植したdomain/geometry/shapeBBox.tsとは別物)とspatialIndex.ts(shapeIndexというグローバルシングルトン)の両方に依存しており単独移植不可能。さらにspatialIndex.tsのグローバルシングルトンは、GitHub Projects Backlogの別項目『[Phase 1] 空間索引のインスタンス化改修（グローバルシングルトン解消）』が対象とする設計課題そのもので、単純移植ではなく設計変更を伴う",
+        "fix": "Issue #5残ファイルの着手順序はselection.ts→spatialIndex.ts（インスタンス化改修を含む設計判断が必要）→viewportCulling.tsとする。spatialIndex.tsはIssue #5単体ではなくProjects Backlog項目とスコープ調整してから着手する"
+      },
+      {
+        "date": "2026-07-15",
+        "pattern": "selection.ts本体をget_file_contentsで確認した結果、getShapeBBox関数はShape型14種に対するswitch文で、ロジック構造が本PRで移植済みのdomain/geometry/shapeBBox.ts（Geometry型13種対応）とほぼ1対1対応することが確定した（line/rect→rectangle/circle/arc/polyline/hatch/symbolは既に移植済みロジックと同一パターン、text/dimension/leader相当のcallout/cloud/mlineがShape側の追加型）",
+        "fix": "viewportCulling.ts移植時、getShapeBBoxを新規移植する必要はない。isInViewport相当のロジックはdomain/geometry/shapeBBox.tsのshapeBBox()をそのまま呼び出す設計にできる。selection.ts側で追加移植が要るのはbboxContainsPoint/bboxIntersects/rectFromPoints/findShapesInRect/findShapeAtPoint（BBox型のみに依存し図形型非依存）のみで、これらは軽量。次セッションのselection.ts着手時はgetShapeBBoxの再実装を避け、shapeBBox.tsのBBox型・関数を再利用する方針で見積もること"
       }
     ]
   }
