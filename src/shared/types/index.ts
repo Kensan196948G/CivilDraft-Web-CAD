@@ -24,4 +24,24 @@ export type {
 
 export type { Result, ValidationIssue } from './result'
 
-export type { Point } from './geometry'
+export type {
+  Point,
+  GeometryStyle,
+  GeometryBase,
+  GeometryType,
+  Geometry,
+  LineGeometry,
+  CircleGeometry,
+  PolylineGeometry,
+  TextGeometry,
+  ArcGeometry,
+  RectangleGeometry,
+  EllipseGeometry,
+  DimensionGeometry,
+  LeaderGeometry,
+  HatchPattern,
+  HatchGeometry,
+  SymbolGeometry,
+  SplineGeometry,
+  ParametricGeometry,
+} from './geometry'
