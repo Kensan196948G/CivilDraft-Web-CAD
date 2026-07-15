@@ -1,10 +1,19 @@
 /**
- * アプリケーションルート。Phase 1 MVP: 図面キャンバス + ツールバー + 自動保存配線。
- * レイヤーパネル・プロパティパネル等のUIは後続Issueで追加する。
- * デモ配置ボタンはテンプレートカタログの動作確認用（暫定）。
+ * アプリケーションルート。
+ * デザイン正本: Claude Design「CivilDraft Web CAD」Home.dc.html（100%適用）。
+ * 画面構成: ホーム（サイドバー+案件一覧+復旧候補）⇄ CAD編集（既存エディタ）。
+ * テーマ（light/dark）は data-theme 属性 + localStorage 'civildraft-theme' で永続化。
+ *
+ * 自動保存の役割分担:
+ * - AutosaveManager: 図形/レイヤー変更のデバウンス保存 + 保存状態表示（エディタ画面）
+ * - HomePage: 起動時の復旧候補表示と利用者主導の復元/破棄（デザインの意図に合わせ、
+ *   旧実装の「マウント時サイレント自動復元」から明示操作へ変更）
  */
 import { useEffect, useRef, useState } from 'react'
 import { CanvasStage } from './canvas/CanvasStage'
+import { Sidebar } from './layout/Sidebar'
+import type { AppView } from './layout/Sidebar'
+import { HomePage } from './pages/HomePage'
 import { EditorStoreProvider } from './store/EditorStoreContext'
 import { useEditorStore, useEditorStoreApi } from './store/useEditorStore'
 import { TEMPLATE_CATALOG, instantiateTemplate } from '@/domain/catalog/templateCatalog'
@@ -13,8 +22,12 @@ import { importDxf } from '@/domain/dxf/dxfImporter'
 import { exportPdf } from '@/domain/pdf/pdfExporter'
 import type { ToolType } from '@/domain/tools/draftGeometry'
 import { createAutosaveStore } from '@/infrastructure/autosave/autosaveStore'
+import type { AutosaveStore } from '@/infrastructure/autosave/autosaveStore'
 import { scheduleAutosave } from '@/infrastructure/autosave/autosaveScheduler'
 import { createDefaultLayer } from './store/editorStore'
+import './home.css'
+
+const THEME_STORAGE_KEY = 'civildraft-theme'
 
 /** Blobをファイルとしてダウンロードさせる（ブラウザ標準のa[download]方式）。 */
 function downloadBlob(blob: Blob, filename: string): void {
@@ -26,30 +39,41 @@ function downloadBlob(blob: Blob, filename: string): void {
   URL.revokeObjectURL(url)
 }
 
+function loadTheme(): 'light' | 'dark' {
+  try {
+    return localStorage.getItem(THEME_STORAGE_KEY) === 'dark' ? 'dark' : 'light'
+  } catch {
+    return 'light'
+  }
+}
+
 const headerStyle: React.CSSProperties = {
   display: 'flex',
   alignItems: 'center',
   gap: 8,
   padding: '8px 16px',
-  borderBottom: '1px solid #e2e8f0',
-  background: '#f8fafc',
-  fontFamily: 'sans-serif',
+  borderBottom: '1px solid var(--line)',
+  background: 'var(--surface)',
+  color: 'var(--ink)',
   flexWrap: 'wrap',
 }
 
 const buttonStyle: React.CSSProperties = {
   padding: '4px 12px',
-  border: '1px solid #cbd5e1',
+  border: '1px solid var(--line)',
   borderRadius: 4,
-  background: '#ffffff',
+  background: 'var(--surface)',
+  color: 'var(--ink)',
   cursor: 'pointer',
   fontSize: 13,
+  font: 'inherit',
 }
 
 const activeButtonStyle: React.CSSProperties = {
   ...buttonStyle,
-  background: '#dbeafe',
-  borderColor: '#3b82f6',
+  background: '#E08A2B',
+  borderColor: '#E08A2B',
+  color: '#fff',
 }
 
 const TOOLS: readonly { readonly tool: ToolType; readonly label: string }[] = [
@@ -60,7 +84,11 @@ const TOOLS: readonly { readonly tool: ToolType; readonly label: string }[] = [
   { tool: 'polyline', label: '〰 ポリライン' },
 ]
 
-function Toolbar() {
+interface EditorToolbarProps {
+  readonly onGoHome: () => void
+}
+
+function EditorToolbar({ onGoHome }: EditorToolbarProps) {
   const storeApi = useEditorStoreApi()
   const geometryCount = useEditorStore((s) => s.geometries.length)
   const gridVisible = useEditorStore((s) => s.gridVisible)
@@ -126,6 +154,10 @@ function Toolbar() {
 
   return (
     <header style={headerStyle}>
+      <button style={buttonStyle} onClick={onGoHome}>
+        🏠 ホーム
+      </button>
+      <span style={{ width: 1, height: 20, background: 'var(--line)' }} />
       <strong>CivilDraft</strong>
       {TOOLS.map(({ tool, label }) => (
         <button
@@ -136,14 +168,14 @@ function Toolbar() {
           {label}
         </button>
       ))}
-      <span style={{ width: 1, height: 20, background: '#cbd5e1' }} />
+      <span style={{ width: 1, height: 20, background: 'var(--line)' }} />
       <button style={buttonStyle} disabled={!canUndo} onClick={() => storeApi.getState().undo()}>
         ↩ 元に戻す
       </button>
       <button style={buttonStyle} disabled={!canRedo} onClick={() => storeApi.getState().redo()}>
         ↪ やり直す
       </button>
-      <span style={{ width: 1, height: 20, background: '#cbd5e1' }} />
+      <span style={{ width: 1, height: 20, background: 'var(--line)' }} />
       <button style={buttonStyle} onClick={handleExportPdf}>
         📄 PDF出力
       </button>
@@ -164,7 +196,7 @@ function Toolbar() {
           e.target.value = ''
         }}
       />
-      <span style={{ width: 1, height: 20, background: '#cbd5e1' }} />
+      <span style={{ width: 1, height: 20, background: 'var(--line)' }} />
       <button style={buttonStyle} onClick={seedDemo}>
         📐 デモ図形
       </button>
@@ -177,7 +209,7 @@ function Toolbar() {
       <button style={buttonStyle} onClick={() => storeApi.getState().setGridVisible(!gridVisible)}>
         {gridVisible ? '⊞ グリッド非表示' : '⊞ グリッド表示'}
       </button>
-      <span style={{ marginLeft: 'auto', color: '#64748b', fontSize: 12 }}>
+      <span style={{ marginLeft: 'auto', color: 'var(--muted)', fontSize: 12 }}>
         {ioMessage !== null && <span style={{ marginRight: 12 }}>{ioMessage}</span>}
         図形: {geometryCount} / ズーム: {(zoom * 100).toFixed(0)}% / ホイール: ズーム、中ボタン: パン、Esc: 中止、Enter: 確定
       </span>
@@ -185,27 +217,20 @@ function Toolbar() {
   )
 }
 
+interface AutosaveManagerProps {
+  readonly autosaveStore: AutosaveStore
+}
+
 /**
- * 自動保存の配線（Issue #9 完了条件2: リロード後の下書き復元）。
- * 起動時に最新下書きを復元し、図形・レイヤー変更をデバウンス保存する。
+ * 自動保存の配線（Issue #9）: 図形・レイヤー変更をデバウンス保存し、
  * 保存失敗（容量超過等）はステータス表示で警告する（R-006: 握り潰さない）。
+ * 復旧候補の表示・復元はホーム画面（HomePage）が担う。
  */
-function AutosaveManager() {
+function AutosaveManager({ autosaveStore }: AutosaveManagerProps) {
   const storeApi = useEditorStoreApi()
   const [status, setStatus] = useState('💾 自動保存: 待機中')
 
   useEffect(() => {
-    const autosaveStore = createAutosaveStore()
-
-    void autosaveStore.load().then((result) => {
-      if (result.ok && result.value !== null) {
-        storeApi.getState().replaceDocument(result.value.geometries, result.value.layers)
-        setStatus(`💾 下書きを復元（${result.value.savedAt}）`)
-      } else if (!result.ok) {
-        setStatus(`⚠️ 下書き読込失敗: ${result.error.message}`)
-      }
-    })
-
     const scheduler = scheduleAutosave(
       () => {
         const s = storeApi.getState()
@@ -237,17 +262,16 @@ function AutosaveManager() {
       unsubscribe()
       scheduler.dispose()
     }
-  }, [storeApi])
+  }, [storeApi, autosaveStore])
 
   return (
     <footer
       style={{
         padding: '4px 16px',
-        borderTop: '1px solid #e2e8f0',
-        background: '#f8fafc',
+        borderTop: '1px solid var(--line)',
+        background: 'var(--surface)',
         fontSize: 12,
-        color: '#64748b',
-        fontFamily: 'sans-serif',
+        color: 'var(--muted)',
       }}
     >
       {status}
@@ -255,16 +279,61 @@ function AutosaveManager() {
   )
 }
 
+function AppShell() {
+  const [view, setView] = useState<AppView>('home')
+  const [theme, setTheme] = useState<'light' | 'dark'>(loadTheme)
+  const [autosaveStore] = useState<AutosaveStore>(() => createAutosaveStore())
+
+  const toggleTheme = () => {
+    const next = theme === 'light' ? 'dark' : 'light'
+    try {
+      localStorage.setItem(THEME_STORAGE_KEY, next)
+    } catch {
+      // localStorage不可の環境（プライベートモード等）では永続化せず切替のみ
+    }
+    setTheme(next)
+  }
+
+  return (
+    <div
+      className="cd-app"
+      data-theme={theme}
+      style={{
+        display: 'flex',
+        height: '100vh',
+        width: '100%',
+        overflow: 'hidden',
+        background: 'var(--bg)',
+        color: 'var(--ink)',
+      }}
+    >
+      {view === 'home' ? (
+        <>
+          <Sidebar
+            activeView={view}
+            theme={theme}
+            onNavigate={setView}
+            onToggleTheme={toggleTheme}
+          />
+          <HomePage autosaveStore={autosaveStore} onOpenEditor={() => setView('editor')} />
+        </>
+      ) : (
+        <div style={{ flex: 1, minWidth: 0, display: 'flex', flexDirection: 'column' }}>
+          <EditorToolbar onGoHome={() => setView('home')} />
+          <main style={{ flex: 1, minHeight: 0, background: 'var(--bg)' }}>
+            <CanvasStage />
+          </main>
+          <AutosaveManager autosaveStore={autosaveStore} />
+        </div>
+      )}
+    </div>
+  )
+}
+
 export function App() {
   return (
     <EditorStoreProvider>
-      <div style={{ display: 'flex', flexDirection: 'column', height: '100vh' }}>
-        <Toolbar />
-        <main style={{ flex: 1, minHeight: 0, background: '#f1f5f9' }}>
-          <CanvasStage />
-        </main>
-        <AutosaveManager />
-      </div>
+      <AppShell />
     </EditorStoreProvider>
   )
 }

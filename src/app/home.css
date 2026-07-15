@@ -1,0 +1,81 @@
+/**
+ * Home画面のデザイントークン。
+ * 正本: Claude Design プロジェクト「CivilDraft Web CAD」 Home.dc.html（2026-07-15取込、100%適用）。
+ * ライト/ダークはルート要素の data-theme 属性で切替え、localStorage 'civildraft-theme' に永続化する。
+ */
+html,
+body {
+  margin: 0;
+  padding: 0;
+  height: 100%;
+}
+
+body {
+  font-family: 'IBM Plex Sans JP', system-ui, -apple-system, 'Hiragino Kaku Gothic ProN', Meiryo,
+    sans-serif;
+  -webkit-font-smoothing: antialiased;
+}
+
+.cd-app {
+  --side: #ffffff;
+  --side2: #f2f4f8;
+  --side-line: #e7eaf0;
+  --side-fg: #5a6678;
+  --side-muted: #8a97a8;
+  --side-label: #a2aebc;
+  --side-heading: #1a2433;
+  --bg: #eef1f5;
+  --surface: #ffffff;
+  --hover: #fafbfc;
+  --subtle: #f2f4f8;
+  --subtle2: #f8fafb;
+  --line: #e3e8ef;
+  --line2: #eef1f5;
+  --ink: #1a2433;
+  --ink2: #5a6678;
+  --muted: #8a97a8;
+  --faint: #a2aebc;
+  --shadow: 0 1px 2px rgba(16, 24, 40, 0.04);
+}
+
+.cd-app[data-theme='dark'] {
+  --side: #0a0e16;
+  --side2: #141a26;
+  --side-line: rgba(255, 255, 255, 0.06);
+  --side-fg: #8b96a8;
+  --side-muted: #5c6779;
+  --side-label: #4a5568;
+  --side-heading: #ffffff;
+  --bg: #0f1420;
+  --surface: #161c29;
+  --hover: #1b2230;
+  --subtle: #1b2230;
+  --subtle2: #1e2635;
+  --line: #262e3f;
+  --line2: #232b3a;
+  --ink: #e7eaf0;
+  --ink2: #aeb6c4;
+  --muted: #8792a6;
+  --faint: #5c6779;
+  --shadow: 0 2px 8px rgba(0, 0, 0, 0.4);
+}
+
+.cd-app a {
+  color: #2e5aac;
+}
+
+.cd-app a:hover {
+  color: #1f4483;
+}
+
+.cd-app ::-webkit-scrollbar {
+  width: 10px;
+  height: 10px;
+}
+
+.cd-app ::-webkit-scrollbar-thumb {
+  background: #c8d0db;
+  border-radius: 6px;
+  border: 2px solid transparent;
+  background-clip: padding-box;
+}
