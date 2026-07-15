@@ -33,7 +33,7 @@ graph TB
     STORE -. "現在の保存先" .-> MEM
 ```
 
-> ⚠️ **未配線の実装**: IndexedDB への自動保存（`infrastructure/autosave`）と Cloudflare Access 認証
+> ⚠️ **未配線の実装**: Cloudflare Access 認証（自動保存は 2026-07-15 に配線済み: `App.tsx` の `AutosaveManager` が起動時復元+デバウンス保存を実施）
 > （`infrastructure/auth`）は**部品としては実装済み**ですが、まだ画面本体（`src/app`）につながっていません。
 > したがって「現在」の保存はメモリ上のみです。配線は後続の Issue で行います。
 >
@@ -80,7 +80,7 @@ graph TD
         PAGES["pages ⬜雛形のみ"]
         STORES["stores ⬜雛形のみ"]
     end
-    INFRA["infrastructure ✅一部実装<br>autosave・auth（未配線）"]
+    INFRA["infrastructure ✅実装<br>autosave（配線済）・auth（未配線）"]
     APPLICATION["application ⬜雛形のみ<br>ports・services・commands"]
     DOMAIN["domain ✅実装（中核）<br>geometry・canvas・dxf・commands・catalog・units"]
     SHARED["shared/types ✅実装<br>Geometry型・Brand型・Result型"]
