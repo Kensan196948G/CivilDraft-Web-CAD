@@ -3,15 +3,28 @@
  * レイヤーパネル・プロパティパネル等のUIは後続Issueで追加する。
  * デモ配置ボタンはテンプレートカタログの動作確認用（暫定）。
  */
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { CanvasStage } from './canvas/CanvasStage'
 import { EditorStoreProvider } from './store/EditorStoreContext'
 import { useEditorStore, useEditorStoreApi } from './store/useEditorStore'
 import { TEMPLATE_CATALOG, instantiateTemplate } from '@/domain/catalog/templateCatalog'
+import { exportDxf } from '@/domain/dxf/dxfExporter'
+import { importDxf } from '@/domain/dxf/dxfImporter'
+import { exportPdf } from '@/domain/pdf/pdfExporter'
 import type { ToolType } from '@/domain/tools/draftGeometry'
 import { createAutosaveStore } from '@/infrastructure/autosave/autosaveStore'
 import { scheduleAutosave } from '@/infrastructure/autosave/autosaveScheduler'
 import { createDefaultLayer } from './store/editorStore'
+
+/** Blobをファイルとしてダウンロードさせる（ブラウザ標準のa[download]方式）。 */
+function downloadBlob(blob: Blob, filename: string): void {
+  const url = URL.createObjectURL(blob)
+  const anchor = document.createElement('a')
+  anchor.href = url
+  anchor.download = filename
+  anchor.click()
+  URL.revokeObjectURL(url)
+}
 
 const headerStyle: React.CSSProperties = {
   display: 'flex',
@@ -55,6 +68,8 @@ function Toolbar() {
   const activeTool = useEditorStore((s) => s.activeTool)
   const canUndo = useEditorStore((s) => s.undoStack.length > 0)
   const canRedo = useEditorStore((s) => s.redoStack.length > 0)
+  const fileInputRef = useRef<HTMLInputElement>(null)
+  const [ioMessage, setIoMessage] = useState<string | null>(null)
 
   const seedDemo = () => {
     const state = storeApi.getState()
@@ -65,6 +80,48 @@ function Toolbar() {
       )
     }
     state.zoomFit(window.innerWidth, window.innerHeight - 48)
+  }
+
+  const handleExportDxf = () => {
+    const s = storeApi.getState()
+    const dxf = exportDxf(s.geometries, s.layers)
+    downloadBlob(new Blob([dxf], { type: 'application/dxf' }), 'civildraft.dxf')
+    setIoMessage('📤 DXF出力完了（mm単位）')
+  }
+
+  const handleExportPdf = async () => {
+    const s = storeApi.getState()
+    const result = await exportPdf(s.geometries, s.layers, {
+      paperSize: 'A3',
+      orientation: 'landscape',
+      scale: 100,
+      titleBlock: { projectName: 'CivilDraft', drawingNumber: 'DRW-001' },
+    })
+    if (!result.ok) {
+      setIoMessage(`⚠️ PDF出力失敗: ${result.error.message}`)
+      return
+    }
+    downloadBlob(new Blob([result.value.bytes.slice()], { type: 'application/pdf' }), 'civildraft.pdf')
+    setIoMessage(
+      result.value.issues.length > 0
+        ? `📤 PDF出力完了（警告${result.value.issues.length}件: 日本語フォント未設定等）`
+        : '📤 PDF出力完了（A3横・1:100）',
+    )
+  }
+
+  const handleImportDxf = async (file: File) => {
+    const content = await file.text()
+    const result = importDxf(content)
+    if (!result.ok) {
+      setIoMessage(`⚠️ DXF取込失敗: ${result.error.message}`)
+      return
+    }
+    storeApi.getState().replaceDocument(result.value.geometries, result.value.layers)
+    storeApi.getState().zoomFit(window.innerWidth, window.innerHeight - 48)
+    setIoMessage(
+      `📥 DXF取込完了: 図形${result.value.geometries.length}件、レイヤー${result.value.layers.length}件` +
+        (result.value.issues.length > 0 ? `、警告${result.value.issues.length}件` : ''),
+    )
   }
 
   return (
@@ -87,6 +144,27 @@ function Toolbar() {
         ↪ やり直す
       </button>
       <span style={{ width: 1, height: 20, background: '#cbd5e1' }} />
+      <button style={buttonStyle} onClick={handleExportPdf}>
+        📄 PDF出力
+      </button>
+      <button style={buttonStyle} onClick={handleExportDxf}>
+        📤 DXF出力
+      </button>
+      <button style={buttonStyle} onClick={() => fileInputRef.current?.click()}>
+        📥 DXF取込
+      </button>
+      <input
+        ref={fileInputRef}
+        type="file"
+        accept=".dxf"
+        style={{ display: 'none' }}
+        onChange={(e) => {
+          const file = e.target.files?.[0]
+          if (file) void handleImportDxf(file)
+          e.target.value = ''
+        }}
+      />
+      <span style={{ width: 1, height: 20, background: '#cbd5e1' }} />
       <button style={buttonStyle} onClick={seedDemo}>
         📐 デモ図形
       </button>
@@ -100,7 +178,8 @@ function Toolbar() {
         {gridVisible ? '⊞ グリッド非表示' : '⊞ グリッド表示'}
       </button>
       <span style={{ marginLeft: 'auto', color: '#64748b', fontSize: 12 }}>
-        図形: {geometryCount} / ズーム: {(zoom * 100).toFixed(0)}% / ホイール: ズーム、中ボタン: パン、Esc: 中止、Enter/W: 確定
+        {ioMessage !== null && <span style={{ marginRight: 12 }}>{ioMessage}</span>}
+        図形: {geometryCount} / ズーム: {(zoom * 100).toFixed(0)}% / ホイール: ズーム、中ボタン: パン、Esc: 中止、Enter: 確定
       </span>
     </header>
   )
