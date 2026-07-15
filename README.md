@@ -10,7 +10,7 @@
 | リポジトリ | `CivilDraft-Web-CAD` |
 | 既存技術資産 | [`Civil-Draw`](https://github.com/Kensan196948G/Civil-Draw) |
 | 開発基盤 | Claude Code on Linux＋GitHub＋Cloudflare＋Neon |
-| 現在の位置付け | 要件・設計段階。Phase 0で既存資産を棚卸し後、段階実装する |
+| 現在の位置付け | Phase 0（棚卸し）完了。Phase 1（プロジェクト基盤・CI品質ゲート）着手中 |
 
 ---
 
@@ -384,19 +384,43 @@ timeline
     Phase 6 : DXF強化・改訂 : UAT・共有・承認
 ```
 
-| Phase | 到達点 |
-| --- | --- |
-| 0 | 継承するもの、改修するもの、作り直すものが確定している |
-| 1 | ブラウザで図面を作成・保存・復旧・PDF出力できる |
-| 2 | 測点と座標を使った施工平面図を作成できる |
-| 3 | 施工・仮設計画図を定型・条件入力で作成できる |
-| 4 | 図形から数量根拠を確認・出力できる |
-| 5 | 平面・断面・施工段階を関連付けられる |
-| 6 | 代表利用者が実務利用可否をUATで判定できる |
+| Phase | 状態 | 到達点 |
+| --- | --- | --- |
+| 0 | ✅ 完了 | 継承するもの、改修するもの、作り直すものが確定している |
+| 1 | 🚧 進行中 | ブラウザで図面を作成・保存・復旧・PDF出力できる |
+| 2 | ⬜ 未着手 | 測点と座標を使った施工平面図を作成できる |
+| 3 | ⬜ 未着手 | 施工・仮設計画図を定型・条件入力で作成できる |
+| 4 | ⬜ 未着手 | 図形から数量根拠を確認・出力できる |
+| 5 | ⬜ 未着手 | 平面・断面・施工段階を関連付けられる |
+| 6 | ⬜ 未着手 | 代表利用者が実務利用可否をUATで判定できる |
 
 ### MVP
 
 最初の実務評価可能版はPhase 1～3です。数量、縦横断、承認を全部載せてから初めて触るのではなく、施工・仮設計画図として役立つかを早めに確認します。
+
+---
+
+## 📊 開発進捗
+
+### 直近のマイルストーン
+
+| 完了日 | 内容 |
+| --- | --- |
+| 2026-07-14 | ✅ Phase 0: `Civil-Draw`棚卸し・継承台帳・ADR・リスク台帳作成 |
+| 2026-07-15 | ✅ Phase 1: プロジェクトスキャフォールド作成（Vite 7 + React 19 + TS 6、共通型システム） |
+| 2026-07-15 | ✅ Phase 1: CI品質ゲート構築（GitHub Actions: Lint/Typecheck/Test/Build + Dependency Audit） |
+| 2026-07-15 | ✅ `main`ブランチ保護設定（必須ステータスチェック・レビュー承認1件必須） |
+
+### Open Pull Request
+
+| PR | 内容 | 状態 |
+| --- | --- | --- |
+| [#1](../../pull/1) | Phase 0 継承台帳・リスク台帳・ADR 11件 | Draft・人間承認待ち |
+| [#14](../../pull/14) | Phase 1 スキャフォールド・共通型システム・CI品質ゲート | Draft・人間承認待ち |
+
+> 両PRとも`main`（default branch）宛のため、Mission制約により**人間の明示承認後にのみマージ**します。CTOによる自動mergeは対象外です。
+
+進捗の詳細は[GitHub Projects「CivilDraft-Web-CAD 開発司令盤」](../../projects)、Issue一覧は[Issues](../../issues)を参照してください。
 
 ---
 
@@ -434,6 +458,18 @@ flowchart LR
 - 1,000・5,000・10,000図形の性能
 - 作成者、照査者、承認者、閲覧者、管理者の権限
 
+### ⚙️ 現在のCI実態（Phase 1時点）
+
+上記は目指す品質確認プロセス全体で、E2E・性能・権限テストはPhase 1後半以降で順次追加します。
+現時点で`main`向けPRに自動実行される内容は次のとおりです。
+
+| ジョブ | 内容 | 必須チェック |
+| --- | --- | --- |
+| `Lint / Typecheck / Test / Build` | ESLint → `tsc --noEmit` → Vitest → `vite build`を直列実行 | ✅ mainブランチ保護で必須化済み |
+| `Dependency Audit` | `npm audit --audit-level=high` | ✅ mainブランチ保護で必須化済み |
+
+`main`ブランチはPR必須・レビュー承認1件必須・上記2チェック成功必須（`strict`のためブランチ最新化も要求）・force push禁止・削除禁止で保護されています。
+
 ---
 
 ## 🛠️ 開発を始める
@@ -442,7 +478,7 @@ flowchart LR
 
 - Linux開発環境
 - Git
-- Node.jsとnpm（採用バージョンはPhase 0で固定し、`.nvmrc`等へ記載）
+- Node.js 25系・npm 10以上（`.nvmrc`に記載。`nvm use`で自動選択）
 - Cloudflare・Neonは対応フェーズで利用
 
 ### 初期化後の標準的な流れ
@@ -450,24 +486,28 @@ flowchart LR
 ```bash
 git clone <CivilDraft-Web-CADのURL>
 cd CivilDraft-Web-CAD
+nvm use   # .nvmrcに従いNode 25系を選択
 npm ci
-cp .env.example .env
 npm run dev
 ```
 
-> 実際に利用できるコマンドは`package.json`を正本とします。リポジトリ初期化後、上記手順と一致するようREADMEを更新してください。
+> `.env`を使う機能（Cloudflare/Neon連携）はPhase 1後半以降で導入予定。現時点ではローカル起動に環境変数は不要です。
 
-### 想定コマンド
+### 利用可能なコマンド
+
+`package.json`を正本とします。以下はPhase 1スキャフォールド時点の実績値です。
 
 | コマンド | 用途 |
 | --- | --- |
-| `npm run dev` | ローカル開発サーバー |
-| `npm run build` | 本番用ビルド |
+| `npm run dev` | ローカル開発サーバー（Vite） |
+| `npm run build` | 本番用ビルド（`tsc -b && vite build`） |
 | `npm run preview` | ビルド結果の確認 |
-| `npm run lint` | 静的検査 |
-| `npm run typecheck` | TypeScript型検査 |
-| `npm run test` | 単体・結合テスト |
-| `npm run test:e2e` | Playwright E2Eテスト |
+| `npm run lint` | ESLint静的検査（レイヤー間依存方向を`no-restricted-imports`で強制） |
+| `npm run typecheck` | TypeScript型検査（`tsc -b --noEmit`） |
+| `npm run test` | 単体・結合テスト（Vitest） |
+| `npm run test:watch` | Vitestをwatchモードで実行 |
+
+> Playwright E2Eテストは未導入（将来のE2E整備時に追加予定）。導入後、本表に`npm run test:e2e`を追記します。
 
 ### 環境変数
 
