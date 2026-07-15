@@ -99,6 +99,11 @@
         "date": "2026-07-15",
         "pattern": "移植対象ディレクトリが十数〜数十ファイル規模のとき、個別ファイルのget_file_contentsを繰り返すより、GitHub Code Search（search_code）に単一クエリ（例: '\"types/geometry\" repo:Kensan196948G/Civil-Draw path:src/utils'）を投げる方が圧倒的に高速",
         "fix": "text_matchesのfragmentにimport文の内容がそのまま含まれるため、『対象型を全くimportしない』『Point等の部分型のみimport』『Shape union全体をimport』の3値分類が一括で得られる。この分類結果からareaCalculator.ts/orthoConstraint.ts（Shape非依存）を移植可能ファイルとして即座に特定でき、templateCatalog.tsが従来想定(as_is)と異なりShape依存であるという誤り訂正も同時に得られた"
+      },
+      {
+        "date": "2026-07-15",
+        "pattern": "GitHub Projects(ProjectV2)のGraphQL Global ID（project-id, item-id等）は人間には判読不能なBase64様の不透明文字列で、記憶やタイプミスにより1文字違いの誤りが起きやすい（例: PVT_kwHOClgkIc4Bda6X を PVT_kwHOClgkIc4BBda6 と誤記）",
+        "fix": "gh project item-edit等でGraphQL IDを使う直前に毎回 gh project view <num> --owner <owner> --format json でid値を取得し直す。エラーメッセージ「Could not resolve to a node with the global id of '...'」が出た場合はID取り違えを疑い、記憶に頼らず再取得する"
       }
     ]
   }
