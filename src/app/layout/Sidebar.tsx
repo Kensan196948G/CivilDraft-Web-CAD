@@ -9,6 +9,8 @@ import type { CSSProperties } from 'react'
 export type AppView =
   | 'home'
   | 'editor'
+  | 'project'
+  | 'drawingSettings'
   | 'survey'
   | 'parts'
   | 'quantity'
@@ -16,6 +18,8 @@ export type AppView =
   | 'steps'
   | 'compare'
   | 'approval'
+  | 'print'
+  | 'settings'
 
 export interface SidebarProps {
   readonly activeView: AppView
@@ -42,14 +46,14 @@ const NAV_SECTIONS: readonly NavSection[] = [
     heading: '案件',
     items: [
       { icon: '🏠', label: 'ホーム・案件一覧', view: 'home' },
-      { icon: '📁', label: '案件詳細' },
+      { icon: '📁', label: '案件詳細', view: 'project' },
     ],
   },
   {
     heading: '作図',
     items: [
       { icon: '✏️', label: 'CAD編集', view: 'editor' },
-      { icon: '📐', label: '図面設定' },
+      { icon: '📐', label: '図面設定', view: 'drawingSettings' },
       { icon: '📍', label: '測点・座標一覧', view: 'survey' },
       { icon: '🧱', label: '土木部材パレット', view: 'parts' },
     ],
@@ -67,8 +71,8 @@ const NAV_SECTIONS: readonly NavSection[] = [
   {
     heading: '出力・管理',
     items: [
-      { icon: '🖨️', label: '印刷・出力' },
-      { icon: '⚙️', label: 'システム設定' },
+      { icon: '🖨️', label: '印刷・出力', view: 'print' },
+      { icon: '⚙️', label: 'システム設定', view: 'settings' },
     ],
   },
 ]

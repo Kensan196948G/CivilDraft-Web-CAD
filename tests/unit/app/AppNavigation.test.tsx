@@ -1,0 +1,70 @@
+/**
+ * App全体のナビゲーション統合テスト。
+ * サイドバーの各項目クリックで対応する画面コンテンツが右側に表示されることを検証する
+ * （2026-07-15 ユーザー報告「クリックしても右側が表示されない」の再発防止）。
+ */
+import { describe, expect, it } from 'vitest'
+import { render, screen } from '@testing-library/react'
+import userEvent from '@testing-library/user-event'
+import type { ReactNode } from 'react'
+import { vi } from 'vitest'
+
+// CanvasStage は Konva 依存のためスタブ化（ナビゲーションの検証に描画実体は不要）
+vi.mock('@/app/canvas/CanvasStage', () => ({
+  CanvasStage: () => <div data-testid="canvas-stage">CANVAS</div>,
+}))
+vi.mock('react-konva', () => ({
+  Stage: ({ children }: { children: ReactNode }) => <div>{children}</div>,
+  Layer: ({ children }: { children: ReactNode }) => <div>{children}</div>,
+  Line: () => null,
+  Rect: () => null,
+  Circle: () => null,
+  Arc: () => null,
+  Text: () => null,
+  Arrow: () => null,
+  Ellipse: () => null,
+  Group: ({ children }: { children: ReactNode }) => <>{children}</>,
+}))
+
+import { App } from '@/app/App'
+
+/** サイドバー項目ラベル → クリック後に表示されるべき見出し・内容 */
+const NAV_EXPECTATIONS: readonly { readonly nav: string; readonly expectText: string | RegExp }[] = [
+  { nav: '案件詳細', expectText: /図面一覧|案件情報/ },
+  { nav: '図面設定', expectText: /用紙・縮尺|表題欄/ },
+  { nav: '測点・座標一覧', expectText: /座標系設定|CSV取込|測点/ },
+  { nav: '土木部材パレット', expectText: /記号|テンプレート|パラメトリック/ },
+  { nav: '数量集計', expectText: /数量を算出|数量集計/ },
+  { nav: '縦横断管理', expectText: /断面|土量/ },
+  { nav: '施工ステップ', expectText: /全表示|施工前/ },
+  { nav: '図面比較', expectText: /差分|比較対象/ },
+  { nav: '照査・承認', expectText: /改訂|照査/ },
+  { nav: '印刷・出力', expectText: /出力プレビュー|出力形式/ },
+  { nav: 'システム設定', expectText: /工種・規格マスター|監査ログ/ },
+]
+
+describe('App ナビゲーション統合', () => {
+  it('初期表示はホーム（案件一覧）', () => {
+    render(<App />)
+    // 「ホーム・案件一覧」はサイドバーとページ見出しの両方に出る（=ホーム表示中）
+    expect(screen.getAllByText('ホーム・案件一覧').length).toBeGreaterThanOrEqual(2)
+    expect(screen.getByPlaceholderText('案件名・図面番号で検索')).toBeInTheDocument()
+  })
+
+  it.each(NAV_EXPECTATIONS)(
+    'サイドバー「$nav」クリックで対応コンテンツが右側に表示される',
+    async ({ nav, expectText }) => {
+      render(<App />)
+      await userEvent.click(screen.getByRole('button', { name: new RegExp(nav) }))
+      expect(screen.getAllByText(expectText).length).toBeGreaterThanOrEqual(1)
+    },
+  )
+
+  it('CAD編集クリックでエディタ（全画面レイアウト）へ遷移し、ホームで戻れる', async () => {
+    render(<App />)
+    await userEvent.click(screen.getByRole('button', { name: /CAD編集/ }))
+    expect(screen.getByTestId('canvas-stage')).toBeInTheDocument()
+    await userEvent.click(screen.getByRole('button', { name: /🏠 ホーム/ }))
+    expect(screen.getByPlaceholderText('案件名・図面番号で検索')).toBeInTheDocument()
+  })
+})
