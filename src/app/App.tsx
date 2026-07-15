@@ -18,6 +18,7 @@ import { CrossSectionPage } from './pages/CrossSectionPage'
 import { DrawingComparePage } from './pages/DrawingComparePage'
 import { HomePage } from './pages/HomePage'
 import { PartsPalettePage } from './pages/PartsPalettePage'
+import { QuantitySummaryPage } from './pages/QuantitySummaryPage'
 import { ReviewApprovalPage } from './pages/ReviewApprovalPage'
 import { SurveyPointsPage } from './pages/SurveyPointsPage'
 import { EditorStoreProvider } from './store/EditorStoreContext'
@@ -301,6 +302,7 @@ function AppShell() {
     () => ({
       survey: <SurveyPointsPage />,
       parts: <PartsPalettePage />,
+      quantity: <QuantitySummaryPage />,
       section: <CrossSectionPage />,
       steps: <ConstructionStepsPage />,
       compare: <DrawingComparePage autosaveStore={autosaveStore} />,
