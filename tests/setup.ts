@@ -4,6 +4,14 @@
  * jest-dom マッチャ登録と jsdom 欠落APIの補完を行う。
  */
 import '@testing-library/jest-dom/vitest'
+import { cleanup } from '@testing-library/react'
+import { afterEach } from 'vitest'
+
+// vitest globals:false では testing-library の自動クリーンアップが効かないため明示登録する
+// （未登録だと前テストのDOMが残り「Found multiple elements」エラーになる）。
+afterEach(() => {
+  cleanup()
+})
 
 // jsdom は scrollIntoView を実装しない。全テスト共通でスタブする。
 window.HTMLElement.prototype.scrollIntoView = function () {}
