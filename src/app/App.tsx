@@ -9,11 +9,17 @@
  * - HomePage: 起動時の復旧候補表示と利用者主導の復元/破棄（デザインの意図に合わせ、
  *   旧実装の「マウント時サイレント自動復元」から明示操作へ変更）
  */
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { CanvasStage } from './canvas/CanvasStage'
 import { Sidebar } from './layout/Sidebar'
 import type { AppView } from './layout/Sidebar'
+import { ConstructionStepsPage } from './pages/ConstructionStepsPage'
+import { CrossSectionPage } from './pages/CrossSectionPage'
+import { DrawingComparePage } from './pages/DrawingComparePage'
 import { HomePage } from './pages/HomePage'
+import { PartsPalettePage } from './pages/PartsPalettePage'
+import { ReviewApprovalPage } from './pages/ReviewApprovalPage'
+import { SurveyPointsPage } from './pages/SurveyPointsPage'
 import { EditorStoreProvider } from './store/EditorStoreContext'
 import { useEditorStore, useEditorStoreApi } from './store/useEditorStore'
 import { TEMPLATE_CATALOG, instantiateTemplate } from '@/domain/catalog/templateCatalog'
@@ -284,21 +290,29 @@ function AutosaveManager({ autosaveStore }: AutosaveManagerProps) {
   )
 }
 
-/**
- * ビューレジストリ: サイドバー付きで表示するページ群（editorのみ全画面レイアウト）。
- * Phase 2以降の画面はここへ登録すると Sidebar の disabled が自動解除される。
- */
-const SIDEBAR_PAGES: Partial<Record<AppView, React.ComponentType>> = {}
-
 function AppShell() {
   const [view, setView] = useState<AppView>('home')
   const [theme, setTheme] = useState<'light' | 'dark'>(loadTheme)
   const [autosaveStore] = useState<AutosaveStore>(() => createAutosaveStore())
 
+  // ビューレジストリ: サイドバー付きで表示するページ群（editorのみ全画面レイアウト）。
+  // ここへ登録すると Sidebar の disabled が自動解除される。
+  const sidebarPages = useMemo<Partial<Record<AppView, React.ReactElement>>>(
+    () => ({
+      survey: <SurveyPointsPage />,
+      parts: <PartsPalettePage />,
+      section: <CrossSectionPage />,
+      steps: <ConstructionStepsPage />,
+      compare: <DrawingComparePage autosaveStore={autosaveStore} />,
+      approval: <ReviewApprovalPage />,
+    }),
+    [autosaveStore],
+  )
+
   const implementedViews: readonly AppView[] = [
     'home',
     'editor',
-    ...(Object.keys(SIDEBAR_PAGES) as AppView[]),
+    ...(Object.keys(sidebarPages) as AppView[]),
   ]
 
   const toggleTheme = () => {
@@ -311,7 +325,7 @@ function AppShell() {
     setTheme(next)
   }
 
-  const RegisteredPage = view !== 'home' && view !== 'editor' ? SIDEBAR_PAGES[view] : undefined
+  const registeredPage = view !== 'home' && view !== 'editor' ? sidebarPages[view] : undefined
 
   return (
     <div
@@ -343,9 +357,7 @@ function AppShell() {
             onNavigate={setView}
             onToggleTheme={toggleTheme}
           />
-          {RegisteredPage !== undefined ? (
-            <RegisteredPage />
-          ) : (
+          {registeredPage ?? (
             <HomePage autosaveStore={autosaveStore} onOpenEditor={() => setView('editor')} />
           )}
         </>
