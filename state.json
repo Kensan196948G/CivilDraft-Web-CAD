@@ -46,12 +46,13 @@
     { "issue": 3, "pr": 14, "title": "プロジェクトスキャフォールド作成（ディレクトリ構成・Vite/TS/React初期化）" },
     { "issue": 4, "pr": 14, "title": "型システム基盤の実装（Brand ID型・Result<T,E>・単位付き座標値）" },
     { "issue": 11, "pr": 14, "title": "CI品質ゲート構築（lint実効性検証込み）" },
-    { "issue": 15, "pr": 16, "title": "内部座標基準の確定（ADR-0012, domain/units実装、DD-TBD-002解消）" }
+    { "issue": 15, "pr": 16, "title": "内部座標基準の確定（ADR-0012, domain/units実装、DD-TBD-002解消）" },
+    { "issue": 5, "pr": 16, "title": "幾何演算エンジン群の移植（部分: coordParser.ts + formatters.ts相当、2/18ファイル）", "partial": true, "note": "残16ファイルは未着手。shapeBBox.ts/shapeTransform.tsはShape型未設計のため前提条件待ち" }
   ],
   "blocked_issues": [],
   "open_issues_next": [
     { "issue": 17, "title": "stacked PR（base≠main）でCIが起動しない", "priority": "P2", "blocking": false },
-    { "issue": 5, "title": "幾何演算エンジン群の移植（18モジュール、スコープ整理済み）", "priority": "P1", "blocking": false, "note": "2026-07-15にスコープ整理完了。27ファイル→対象18/他Issue帰属4(#9,#7,#6×2)/新規Issue化2件(#18,#19)/見送り1(perfHarness.ts)に再分類。着手可能" },
+    { "issue": 5, "title": "幾何演算エンジン群の移植（残16/18ファイル）", "priority": "P1", "blocking": false, "note": "2026-07-15: coordParser.ts+formatters.ts相当(2ファイル)完了しPR#16へ統合(issues_pr_ready参照)。shapeBBox.ts/shapeTransform.tsはShape型(14種図形union)未設計のため保留、Shape型設計Issueを先に起票する必要あり。残14ファイルもSelection状態/Shape型への依存が濃厚なため着手前に依存棚卸しが必要" },
     { "issue": 18, "title": "DXF変換ロジックの移植（dxfImporter.ts/dxfExporter.ts、単位変換層改修）", "priority": "P1", "blocking_reason": "Issue #4・Issue #15（PR #16マージ待ち）に依存" },
     { "issue": 19, "title": "記号・テンプレートカタログの移植（symbolCatalog.ts/templateCatalog.ts、as_is）", "priority": "P3", "blocking": false }
   ],
@@ -86,6 +87,11 @@
         "date": "2026-07-15",
         "pattern": "継承台帳（inheritance-ledger.md）はコンポーネントをディレクトリ単位で機械的に集計するため、その数字（例: 幾何演算エンジン群27モジュール）がそのままIssueスコープ（機能責務単位）と一致するとは限らない",
         "fix": "実装着手前に、継承元リポジトリの実ファイル一覧（GitHub MCP get_file_contentsで直接取得可、ローカルclone不要）と既存Issue本文を1件ずつ突き合わせ、重複帰属・Issue化漏れを洗い出してからIssue本文を再分類する。Issue #5は27→対象18/他Issue帰属4/新規Issue化2(#18,#19)/見送り1に整理した"
+      },
+      {
+        "date": "2026-07-15",
+        "pattern": "tsconfigのnoUncheckedIndexedAccess下では、配列.lengthのチェックだけではその後のインデックスアクセス（arr[0]等）のundefined型が解消されない（TypeScriptはlengthチェックとインデックスアクセスを相関付けて推論しない）。かといって分割代入（const [a,b]=arr）だけに置き換えると、今度は要素過多（arr=['1','2','3']でa,bだけ受け取り3番目を黙って捨てる）を型エラーなく見逃す",
+        "fix": "分割代入で余剰要素も明示的に受け取り（const [a,b,extra]=arr）、extra!==undefinedもチェック対象に含めることで、元のarr.length!==2と同等の厳密性を型安全な形で再現できる（src/domain/geometry/coordParser.ts parseCartesian/parseRelativePolar参照）"
       }
     ]
   }
