@@ -83,3 +83,13 @@ export function toAngleRad(value: AngleValue): number {
 export function fromAngleRad(rad: number, unit: AngleUnit): AngleValue {
   return { value: rad / RAD_PER_ANGLE_UNIT[unit], unit }
 }
+
+/** 長さ（mm基準）を人間可読な文字列へ整形する（1000mm以上はm表記に切り替える） */
+export function formatLengthMm(mm: number): string {
+  return mm >= 1000 ? `${(mm / 1000).toFixed(3)} m` : `${mm.toFixed(1)} mm`
+}
+
+/** 面積（mm2基準）を人間可読な文字列へ整形する（1,000,000mm2以上はm2表記に切り替える） */
+export function formatAreaMm2(mm2: number): string {
+  return mm2 >= 1_000_000 ? `${(mm2 / 1_000_000).toFixed(4)} m²` : `${mm2.toFixed(1)} mm²`
+}

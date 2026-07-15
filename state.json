@@ -51,7 +51,9 @@
   "blocked_issues": [],
   "open_issues_next": [
     { "issue": 17, "title": "stacked PR（base≠main）でCIが起動しない", "priority": "P2", "blocking": false },
-    { "issue": 5, "title": "幾何演算エンジン群の移植（27モジュール、要スコープ整理）", "priority": "P1", "blocking_reason": "PR #16（Issue #15）マージ後に着手。27ファイル中autosave.ts=Issue #9/spatialIndex.ts=Issue #7との重複整理が必要" }
+    { "issue": 5, "title": "幾何演算エンジン群の移植（18モジュール、スコープ整理済み）", "priority": "P1", "blocking": false, "note": "2026-07-15にスコープ整理完了。27ファイル→対象18/他Issue帰属4(#9,#7,#6×2)/新規Issue化2件(#18,#19)/見送り1(perfHarness.ts)に再分類。着手可能" },
+    { "issue": 18, "title": "DXF変換ロジックの移植（dxfImporter.ts/dxfExporter.ts、単位変換層改修）", "priority": "P1", "blocking_reason": "Issue #4・Issue #15（PR #16マージ待ち）に依存" },
+    { "issue": 19, "title": "記号・テンプレートカタログの移植（symbolCatalog.ts/templateCatalog.ts、as_is）", "priority": "P3", "blocking": false }
   ],
   "learning": {
     "failure_patterns": [
@@ -79,6 +81,11 @@
         "date": "2026-07-15",
         "pattern": "gh pr edit --body / --body-file がGitHub Projects Classic関連のGraphQLエラーで失敗する場合がある（本来のbody更新とは無関係な内部クエリが原因）",
         "fix": "GitHub MCPサーバーのmcp__plugin_github_github__update_pull_requestツールを使うと同エラーを回避してPR本文を更新できる"
+      },
+      {
+        "date": "2026-07-15",
+        "pattern": "継承台帳（inheritance-ledger.md）はコンポーネントをディレクトリ単位で機械的に集計するため、その数字（例: 幾何演算エンジン群27モジュール）がそのままIssueスコープ（機能責務単位）と一致するとは限らない",
+        "fix": "実装着手前に、継承元リポジトリの実ファイル一覧（GitHub MCP get_file_contentsで直接取得可、ローカルclone不要）と既存Issue本文を1件ずつ突き合わせ、重複帰属・Issue化漏れを洗い出してからIssue本文を再分類する。Issue #5は27→対象18/他Issue帰属4/新規Issue化2(#18,#19)/見送り1に整理した"
       }
     ]
   }

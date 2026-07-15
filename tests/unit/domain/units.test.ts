@@ -2,6 +2,8 @@ import { describe, expect, it } from 'vitest'
 import {
   EPSILON_ANGLE_RAD,
   EPSILON_LENGTH_MM,
+  formatAreaMm2,
+  formatLengthMm,
   fromAngleRad,
   fromAreaMm2,
   fromLengthMm,
@@ -84,5 +86,35 @@ describe('ADR-0012 内部座標基準 / 許容差', () => {
   it('距離比較の許容差は1e-6mm、角度比較の許容差は1e-9radである', () => {
     expect(EPSILON_LENGTH_MM).toBe(1e-6)
     expect(EPSILON_ANGLE_RAD).toBe(1e-9)
+  })
+})
+
+describe('formatLengthMm', () => {
+  it('1000mm未満はmm表記で表示する', () => {
+    expect(formatLengthMm(0)).toBe('0.0 mm')
+    expect(formatLengthMm(35)).toBe('35.0 mm')
+    expect(formatLengthMm(999.9)).toBe('999.9 mm')
+  })
+
+  it('1000mm以上はm表記で表示する', () => {
+    expect(formatLengthMm(1000)).toBe('1.000 m')
+    expect(formatLengthMm(3500)).toBe('3.500 m')
+    expect(formatLengthMm(100000)).toBe('100.000 m')
+  })
+
+  it('縮尺適用済み寸法の例（1/100縮尺、紙面35mm=実寸3.5m）', () => {
+    expect(formatLengthMm(35 * 100)).toBe('3.500 m')
+  })
+})
+
+describe('formatAreaMm2', () => {
+  it('1,000,000mm2未満はmm2表記で表示する', () => {
+    expect(formatAreaMm2(600)).toBe('600.0 mm²')
+    expect(formatAreaMm2(999999)).toBe('999999.0 mm²')
+  })
+
+  it('1,000,000mm2以上はm2表記で表示する', () => {
+    expect(formatAreaMm2(1_000_000)).toBe('1.0000 m²')
+    expect(formatAreaMm2(1_500_000)).toBe('1.5000 m²')
   })
 })

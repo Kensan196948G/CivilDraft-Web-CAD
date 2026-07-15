@@ -23,3 +23,5 @@ export type {
 } from './units'
 
 export type { Result, ValidationIssue } from './result'
+
+export type { Point } from './geometry'
