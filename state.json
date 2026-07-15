@@ -110,6 +110,11 @@
         "date": "2026-07-15",
         "pattern": "Issue本文の前提（『型の一部が未定義』等）は起票時点のgrep調査に基づく推測であり、実装ファイルの実態と乖離することがある。Issue#20は当初『Geometry判別共用体の一部（7型+spline）が未定義』としていたが、src/shared/types/geometry.tsを直接読むとPoint型以外は何も実装されておらずGeometryBase等の基盤ごと未実装だった",
         "fix": "設計Issueの実装着手前には必ず対象ファイルをReadで直接確認し、Issue本文の前提を検証してから着手する。前提が誤っていた場合はスコープが変わるため、実装順序（基盤→派生型）を実態に合わせて組み直す"
+      },
+      {
+        "date": "2026-07-15",
+        "pattern": "Issue #5残ファイルのうち事前調査（get_file_contentsで直接内容確認）した2件で、単純な型置換だけでは済まない事情が判明した。(1) perfHarness.ts: generatePerfShapesがShape型4種(line/rect/circle/polyline)を直接組み立てており、Geometry移植にはGeometryBaseの全フィールド(layerId/style/constructionStepIds/locked/createdAt/updatedAt)を補完する追加作業が要る。runMicroBenchmark関数は型非依存で影響なし。(2) autosave.ts: localStorage.setItem/getItemで直接シリアライズしておりGitHub Projectsのバックログ項目『[Phase 1] 自動保存のIndexedDB移行（保存復旧）』と設計方針が重複する。単純as-is移植ではなくIndexedDB化を伴う可能性が高い",
+        "fix": "次セッションでperfHarness.tsに着手する際はGeometryBase補完コストを見積もってから着手する。autosave.tsはIssue #5単独ではなくGitHub Projectsのバックログ項目と統合してスコープ再定義してから着手する（別Issue化を検討）"
       }
     ]
   }
