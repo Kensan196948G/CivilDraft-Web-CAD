@@ -51,12 +51,12 @@ npm run release:audit
 
 | # | 項目 | コマンド / 確認先 | 合格条件 |
 | --- | --- | --- | --- |
-| 7 | SBOM 再生成 | `npm run sbom` | `sbom/civildraft-sbom.cdx.json`（CycloneDX）を最新化 |
-| 8 | サードパーティ表記再生成 | `npm run notices` | `THIRD-PARTY-NOTICES.md` を最新化 |
-| 9 | 依存衛生・ライセンス最終判断 | `docs/operations/dependency-hygiene.md` の手順 | 🚫 人間がリリース可否を判断（本書は判断を代替しない） |
-| 10 | README 最新化 | `README.md` の進捗・CI 実態・コマンド表 | 実装と乖離が無い（CLAUDE.md §17 基準） |
-| 11 | CI green | GitHub Actions（`.github/workflows/ci.yml`） | `quality` / `e2e` / `security` / `compliance` 各ジョブ success |
-| 12 | PR 承認 | 対象 PR | ⚠️ `main` 宛は人間承認1件必須・必須チェック成功・ブランチ最新（strict） |
+| 10 | SBOM 再生成 | `npm run sbom` | `sbom/civildraft-sbom.cdx.json`（CycloneDX）を最新化 |
+| 11 | サードパーティ表記再生成 | `npm run notices` | `THIRD-PARTY-NOTICES.md` を最新化 |
+| 12 | 依存衛生・ライセンス最終判断 | `docs/operations/dependency-hygiene.md` の手順 | 🚫 人間がリリース可否を判断（本書は判断を代替しない） |
+| 13 | README 最新化 | `README.md` の進捗・CI 実態・コマンド表 | 実装と乖離が無い（CLAUDE.md §17 基準） |
+| 14 | CI green | GitHub Actions（`.github/workflows/ci.yml`） | `quality` / `e2e` / `security` / `compliance` 各ジョブ success |
+| 15 | PR 承認 | 対象 PR | ⚠️ `main` 宛は人間承認1件必須・必須チェック成功・ブランチ最新（strict） |
 
 > **SBOM / NOTICES の再生成タイミング**: 依存関係（`package.json` の dependencies）が変わった時、およびリリース準備時。
 > どちらも生成物であり手動編集不可（次回生成で失われる）。詳細は運用手順書（`operations-manual.md`）を参照。

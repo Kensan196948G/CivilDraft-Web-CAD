@@ -15,10 +15,10 @@ SBOM（Software Bill of Materials）・サードパーティ表示（THIRD-PARTY
 
 | 生成物 | コマンド | 内容 | コミット |
 |---|---|---|---|
-| `sbom/civildraft-sbom.cdx.json` | `npm run sbom` | CycloneDX 1.5 形式。依存グラフ**全体**（本番+開発）を列挙 | ✅ する |
+| `sbom/civildraft-sbom.cdx.json` | `npm run sbom` | CycloneDX 1.5 形式。本番+開発依存を列挙し、OS別optional依存は除外して決定的に生成 | ✅ する |
 | `THIRD-PARTY-NOTICES.md` | `npm run notices` | 配布 runtime 依存（`dependencies` の本番クロージャ）のライセンス一覧＋許諾条項 | ✅ する |
 
-- `npm run sbom` … `npm sbom`（npm 10+ 標準機能）を使用。新規 devDependency は導入していない。
+- `npm run sbom` … `scripts/generate-sbom.mjs` から `npm sbom --omit optional` を実行し、timestamp/serialNumber を固定して生成する。新規 devDependency は導入していない。
 - `npm run notices` … `scripts/generate-third-party-notices.mjs`（Node 標準 API のみの自作スクリプト）。
   `node_modules` の `package.json` / `LICENSE` を走査する。新規 devDependency は導入していない。
 
@@ -102,7 +102,7 @@ copyleft を検出した場合の可否判断は自動化せず、以下の順�
 - npm 11.6.2 の `npm sbom --omit dev` は、dedupe 済みの `react` / `react-dom` / `scheduler`
   を本番クロージャから **欠落させる**（フルツリー出力には正しく含まれる）。
 - このため:
-  - SBOM は `--omit dev` を使わず **フルツリー**を出力する（`npm run sbom`）。
+  - SBOM は `--omit dev` を使わず本番+開発依存を出力する。OS別optional依存だけはCI/Windows差分を避けるため除外する（`npm run sbom`）。
   - THIRD-PARTY-NOTICES は `npm sbom` に依存せず、`generate-third-party-notices.mjs` が
     `dependencies` から **独自に本番クロージャを BFS 走査**する（react/react-dom/scheduler を正しく捕捉）。
 
@@ -114,7 +114,7 @@ copyleft を検出した場合の可否判断は自動化せず、以下の順�
 - `npm run notices` で `THIRD-PARTY-NOTICES.md` を再生成する。
 - `git diff --exit-code THIRD-PARTY-NOTICES.md` で、配布表記の未コミット差分を検出する。
 
-SBOM は timestamp/serialNumber が毎回変わりうるため、drift 検出対象にはせず artifact 保存に留める。
+SBOM は timestamp/serialNumber を生成スクリプトで固定するため、CI の drift 検出対象に含める。
 SBOM を用いた追加脆弱性スキャン（CycloneDX 対応スキャナ）は、導入ツールと許可ポリシーを人間承認後に追加する。
 
 ## 🔗 関連

@@ -1,5 +1,7 @@
 name: CI
 
+permissions: {}
+
 on:
   push:
     branches: [main]
@@ -83,6 +85,8 @@ jobs:
       - run: npm ci
 
       - run: npm run sbom
+
+      - run: git diff --exit-code sbom/civildraft-sbom.cdx.json
 
       - run: npm run notices
 

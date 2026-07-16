@@ -337,7 +337,25 @@ export function ProjectDetailPage({ onOpenEditor }: ProjectDetailPageProps) {
                     <tr key={d.no} style={{ cursor: 'pointer' }} onClick={() => openDrawing(d)}>
                       <td style={{ ...td, ...monoStyle, color: 'var(--ink2)' }}>{d.no}</td>
                       <td style={td}>
-                        <span style={{ color: 'var(--ink)', fontWeight: 500 }}>{d.name}</span>
+                        <button
+                          type="button"
+                          onClick={(event) => {
+                            event.stopPropagation()
+                            openDrawing(d)
+                          }}
+                          style={{
+                            border: 0,
+                            padding: 0,
+                            background: 'none',
+                            color: 'var(--ink)',
+                            font: 'inherit',
+                            fontWeight: 500,
+                            cursor: 'pointer',
+                            textAlign: 'left',
+                          }}
+                        >
+                          {d.name}
+                        </button>
                       </td>
                       <td style={td}>
                         <span style={typeBadge}>{d.type}</span>

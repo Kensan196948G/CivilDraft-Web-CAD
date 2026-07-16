@@ -10,7 +10,6 @@ import type { CSSProperties } from 'react'
 import { exportQuantityCsv } from '@/domain/quantities/quantityCsv'
 import { CSV_CONTEXT, computeQuantitySummary } from './quantitySummaryModel'
 import { useEditorStoreApi } from '@/app/store/useEditorStore'
-import { createDemoDrawingGeometries } from '@/app/demoData'
 import {
   pageHeaderStyle,
   pageMainStyle,
@@ -52,55 +51,63 @@ export function PrintExportPage() {
   const [history, setHistory] = useState<readonly ExportHistoryRow[]>(INITIAL_HISTORY)
 
   const runExport = async () => {
-    const s = storeApi.getState()
-    const geometries = s.geometries.length > 0 ? s.geometries : createDemoDrawingGeometries()
-    const results: string[] = []
-    if (pdfChecked) {
-      const [{ exportPdf }, { loadJapaneseFont }] = await Promise.all([
-        import('@/domain/pdf/pdfExporter'),
-        import('@/infrastructure/pdf/fontLoader'),
-      ])
-      const font = await loadJapaneseFont()
-      const pdf = await exportPdf(geometries, s.layers, {
-        paperSize: 'A3',
-        orientation: 'landscape',
-        scale: 100,
-        titleBlock: { projectName: '国道245号 道路拡幅工事', drawingNumber: 'DWG-014', revision: 'Rev.3' },
-        ...(font.ok ? { japaneseFontBytes: font.value } : {}),
-      })
-      if (pdf.ok) {
-        downloadBlob(new Blob([pdf.value.bytes.slice()], { type: 'application/pdf' }), 'civildraft.pdf')
-        results.push(`PDF✓${pdf.value.issues.length > 0 ? `(警告${pdf.value.issues.length})` : ''}`)
-      } else {
-        results.push(`PDF✗(${pdf.error.message})`)
+    try {
+      const s = storeApi.getState()
+      const geometries = s.geometries
+      if (geometries.length === 0) {
+        setMessage('⚠️ 出力対象の図面データがありません。CAD編集で図形を作成してから出力してください。')
+        return
       }
+      const results: string[] = []
+      if (pdfChecked) {
+        const [{ exportPdf }, { loadJapaneseFont }] = await Promise.all([
+          import('@/domain/pdf/pdfExporter'),
+          import('@/infrastructure/pdf/fontLoader'),
+        ])
+        const font = await loadJapaneseFont()
+        const pdf = await exportPdf(geometries, s.layers, {
+          paperSize: 'A3',
+          orientation: 'landscape',
+          scale: 100,
+          titleBlock: { projectName: '国道245号 道路拡幅工事', drawingNumber: 'DWG-014', revision: 'Rev.3' },
+          ...(font.ok ? { japaneseFontBytes: font.value } : {}),
+        })
+        if (pdf.ok) {
+          downloadBlob(new Blob([pdf.value.bytes.slice()], { type: 'application/pdf' }), 'civildraft.pdf')
+          results.push(`PDF✓${pdf.value.issues.length > 0 ? `(警告${pdf.value.issues.length})` : ''}`)
+        } else {
+          results.push(`PDF✗(${pdf.error.message})`)
+        }
+      }
+      if (dxfChecked) {
+        const { exportDxf } = await import('@/domain/dxf/dxfExporter')
+        const dxf = exportDxf(geometries, s.layers)
+        downloadBlob(new Blob([dxf], { type: 'application/dxf' }), 'civildraft.dxf')
+        results.push('DXF✓')
+      }
+      if (csvChecked) {
+        const summary = computeQuantitySummary(geometries)
+        const result = exportQuantityCsv({
+          rows: summary.items.map((item) => ({ item })),
+          context: CSV_CONTEXT,
+        })
+        downloadBlob(
+          new Blob([result.csv], { type: 'text/csv;charset=utf-8' }),
+          'civildraft-quantities.csv',
+        )
+        results.push(`CSV✓(${summary.items.length}件)`)
+      }
+      if (results.length > 0) {
+        const today = new Date().toLocaleDateString('ja-JP', { month: '2-digit', day: '2-digit' }).replace('/', '-')
+        setHistory((current) => [
+          { label: `${results.map((result) => result.replace(/[✓✗].*$/, '')).join('・')}・Rev.3`, date: today },
+          ...current,
+        ])
+      }
+      setMessage(results.length > 0 ? `📤 出力完了: ${results.join(' / ')}` : '出力形式を選択してください')
+    } catch (error) {
+      setMessage(`⚠️ 出力に失敗しました: ${error instanceof Error ? error.message : String(error)}`)
     }
-    if (dxfChecked) {
-      const { exportDxf } = await import('@/domain/dxf/dxfExporter')
-      const dxf = exportDxf(geometries, s.layers)
-      downloadBlob(new Blob([dxf], { type: 'application/dxf' }), 'civildraft.dxf')
-      results.push('DXF✓')
-    }
-    if (csvChecked) {
-      const summary = computeQuantitySummary(geometries)
-      const result = exportQuantityCsv({
-        rows: summary.items.map((item) => ({ item })),
-        context: CSV_CONTEXT,
-      })
-      downloadBlob(
-        new Blob([result.csv], { type: 'text/csv;charset=utf-8' }),
-        'civildraft-quantities.csv',
-      )
-      results.push(`CSV✓(${summary.items.length}件)`)
-    }
-    if (results.length > 0) {
-      const today = new Date().toLocaleDateString('ja-JP', { month: '2-digit', day: '2-digit' }).replace('/', '-')
-      setHistory((current) => [
-        { label: `${results.map((result) => result.replace(/✓.*$/, '')).join('・')}・Rev.3`, date: today },
-        ...current,
-      ])
-    }
-    setMessage(results.length > 0 ? `📤 出力完了: ${results.join(' / ')}` : '出力形式を選択してください')
   }
 
   return (

@@ -452,6 +452,9 @@ export async function handleRequest(request: Request): Promise<Response> {
     if (error instanceof SyntaxError) {
       return errorResponse(400, ERROR_CODES.badRequest, 'JSON形式が不正です', correlationId)
     }
+    if (error instanceof URIError) {
+      return errorResponse(400, ERROR_CODES.badRequest, 'URLエンコードが不正です', correlationId)
+    }
     return errorResponse(500, ERROR_CODES.internal, 'サーバー内部で処理に失敗しました', correlationId)
   }
 }

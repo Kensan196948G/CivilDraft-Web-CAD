@@ -2,10 +2,10 @@
   "$schema": "http://cyclonedx.org/schema/bom-1.5.schema.json",
   "bomFormat": "CycloneDX",
   "specVersion": "1.5",
-  "serialNumber": "urn:uuid:***",
+  "serialNumber": "urn:uuid:00000000-0000-4000-8000-000000000000",
   "version": 1,
   "metadata": {
-    "timestamp": "2026-07-16T06:15:05.043Z",
+    "timestamp": "1970-01-01T00:00:00.000Z",
     "lifecycles": [
       {
         "phase": "build"
@@ -1512,44 +1512,6 @@
       ]
     },
     {
-      "bom-ref": "@esbuild/win32-x64@0.28.1",
-      "type": "library",
-      "name": "@esbuild/win32-x64",
-      "version": "0.28.1",
-      "scope": "optional",
-      "description": "The Windows 64-bit binary for esbuild, a JavaScript bundler.",
-      "purl": "pkg:npm/%40esbuild/win32-x64@0.28.1",
-      "properties": [
-        {
-          "name": "cdx:npm:package:development",
-          "value": "true"
-        }
-      ],
-      "externalReferences": [
-        {
-          "type": "distribution",
-          "url": "https://registry.npmjs.org/@esbuild/win32-x64/-/win32-x64-0.28.1.tgz"
-        },
-        {
-          "type": "vcs",
-          "url": "git+https://github.com/evanw/esbuild.git"
-        }
-      ],
-      "hashes": [
-        {
-          "alg": "SHA-512",
-          "content": "6e6e0ca30aeff865cc969597fbe11c5f0fe22f2775a37f9b2640b60e4597615be0642a83fdb4a3f5cb59780302ddc2318234554760ee7da8aee183f1af9816d4"
-        }
-      ],
-      "licenses": [
-        {
-          "license": {
-            "id": "MIT"
-          }
-        }
-      ]
-    },
-    {
       "bom-ref": "@eslint-community/eslint-utils@4.9.1",
       "type": "library",
       "name": "@eslint-community/eslint-utils",
@@ -2628,52 +2590,6 @@
       ]
     },
     {
-      "bom-ref": "@pkgjs/parseargs@0.11.0",
-      "type": "library",
-      "name": "@pkgjs/parseargs",
-      "version": "0.11.0",
-      "scope": "optional",
-      "description": "Polyfill of future proposal for `util.parseArgs()`",
-      "purl": "pkg:npm/%40pkgjs/parseargs@0.11.0",
-      "properties": [
-        {
-          "name": "cdx:npm:package:development",
-          "value": "true"
-        }
-      ],
-      "externalReferences": [
-        {
-          "type": "distribution",
-          "url": "https://registry.npmjs.org/@pkgjs/parseargs/-/parseargs-0.11.0.tgz"
-        },
-        {
-          "type": "vcs",
-          "url": "git@github.com:pkgjs/parseargs.git"
-        },
-        {
-          "type": "website",
-          "url": "https://github.com/pkgjs/parseargs#readme"
-        },
-        {
-          "type": "issue-tracker",
-          "url": "https://github.com/pkgjs/parseargs/issues"
-        }
-      ],
-      "hashes": [
-        {
-          "alg": "SHA-512",
-          "content": "fb55648dd0f44012cfa1d1ab2547aa6ab1fc54022f40e0c86f087d5e93f94b28ac7fb628420b0928f345a2aa8b425bbe550fed552b21311ea5a0f327f14f9d3e"
-        }
-      ],
-      "licenses": [
-        {
-          "license": {
-            "id": "MIT"
-          }
-        }
-      ]
-    },
-    {
       "bom-ref": "@playwright/test@1.61.1",
       "type": "library",
       "name": "@playwright/test",
@@ -2743,92 +2659,6 @@
         {
           "alg": "SHA-512",
           "content": "f9dd05e0c28c09b795509c06f7ab90e12800ce764d4aaf7723757ef4d1c0e0ea6fa86f26442a4674a98af25fdd974da1d820831f05b616a8a59d3c837009ea8c"
-        }
-      ],
-      "licenses": [
-        {
-          "license": {
-            "id": "MIT"
-          }
-        }
-      ]
-    },
-    {
-      "bom-ref": "@rollup/rollup-win32-x64-gnu@4.62.2",
-      "type": "library",
-      "name": "@rollup/rollup-win32-x64-gnu",
-      "version": "4.62.2",
-      "scope": "optional",
-      "author": "Lukas Taegert-Atkinson",
-      "description": "Native bindings for Rollup",
-      "purl": "pkg:npm/%40rollup/rollup-win32-x64-gnu@4.62.2",
-      "properties": [
-        {
-          "name": "cdx:npm:package:development",
-          "value": "true"
-        }
-      ],
-      "externalReferences": [
-        {
-          "type": "distribution",
-          "url": "https://registry.npmjs.org/@rollup/rollup-win32-x64-gnu/-/rollup-win32-x64-gnu-4.62.2.tgz"
-        },
-        {
-          "type": "vcs",
-          "url": "git+https://github.com/rollup/rollup.git"
-        },
-        {
-          "type": "website",
-          "url": "https://rollupjs.org/"
-        }
-      ],
-      "hashes": [
-        {
-          "alg": "SHA-512",
-          "content": "4fac6beae716485b68f9519a8c0f181f6e8b7691d1b8fe182c710a02d096bc90ce967996703655088d899a3afe2051c396ddb345a4c0284e2d7e34da58b80906"
-        }
-      ],
-      "licenses": [
-        {
-          "license": {
-            "id": "MIT"
-          }
-        }
-      ]
-    },
-    {
-      "bom-ref": "@rollup/rollup-win32-x64-msvc@4.62.2",
-      "type": "library",
-      "name": "@rollup/rollup-win32-x64-msvc",
-      "version": "4.62.2",
-      "scope": "optional",
-      "author": "Lukas Taegert-Atkinson",
-      "description": "Native bindings for Rollup",
-      "purl": "pkg:npm/%40rollup/rollup-win32-x64-msvc@4.62.2",
-      "properties": [
-        {
-          "name": "cdx:npm:package:development",
-          "value": "true"
-        }
-      ],
-      "externalReferences": [
-        {
-          "type": "distribution",
-          "url": "https://registry.npmjs.org/@rollup/rollup-win32-x64-msvc/-/rollup-win32-x64-msvc-4.62.2.tgz"
-        },
-        {
-          "type": "vcs",
-          "url": "git+https://github.com/rollup/rollup.git"
-        },
-        {
-          "type": "website",
-          "url": "https://rollupjs.org/"
-        }
-      ],
-      "hashes": [
-        {
-          "alg": "SHA-512",
-          "content": "05fcc49c324eb7d4fc33df3dfe5037ec470981ab74d702d19e88b97507f7433387ee3ce9a930337436d57d196356be6bfa3ccaaa96c77b239f01a5f101dd0f00"
         }
       ],
       "licenses": [
@@ -13352,10 +13182,6 @@
       "dependsOn": []
     },
     {
-      "ref": "@esbuild/win32-x64@0.28.1",
-      "dependsOn": []
-    },
-    {
       "ref": "@eslint-community/eslint-utils@4.9.1",
       "dependsOn": [
         "eslint@10.7.0",
@@ -13500,10 +13326,6 @@
       ]
     },
     {
-      "ref": "@pkgjs/parseargs@0.11.0",
-      "dependsOn": []
-    },
-    {
       "ref": "@playwright/test@1.61.1",
       "dependsOn": [
         "playwright@1.61.1"
@@ -13511,14 +13333,6 @@
     },
     {
       "ref": "@rolldown/pluginutils@1.0.0-beta.27",
-      "dependsOn": []
-    },
-    {
-      "ref": "@rollup/rollup-win32-x64-gnu@4.62.2",
-      "dependsOn": []
-    },
-    {
-      "ref": "@rollup/rollup-win32-x64-msvc@4.62.2",
       "dependsOn": []
     },
     {
@@ -14033,9 +13847,7 @@
     },
     {
       "ref": "esbuild@0.28.1",
-      "dependsOn": [
-        "@esbuild/win32-x64@0.28.1"
-      ]
+      "dependsOn": []
     },
     {
       "ref": "escalade@3.2.0",
@@ -14339,8 +14151,7 @@
     {
       "ref": "jackspeak@3.4.3",
       "dependsOn": [
-        "@isaacs/cliui@8.0.2",
-        "@pkgjs/parseargs@0.11.0"
+        "@isaacs/cliui@8.0.2"
       ]
     },
     {
@@ -14677,9 +14488,7 @@
     {
       "ref": "rollup@4.62.2",
       "dependsOn": [
-        "@types/estree@1.0.9",
-        "@rollup/rollup-win32-x64-gnu@4.62.2",
-        "@rollup/rollup-win32-x64-msvc@4.62.2"
+        "@types/estree@1.0.9"
       ]
     },
     {

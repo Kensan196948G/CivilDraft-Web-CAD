@@ -100,6 +100,14 @@ describe('未知エンドポイント', () => {
     const body = (await res.json()) as ApiErrorBody
     expect(body.error.code).toBe('CD-SYS-001')
   })
+
+  it('不正なURLエンコードは 400 を返す', async () => {
+    const res = await handleRequest(authedRequest('GET', '/api/v1/projects/%'))
+    expect(res.status).toBe(400)
+    const body = (await res.json()) as ApiErrorBody
+    expect(body.error.code).toBe('CD-REQ-001')
+    expect(body.error.message).toBe('URLエンコードが不正です')
+  })
 })
 
 describe('default export (module worker)', () => {

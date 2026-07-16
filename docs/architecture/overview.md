@@ -26,15 +26,19 @@ graph TB
         STORE["EditorStore（zustand）<br>図面・表示位置・レイヤー・選択・操作履歴"]
         INDEX["GeometryIndex（R-tree）<br>図形を素早く探す索引・メモリ上"]
         KONVA["Konva キャンバス（react-konva）<br>6枚のレイヤーで図形を描く"]
+        IDB["IndexedDB<br>自動保存・復旧候補"]
         UI --> STORE
         STORE --> INDEX
         STORE --> KONVA
+        STORE --> IDB
     end
-    MEM["メモリ上のみ<br>（ページを閉じると消える）"]
-    STORE -. "現在の保存先" .-> MEM
+    MEM["揮発状態<br>選択・Undo/Redo・表示位置など"]
+    STORE -. "ページ終了で消える状態" .-> MEM
 ```
 
-> ⚠️ **未配線の実装**: Cloudflare Access 認証（自動保存は 2026-07-15 に配線済み: `App.tsx` の `AutosaveManager` が起動時復元+デバウンス保存を実施）
+> ⚠️ **現在の永続化境界**: 自動保存と復旧候補は IndexedDB に保持されます（`App.tsx` の `AutosaveManager` が起動時復元+デバウンス保存を実施）。
+> 一方、選択状態、Undo/Redo履歴、表示位置などの作業中状態はブラウザ内メモリに残り、ページ終了で消えます。
+> Cloudflare Access 認証
 > （`infrastructure/auth`）は**部品としては実装済み**ですが、まだ画面本体（`src/app`）につながっていません。
 > ブラウザ内の保存・復旧は動きますが、複数ユーザー共有の正本保存は本番DB接続後です。
 >

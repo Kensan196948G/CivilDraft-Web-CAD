@@ -21,13 +21,13 @@ Codex は準備と検証までを行い、公開、タグ付け、Secret 設定�
 | --- | --- | --- | --- |
 | Lint | `npm run lint` | ESLint エラー 0 | 完了 |
 | 型検査 | `npm run typecheck` | TypeScript エラー 0 | 完了 |
-| テスト | `npm test` | Vitest 全件 pass | 完了: 97 files / 1060 tests |
+| テスト | `npm test` | Vitest 全件 pass | 完了: 97 files / 1062 tests |
 | ブラウザE2E | `npm run e2e` | Playwright スモーク全件 pass | 完了: 2 tests |
 | ビルド | `npm run build` | `dist/` 生成成功 | 完了: Vite chunk warning なし |
 | マイグレーション静的検証 | `npm run migrations:check` | SQL構造・FK・索引・危険DDLチェック成功 | 完了 |
 | 依存監査 | `npm audit --audit-level=high` | high 以上 0 件 | 完了 |
 | 高信頼 secret scan | `npm run secret:scan` | 高信頼 secret 候補 0 件 | 完了 |
-| リリース一括監査 | `npm run release:audit` | ローカル品質ゲート、Playwright E2E、生成物、secret scan が完走 | 完了 |
+| リリース一括監査 | `npm run release:audit` | ローカル品質ゲート、Playwright E2E、SBOM/NOTICES決定性チェック、secret scan が完走 | 完了 |
 
 ## 3. 成果物
 

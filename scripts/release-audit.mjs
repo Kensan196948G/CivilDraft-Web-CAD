@@ -14,6 +14,7 @@ const isWindows = process.platform === 'win32'
 const npmCmd = isWindows ? 'npm.cmd' : 'npm'
 const rootDir = dirname(dirname(fileURLToPath(import.meta.url)))
 const noticesPath = join(rootDir, 'THIRD-PARTY-NOTICES.md')
+const sbomPath = join(rootDir, 'sbom', 'civildraft-sbom.cdx.json')
 
 const steps = [
   ['Lint', npmCmd, ['run', 'lint']],
@@ -53,6 +54,16 @@ function run(label, command, args, options = {}) {
 for (const [label, command, args] of steps) {
   run(label, command, args)
 }
+
+console.log('\n== SBOM deterministic check ==')
+const sbomBefore = readFileSync(sbomPath, 'utf8')
+run('SBOM regeneration check', npmCmd, ['run', 'sbom'])
+const sbomAfter = readFileSync(sbomPath, 'utf8')
+if (sbomBefore !== sbomAfter) {
+  console.error('sbom/civildraft-sbom.cdx.json changed when regenerated twice in the same audit run.')
+  process.exit(1)
+}
+console.log('sbom/civildraft-sbom.cdx.json is deterministic for the current dependency set.')
 
 console.log('\n== Third-party notices deterministic check ==')
 const noticesBefore = readFileSync(noticesPath, 'utf8')

@@ -88,10 +88,11 @@ npm run lint && npm run typecheck && npm run migrations:check && npm test && npm
 ```mermaid
 flowchart LR
     subgraph LOCAL["ローカル（PR 前）"]
-      L1["lint"] --> L2["typecheck"] --> L3["migrations:check"] --> L4["test"] --> L5["build"] --> L6["audit"]
+      L1["lint"] --> L2["typecheck"] --> L3["migrations:check"] --> L4["test"] --> L5["e2e"] --> L6["build"] --> L7["audit"]
     end
     subgraph CI["GitHub Actions（push/PR to main）"]
       Q["quality: Lint/Typecheck/Migration/Test/Build"]
+      E["e2e: Playwright"]
       S["security: npm audit --audit-level=high"]
       C["compliance: SBOM/NOTICES"]
     end
@@ -101,6 +102,7 @@ flowchart LR
 | CI ジョブ | トリガー | 必須チェック |
 | --- | --- | --- |
 | `Lint / Typecheck / Test / Build`（quality） | `main` への push / PR | ✅ ブランチ保護で必須 |
+| `Browser E2E`（e2e） | `main` への push / PR | ✅ ブランチ保護で必須 |
 | `Dependency Audit`（security） | `main` への push / PR | ✅ ブランチ保護で必須 |
 | `SBOM / Notices`（compliance） | `main` への push / PR | ✅ ブランチ保護へ追加推奨 |
 
@@ -121,11 +123,11 @@ npm run typecheck
 
 | 生成物 | コマンド | 出力先 | 形式 |
 | --- | --- | --- | --- |
-| SBOM | `npm run sbom` | `sbom/civildraft-sbom.cdx.json` | CycloneDX（`npm sbom`） |
+| SBOM | `npm run sbom` | `sbom/civildraft-sbom.cdx.json` | CycloneDX（`npm sbom`を正規化） |
 | サードパーティ表記 | `npm run notices` | `THIRD-PARTY-NOTICES.md` | 本番依存のライセンス集約 |
 
 ```bash
-npm run sbom       # SBOM を CycloneDX 形式で出力
+npm run sbom       # SBOM を CycloneDX 形式で決定的に出力
 npm run notices    # THIRD-PARTY-NOTICES.md を再生成
 ```
 

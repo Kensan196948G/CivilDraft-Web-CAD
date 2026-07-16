@@ -90,9 +90,9 @@ npm run notices
 npm run release:audit
 ```
 
-`release:audit` はリリース前のローカル一括監査です。上記の品質ゲート、Playwright ブラウザE2E、SBOM/NOTICES生成、NOTICES drift確認、secret候補スキャンを実行します。
+`release:audit` はリリース前のローカル一括監査です。上記の品質ゲート、Playwright ブラウザE2E、SBOM/NOTICES生成、SBOM/NOTICES drift確認、secret候補スキャンを実行します。
 
-CIでは `.github/workflows/ci.yml` が、lint、型チェック、マイグレーション静的検証、Vitest、Playwright ブラウザE2E、ビルド、依存監査、SBOM生成、THIRD-PARTY-NOTICES drift確認を実行します。
+CIでは `.github/workflows/ci.yml` が、lint、型チェック、マイグレーション静的検証、Vitest、Playwright ブラウザE2E、ビルド、依存監査、SBOM生成、SBOM drift確認、THIRD-PARTY-NOTICES drift確認を実行します。
 
 ## バックエンドとDB
 

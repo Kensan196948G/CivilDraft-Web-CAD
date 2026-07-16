@@ -26,14 +26,14 @@ CI設定、運用文書、依存/ライセンス証跡はリリース判断に�
 | `npm run lint` | pass |
 | `npm run typecheck` | pass |
 | `npm run migrations:check` | pass |
-| `npm test` | pass: 97 files / 1060 tests |
+| `npm test` | pass: 97 files / 1062 tests |
 | `npm run e2e` | pass: 2 tests |
 | `npm run build` | pass |
 | `npm audit --audit-level=high` | pass: 0 vulnerabilities |
 | `npm run sbom` | pass |
 | `npm run notices` | pass |
 | `npm run secret:scan` | pass: high-confidence findings 0 |
-| `npm run release:audit` | pass: 97 files / 1060 tests, 2 Playwright tests, build, audit, SBOM, NOTICES deterministic check, secret scan |
+| `npm run release:audit` | pass: 97 files / 1062 tests, 2 Playwright tests, build, audit, SBOM/NOTICES deterministic check, secret scan |
 
 補足: `docs/operations/pre-release-checklist.md` は、Codex が完了できるローカル検証項目と
 人間承認が必要な本番前ゲートを分離して更新済み。

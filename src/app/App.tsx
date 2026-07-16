@@ -122,55 +122,67 @@ function EditorToolbar({ compact = false }: EditorToolbarProps) {
   }
 
   const handleExportDxf = async () => {
-    const s = storeApi.getState()
-    const { exportDxf } = await import('@/domain/dxf/dxfExporter')
-    const dxf = exportDxf(s.geometries, s.layers)
-    downloadBlob(new Blob([dxf], { type: 'application/dxf' }), 'civildraft.dxf')
-    setIoMessage('📤 DXF出力完了（mm単位）')
+    try {
+      const s = storeApi.getState()
+      const { exportDxf } = await import('@/domain/dxf/dxfExporter')
+      const dxf = exportDxf(s.geometries, s.layers)
+      downloadBlob(new Blob([dxf], { type: 'application/dxf' }), 'civildraft.dxf')
+      setIoMessage('📤 DXF出力完了（mm単位）')
+    } catch (error) {
+      setIoMessage(`⚠️ DXF出力失敗: ${error instanceof Error ? error.message : String(error)}`)
+    }
   }
 
   const handleExportPdf = async () => {
-    const s = storeApi.getState()
-    // 同梱Noto Sans JPサブセットを注入（取得失敗時はフォント未注入の代替規則へ退避）
-    const [{ exportPdf }, { loadJapaneseFont }] = await Promise.all([
-      import('@/domain/pdf/pdfExporter'),
-      import('@/infrastructure/pdf/fontLoader'),
-    ])
-    const fontResult = await loadJapaneseFont()
-    const result = await exportPdf(s.geometries, s.layers, {
-      paperSize: 'A3',
-      orientation: 'landscape',
-      scale: 100,
-      titleBlock: { projectName: 'CivilDraft', drawingNumber: 'DRW-001' },
-      ...(fontResult.ok ? { japaneseFontBytes: fontResult.value } : {}),
-    })
-    if (!result.ok) {
-      setIoMessage(`⚠️ PDF出力失敗: ${result.error.message}`)
-      return
+    try {
+      const s = storeApi.getState()
+      // 同梱Noto Sans JPサブセットを注入（取得失敗時はフォント未注入の代替規則へ退避）
+      const [{ exportPdf }, { loadJapaneseFont }] = await Promise.all([
+        import('@/domain/pdf/pdfExporter'),
+        import('@/infrastructure/pdf/fontLoader'),
+      ])
+      const fontResult = await loadJapaneseFont()
+      const result = await exportPdf(s.geometries, s.layers, {
+        paperSize: 'A3',
+        orientation: 'landscape',
+        scale: 100,
+        titleBlock: { projectName: 'CivilDraft', drawingNumber: 'DRW-001' },
+        ...(fontResult.ok ? { japaneseFontBytes: fontResult.value } : {}),
+      })
+      if (!result.ok) {
+        setIoMessage(`⚠️ PDF出力失敗: ${result.error.message}`)
+        return
+      }
+      const warnings = result.value.issues.length + (fontResult.ok ? 0 : 1)
+      downloadBlob(new Blob([result.value.bytes.slice()], { type: 'application/pdf' }), 'civildraft.pdf')
+      setIoMessage(
+        warnings > 0
+          ? `📤 PDF出力完了（警告${warnings}件）`
+          : '📤 PDF出力完了（A3横・1:100・日本語フォント埋込）',
+      )
+    } catch (error) {
+      setIoMessage(`⚠️ PDF出力失敗: ${error instanceof Error ? error.message : String(error)}`)
     }
-    const warnings = result.value.issues.length + (fontResult.ok ? 0 : 1)
-    downloadBlob(new Blob([result.value.bytes.slice()], { type: 'application/pdf' }), 'civildraft.pdf')
-    setIoMessage(
-      warnings > 0
-        ? `📤 PDF出力完了（警告${warnings}件）`
-        : '📤 PDF出力完了（A3横・1:100・日本語フォント埋込）',
-    )
   }
 
   const handleImportDxf = async (file: File) => {
-    const content = await file.text()
-    const { importDxf } = await import('@/domain/dxf/dxfImporter')
-    const result = importDxf(content)
-    if (!result.ok) {
-      setIoMessage(`⚠️ DXF取込失敗: ${result.error.message}`)
-      return
+    try {
+      const content = await file.text()
+      const { importDxf } = await import('@/domain/dxf/dxfImporter')
+      const result = importDxf(content)
+      if (!result.ok) {
+        setIoMessage(`⚠️ DXF取込失敗: ${result.error.message}`)
+        return
+      }
+      storeApi.getState().replaceDocument(result.value.geometries, result.value.layers)
+      storeApi.getState().zoomFit(window.innerWidth, window.innerHeight - 48)
+      setIoMessage(
+        `📥 DXF取込完了: 図形${result.value.geometries.length}件、レイヤー${result.value.layers.length}件` +
+          (result.value.issues.length > 0 ? `、警告${result.value.issues.length}件` : ''),
+      )
+    } catch (error) {
+      setIoMessage(`⚠️ DXF取込失敗: ${error instanceof Error ? error.message : String(error)}`)
     }
-    storeApi.getState().replaceDocument(result.value.geometries, result.value.layers)
-    storeApi.getState().zoomFit(window.innerWidth, window.innerHeight - 48)
-    setIoMessage(
-      `📥 DXF取込完了: 図形${result.value.geometries.length}件、レイヤー${result.value.layers.length}件` +
-        (result.value.issues.length > 0 ? `、警告${result.value.issues.length}件` : ''),
-    )
   }
 
   return (

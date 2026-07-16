@@ -4,6 +4,7 @@ import userEvent from '@testing-library/user-event'
 import { PrintExportPage } from '@/app/pages/PrintExportPage'
 import { EditorStoreProvider } from '@/app/store/EditorStoreContext'
 import { createEditorStore } from '@/app/store/editorStore'
+import { createDemoDrawingGeometries } from '@/app/demoData'
 
 vi.mock('@/infrastructure/pdf/fontLoader', () => ({
   loadJapaneseFont: async () => ({ ok: false, error: new Error('font unavailable in unit test') }),
@@ -39,8 +40,10 @@ afterEach(() => {
 describe('PrintExportPage', () => {
   it('指定された出力画面を表示し、PDF/DXF/CSVを出力して履歴へ追加する', async () => {
     const blobs = mockDownloads()
+    const store = createEditorStore()
+    store.getState().addGeometries(createDemoDrawingGeometries())
     render(
-      <EditorStoreProvider store={createEditorStore()}>
+      <EditorStoreProvider store={store}>
         <PrintExportPage />
       </EditorStoreProvider>,
     )

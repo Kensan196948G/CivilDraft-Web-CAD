@@ -3,6 +3,25 @@ import { render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { AuditLogPage } from '@/app/pages/AuditLogPage'
 
+vi.mock('@/infrastructure/pdf/fontLoader', () => ({
+  loadJapaneseFont: async () => ({ ok: false, error: new Error('font unavailable in unit test') }),
+}))
+
+vi.mock('pdf-lib', () => ({
+  PDFDocument: {
+    create: async () => ({
+      addPage: () => ({
+        drawText: vi.fn(),
+      }),
+      embedFont: async () => ({}),
+      save: async () => new Uint8Array([37, 80, 68, 70]),
+    }),
+  },
+  StandardFonts: {
+    Helvetica: 'Helvetica',
+  },
+}))
+
 function mockDownloads() {
   const blobs: Blob[] = []
   const urlObj = URL as unknown as {

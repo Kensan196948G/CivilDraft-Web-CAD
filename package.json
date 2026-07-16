@@ -20,7 +20,7 @@
     "migrations:check": "node scripts/validate-migrations.mjs",
     "release:audit": "node scripts/release-audit.mjs",
     "secret:scan": "node scripts/secret-scan.mjs",
-    "sbom": "npm sbom --sbom-format cyclonedx --sbom-type application > sbom/civildraft-sbom.cdx.json",
+    "sbom": "node scripts/generate-sbom.mjs",
     "notices": "node scripts/generate-third-party-notices.mjs"
   },
   "dependencies": {

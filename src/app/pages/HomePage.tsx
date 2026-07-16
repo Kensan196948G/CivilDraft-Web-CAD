@@ -117,6 +117,8 @@ export function HomePage({ autosaveStore, onOpenEditor }: HomePageProps) {
   const [draftName, setDraftName] = useState('新規施工ヤード計画')
   const [draftDrawingName, setDraftDrawingName] = useState('施工ヤード計画図')
   const [draftArea, setDraftArea] = useState('1工区')
+  const [draftError, setDraftError] = useState<string | null>(null)
+  const [searchQuery, setSearchQuery] = useState('')
 
   useEffect(() => {
     let cancelled = false
@@ -167,18 +169,30 @@ export function HomePage({ autosaveStore, onOpenEditor }: HomePageProps) {
   }
 
   const submitNewProject = () => {
+    const name = draftName.trim()
+    const drawingName = draftDrawingName.trim()
+    const area = draftArea.trim()
+    if (name === '') {
+      setDraftError('案件名を入力してください')
+      return
+    }
+    if (drawingName === '') {
+      setDraftError('初期図面名を入力してください')
+      return
+    }
     const project: ProjectRow = {
-      name: draftName,
-      area: draftArea,
+      name,
+      area: area === '' ? '未設定' : area,
       status: '進行中',
       color: '#2E5AAC',
       bg: '#E9F0FB',
       drawings: 1,
-      updated: '2026-07-16',
+      updated: new Date().toISOString().slice(0, 10),
       manager: '山田 太郎',
       client: '新規発注者',
-      note: `${draftDrawingName} を初期図面として作成`,
+      note: `${drawingName} を初期図面として作成`,
     }
+    setDraftError(null)
     setCreatedProjects((current) => [project, ...current])
     setSelectedProject(project)
     setMode('detail')
@@ -204,7 +218,20 @@ export function HomePage({ autosaveStore, onOpenEditor }: HomePageProps) {
     setMode(nextMetric === 'recovery' ? 'dashboard' : 'metric')
   }
 
-  const visibleProjects = mode === 'metric' ? metricProjects(metric) : projects.slice(0, 5)
+  const normalizedSearch = searchQuery.trim().toLowerCase()
+  const searchedProjects = normalizedSearch === ''
+    ? projects
+    : projects.filter((project) => {
+      const drawingHit = RECENT_DRAWINGS.some(
+        (drawing) =>
+          drawing.project === project.name &&
+          (drawing.no.toLowerCase().includes(normalizedSearch) ||
+            drawing.name.toLowerCase().includes(normalizedSearch)),
+      )
+      return project.name.toLowerCase().includes(normalizedSearch) || drawingHit
+    })
+  const visibleProjects = mode === 'metric' ? metricProjects(metric) : searchedProjects.slice(0, 5)
+  const tableProjects = mode === 'all' ? searchedProjects : visibleProjects
 
   return (
     <div style={{ flex: 1, minWidth: 0, display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
@@ -214,7 +241,12 @@ export function HomePage({ autosaveStore, onOpenEditor }: HomePageProps) {
           <div style={{ fontSize: 11.5, color: 'var(--muted)' }}>案件管理、新規作成、復旧候補、最近の図面、お知らせ</div>
         </div>
         <div style={{ flex: 1 }} />
-        <input placeholder="案件名・図面番号で検索" style={{ ...fieldStyle, width: 220 }} />
+        <input
+          value={searchQuery}
+          onChange={(event) => setSearchQuery(event.target.value)}
+          placeholder="案件名・図面番号で検索"
+          style={{ ...fieldStyle, width: 220 }}
+        />
         <button onClick={() => setMode('new')} style={{ ...orangeButton, padding: '8px 14px', fontSize: 12.5 }}>＋ 新規案件・図面</button>
       </header>
 
@@ -245,6 +277,7 @@ export function HomePage({ autosaveStore, onOpenEditor }: HomePageProps) {
               <label style={{ display: 'flex', flexDirection: 'column', gap: 5 }}><span style={cardTitleStyle}>案件名</span><input value={draftName} onChange={(e) => setDraftName(e.target.value)} style={fieldStyle} /></label>
               <label style={{ display: 'flex', flexDirection: 'column', gap: 5 }}><span style={cardTitleStyle}>初期図面名</span><input value={draftDrawingName} onChange={(e) => setDraftDrawingName(e.target.value)} style={fieldStyle} /></label>
               <label style={{ display: 'flex', flexDirection: 'column', gap: 5 }}><span style={cardTitleStyle}>工区</span><input value={draftArea} onChange={(e) => setDraftArea(e.target.value)} style={fieldStyle} /></label>
+              {draftError !== null && <div style={{ gridColumn: '1 / -1', color: '#C5392F', fontSize: 12 }}>{draftError}</div>}
               <div style={{ gridColumn: '1 / -1', display: 'flex', gap: 8 }}>
                 <button style={orangeButton} onClick={submitNewProject}>案件と図面を作成</button>
                 <button style={ghostButton} onClick={() => setMode('dashboard')}>キャンセル</button>
@@ -306,11 +339,31 @@ export function HomePage({ autosaveStore, onOpenEditor }: HomePageProps) {
             <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 12.5 }}>
               <thead><tr><th style={thStyle}>案件名</th><th style={thStyle}>工区</th><th style={thStyle}>状態</th><th style={thStyle}>図面数</th><th style={thStyle}>最終更新</th></tr></thead>
               <tbody>
-                {(mode === 'all' ? projects : visibleProjects).map((p, i, rows) => {
+                {tableProjects.map((p, i, rows) => {
                   const last = i === rows.length - 1
                   return (
                     <tr key={`${p.name}-${i}`} style={{ cursor: 'pointer' }} onClick={() => openProject(p)}>
-                      <td style={tdStyle(last)}><span style={{ color: 'var(--ink)', fontWeight: 500 }}>{p.name}</span></td>
+                      <td style={tdStyle(last)}>
+                        <button
+                          type="button"
+                          onClick={(event) => {
+                            event.stopPropagation()
+                            openProject(p)
+                          }}
+                          style={{
+                            border: 0,
+                            padding: 0,
+                            background: 'none',
+                            color: 'var(--ink)',
+                            font: 'inherit',
+                            fontWeight: 500,
+                            cursor: 'pointer',
+                            textAlign: 'left',
+                          }}
+                        >
+                          {p.name}
+                        </button>
+                      </td>
                       <td style={tdStyle(last)}>{p.area}</td>
                       <td style={tdStyle(last)}><span style={statusBadge(p.color, p.bg)}>{p.status}</span></td>
                       <td style={{ ...tdStyle(last), fontFamily: "'IBM Plex Mono'" }}>{p.drawings}</td>

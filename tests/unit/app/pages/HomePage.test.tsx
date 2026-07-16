@@ -98,6 +98,26 @@ describe('HomePage', () => {
     expect(onOpenEditor).not.toHaveBeenCalled()
   })
 
+  it('空の案件名を拒否し、検索入力で案件と図面番号を絞り込む', async () => {
+    render(
+      <EditorStoreProvider store={createEditorStore()}>
+        <HomePage autosaveStore={new MemoryAutosaveStore()} onOpenEditor={() => {}} />
+      </EditorStoreProvider>,
+    )
+
+    await userEvent.click(screen.getByRole('button', { name: '＋ 新規案件・図面' }))
+    const projectNameInput = screen.getByDisplayValue('新規施工ヤード計画')
+    await userEvent.clear(projectNameInput)
+    await userEvent.click(screen.getByRole('button', { name: '案件と図面を作成' }))
+    expect(screen.getByText('案件名を入力してください')).toBeInTheDocument()
+    expect(screen.queryByText('案件詳細:')).not.toBeInTheDocument()
+
+    const search = screen.getByPlaceholderText('案件名・図面番号で検索')
+    await userEvent.type(search, 'DWG-018')
+    expect(screen.getByRole('button', { name: '青葉橋 橋台補強工事' })).toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: '国道245号 道路拡幅工事' })).not.toBeInTheDocument()
+  })
+
   it('案件一覧、すべて表示、最近開いた図面、お知らせ、統計カードが詳細表示に切り替わる', async () => {
     const onOpenEditor = vi.fn()
     render(
