@@ -8,7 +8,7 @@
  * データ結線の方針:
  * - 面積・土量はドメイン層（@/domain/sections）に委ね、UI 側で幾何計算を再実装しない。
  *   面積: computeSectionAreas / 土量: computeEarthworkVolume（平均断面法）。
- * - 断面データは案件データ層（Phase 6 後続）が未整備のため、本画面ローカルの useState で保持する。
+ * - 断面データは本番案件データ層への接続前のため、本画面ローカルの useState で保持する。
  *   既定は空（空状態を表示）で、「サンプル断面を読み込む」操作でデモ断面 SAMPLE_SECTIONS を投入する。
  *   将来のデータ層結線に備え、initialSections prop で初期断面を注入できる（親は通常未指定）。
  *
@@ -84,7 +84,7 @@ const point = ([offset, elevation]: readonly [number, number]): SectionPoint => 
 const profile = (rows: readonly (readonly [number, number])[]): SectionPoint[] => rows.map(point)
 
 /**
- * デモ断面（No.0 / No.20 / No.40、幅 10m）。案件データ層（Phase 6）未整備のためのサンプル。
+ * デモ断面（No.0 / No.20 / No.40 / No.60 / No.80、幅 10m）。本番案件データ層接続前のサンプル。
  * No.0: 全切土（現況が計画より 1m 高い）/ No.20: 左切土・右盛土の遷移 / No.40: 全盛土（計画が 0.8m 高い）。
  * 座標は mm（offset 左負右正・elevation 上正、§16.2 の規約）。
  */
@@ -132,6 +132,36 @@ export const SAMPLE_SECTIONS: readonly Section[] = [
       [-5000, 800],
       [0, 800],
       [5000, 800],
+    ]),
+  },
+  {
+    id: 'section-no60',
+    surveyPointId: sp('sp-no60'),
+    station: 60000,
+    existingGround: profile([
+      [-5000, 500],
+      [0, 0],
+      [5000, -500],
+    ]),
+    plannedGround: profile([
+      [-5000, 0],
+      [0, 0],
+      [5000, 0],
+    ]),
+  },
+  {
+    id: 'section-no80',
+    surveyPointId: sp('sp-no80'),
+    station: 80000,
+    existingGround: profile([
+      [-5000, 1200],
+      [0, 600],
+      [5000, 1200],
+    ]),
+    plannedGround: profile([
+      [-5000, 300],
+      [0, 300],
+      [5000, 300],
     ]),
   },
 ]
@@ -260,7 +290,7 @@ export function CrossSectionPage({ initialSections }: CrossSectionPageProps = {}
             </div>
             <div style={{ fontSize: 12.5, color: 'var(--muted)', lineHeight: 1.7 }}>
               測点別の横断面（現況線・計画線）を読み込むと、切土・盛土面積と簡易土量を集計します。
-              案件データ層は Phase 6 で結線予定のため、まずはサンプル断面で機能を確認できます。
+              案件データ層へ接続する前に、サンプル断面で機能を確認できます。
             </div>
             <div>
               <button type="button" style={primaryButtonStyle} onClick={loadSample}>

@@ -66,11 +66,20 @@ const ACTION_LABEL: Record<RevisionAction, string> = {
   submitReview: '照査依頼',
   resumeEditing: '編集再開',
   return: '差戻し',
-  completeReview: '照査完了',
+  completeReview: '照査',
   approve: '承認',
   createRevision: '新規改訂',
   obsolete: '廃止',
 }
+
+const WORKFLOW_STEPS: readonly { readonly status: RevisionStatus; readonly label: string }[] = [
+  { status: 'draft', label: '作成' },
+  { status: 'inReview', label: '照査依頼' },
+  { status: 'pendingApproval', label: '照査' },
+  { status: 'approved', label: '承認' },
+  { status: 'returned', label: '差戻し' },
+  { status: 'obsolete', label: '廃止' },
+]
 
 /** 前進系（承認フローを進める）アクション。UI 上の主ボタン配色に使う。 */
 const PRIMARY_ACTIONS: ReadonlySet<RevisionAction> = new Set<RevisionAction>([
@@ -279,6 +288,27 @@ export function ReviewApprovalPage({ initialRole = 'engineer' }: ReviewApprovalP
         >
           {/* 改訂カード + アクション */}
           <div style={{ display: 'flex', flexDirection: 'column', gap: 16, minWidth: 0 }}>
+            <div style={panelStyle}>
+              <div style={panelHeaderStyle}>ワークフロー</div>
+              <div style={{ padding: '16px 18px', display: 'flex', flexWrap: 'wrap', gap: 8 }}>
+                {WORKFLOW_STEPS.map((step) => {
+                  const active = revision.status === step.status
+                  const meta = STATUS_META[step.status]
+                  return (
+                    <span
+                      key={step.status}
+                      style={{
+                        ...statusBadgeStyle(active ? meta.color : 'var(--muted)', active ? meta.bg : 'var(--subtle)'),
+                        padding: '5px 10px',
+                      }}
+                    >
+                      {step.label}
+                    </span>
+                  )
+                })}
+              </div>
+            </div>
+
             <div style={panelStyle}>
               <div style={panelHeaderStyle}>対象改訂</div>
               <div style={{ padding: '16px 18px', display: 'flex', flexDirection: 'column', gap: 12 }}>

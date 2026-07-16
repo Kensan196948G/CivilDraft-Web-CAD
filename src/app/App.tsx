@@ -9,12 +9,14 @@
  * - HomePage: 起動時の復旧候補表示と利用者主導の復元/破棄（デザインの意図に合わせ、
  *   旧実装の「マウント時サイレント自動復元」から明示操作へ変更）
  */
-import { useEffect, useMemo, useRef, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { CanvasStage } from './canvas/CanvasStage'
+import { createDemoDrawingGeometries } from './demoData'
 import { Sidebar } from './layout/Sidebar'
 import type { AppView } from './layout/Sidebar'
 import { ConstructionStepsPage } from './pages/ConstructionStepsPage'
 import { CrossSectionPage } from './pages/CrossSectionPage'
+import { AuditLogPage } from './pages/AuditLogPage'
 import { DrawingComparePage } from './pages/DrawingComparePage'
 import { DrawingSettingsPage } from './pages/DrawingSettingsPage'
 import { HomePage } from './pages/HomePage'
@@ -28,14 +30,10 @@ import { SystemSettingsPage } from './pages/SystemSettingsPage'
 import { EditorStoreProvider } from './store/EditorStoreContext'
 import { useEditorStore, useEditorStoreApi } from './store/useEditorStore'
 import { TEMPLATE_CATALOG, instantiateTemplate } from '@/domain/catalog/templateCatalog'
-import { exportDxf } from '@/domain/dxf/dxfExporter'
-import { importDxf } from '@/domain/dxf/dxfImporter'
-import { exportPdf } from '@/domain/pdf/pdfExporter'
 import type { ToolType } from '@/domain/tools/draftGeometry'
 import { createAutosaveStore } from '@/infrastructure/autosave/autosaveStore'
 import type { AutosaveStore } from '@/infrastructure/autosave/autosaveStore'
 import { scheduleAutosave } from '@/infrastructure/autosave/autosaveScheduler'
-import { loadJapaneseFont } from '@/infrastructure/pdf/fontLoader'
 import { createDefaultLayer } from './store/editorStore'
 import './home.css'
 
@@ -97,10 +95,10 @@ const TOOLS: readonly { readonly tool: ToolType; readonly label: string }[] = [
 ]
 
 interface EditorToolbarProps {
-  readonly onGoHome: () => void
+  readonly compact?: boolean
 }
 
-function EditorToolbar({ onGoHome }: EditorToolbarProps) {
+function EditorToolbar({ compact = false }: EditorToolbarProps) {
   const storeApi = useEditorStoreApi()
   const geometryCount = useEditorStore((s) => s.geometries.length)
   const gridVisible = useEditorStore((s) => s.gridVisible)
@@ -113,17 +111,19 @@ function EditorToolbar({ onGoHome }: EditorToolbarProps) {
 
   const seedDemo = () => {
     const state = storeApi.getState()
+    state.addGeometries(createDemoDrawingGeometries())
     const layer = state.layers[0] ?? createDefaultLayer()
-    for (const template of TEMPLATE_CATALOG) {
-      state.addGeometries(
+    state.addGeometries(
+      TEMPLATE_CATALOG.flatMap((template) =>
         instantiateTemplate(template, { layerId: layer.id, style: layer.defaultStyle }),
-      )
-    }
+      ),
+    )
     state.zoomFit(window.innerWidth, window.innerHeight - 48)
   }
 
-  const handleExportDxf = () => {
+  const handleExportDxf = async () => {
     const s = storeApi.getState()
+    const { exportDxf } = await import('@/domain/dxf/dxfExporter')
     const dxf = exportDxf(s.geometries, s.layers)
     downloadBlob(new Blob([dxf], { type: 'application/dxf' }), 'civildraft.dxf')
     setIoMessage('📤 DXF出力完了（mm単位）')
@@ -132,6 +132,10 @@ function EditorToolbar({ onGoHome }: EditorToolbarProps) {
   const handleExportPdf = async () => {
     const s = storeApi.getState()
     // 同梱Noto Sans JPサブセットを注入（取得失敗時はフォント未注入の代替規則へ退避）
+    const [{ exportPdf }, { loadJapaneseFont }] = await Promise.all([
+      import('@/domain/pdf/pdfExporter'),
+      import('@/infrastructure/pdf/fontLoader'),
+    ])
     const fontResult = await loadJapaneseFont()
     const result = await exportPdf(s.geometries, s.layers, {
       paperSize: 'A3',
@@ -155,6 +159,7 @@ function EditorToolbar({ onGoHome }: EditorToolbarProps) {
 
   const handleImportDxf = async (file: File) => {
     const content = await file.text()
+    const { importDxf } = await import('@/domain/dxf/dxfImporter')
     const result = importDxf(content)
     if (!result.ok) {
       setIoMessage(`⚠️ DXF取込失敗: ${result.error.message}`)
@@ -170,10 +175,6 @@ function EditorToolbar({ onGoHome }: EditorToolbarProps) {
 
   return (
     <header style={headerStyle}>
-      <button style={buttonStyle} onClick={onGoHome}>
-        🏠 ホーム
-      </button>
-      <span style={{ width: 1, height: 20, background: 'var(--line)' }} />
       <strong>CivilDraft</strong>
       {TOOLS.map(({ tool, label }) => (
         <button
@@ -192,10 +193,10 @@ function EditorToolbar({ onGoHome }: EditorToolbarProps) {
         ↪ やり直す
       </button>
       <span style={{ width: 1, height: 20, background: 'var(--line)' }} />
-      <button style={buttonStyle} onClick={handleExportPdf}>
+      <button style={buttonStyle} onClick={() => void handleExportPdf()}>
         📄 PDF出力
       </button>
-      <button style={buttonStyle} onClick={handleExportDxf}>
+      <button style={buttonStyle} onClick={() => void handleExportDxf()}>
         📤 DXF出力
       </button>
       <button style={buttonStyle} onClick={() => fileInputRef.current?.click()}>
@@ -225,9 +226,17 @@ function EditorToolbar({ onGoHome }: EditorToolbarProps) {
       <button style={buttonStyle} onClick={() => storeApi.getState().setGridVisible(!gridVisible)}>
         {gridVisible ? '⊞ グリッド非表示' : '⊞ グリッド表示'}
       </button>
-      <span style={{ marginLeft: 'auto', color: 'var(--muted)', fontSize: 12 }}>
+      <span
+        aria-label="CAD編集ステータス"
+        style={{
+          marginLeft: compact ? 0 : 'auto',
+          color: 'var(--muted)',
+          fontSize: 12,
+          flexBasis: compact ? '100%' : 'auto',
+        }}
+      >
         {ioMessage !== null && <span style={{ marginRight: 12 }}>{ioMessage}</span>}
-        図形: {geometryCount} / ズーム: {(zoom * 100).toFixed(0)}% / ホイール: ズーム、中ボタン: パン、Esc: 中止、Enter: 確定
+        図形: {geometryCount} / ズーム: {Math.max(1, Math.round(zoom * 100))}% / ホイール: ズーム、中ボタン: パン、Esc: 中止、Enter: 確定
       </span>
     </header>
   )
@@ -295,28 +304,59 @@ function AutosaveManager({ autosaveStore }: AutosaveManagerProps) {
   )
 }
 
+interface EditorPageProps {
+  readonly autosaveStore: AutosaveStore
+}
+
+function EditorPage({ autosaveStore }: EditorPageProps) {
+  return (
+    <section style={{ flex: 1, minWidth: 0, display: 'flex', flexDirection: 'column' }}>
+      <EditorToolbar compact />
+      <main style={{ flex: 1, minHeight: 0, background: 'var(--bg)' }}>
+        <CanvasStage />
+      </main>
+      <AutosaveManager autosaveStore={autosaveStore} />
+    </section>
+  )
+}
+
 function AppShell() {
   const [view, setView] = useState<AppView>('home')
   const [theme, setTheme] = useState<'light' | 'dark'>(loadTheme)
   const [autosaveStore] = useState<AutosaveStore>(() => createAutosaveStore())
+  const storeApi = useEditorStoreApi()
 
-  // ビューレジストリ: サイドバー付きで表示するページ群（editorのみ全画面レイアウト）。
+  const openEditorWithDemoData = useCallback(() => {
+    const state = storeApi.getState()
+    state.setGridVisible(true)
+    if (state.geometries.length === 0) {
+      state.addGeometries(createDemoDrawingGeometries())
+      state.zoomFit(Math.max(window.innerWidth, 1024), Math.max(window.innerHeight - 48, 640))
+    } else if (state.zoom <= 0) {
+      state.setZoom(1)
+    }
+    setView('editor')
+  }, [storeApi])
+
+  // ビューレジストリ: サイドバー右側へ表示するページ群。
   // ここへ登録すると Sidebar の disabled が自動解除される。
   const sidebarPages = useMemo<Partial<Record<AppView, React.ReactElement>>>(
     () => ({
-      project: <ProjectDetailPage onOpenEditor={() => setView('editor')} />,
+      editor: <EditorPage autosaveStore={autosaveStore} />,
+      project: <ProjectDetailPage onOpenEditor={openEditorWithDemoData} />,
       drawingSettings: <DrawingSettingsPage />,
       survey: <SurveyPointsPage />,
-      parts: <PartsPalettePage />,
+      parts: <PartsPalettePage onOpenEditor={openEditorWithDemoData} />,
       quantity: <QuantitySummaryPage />,
       section: <CrossSectionPage />,
       steps: <ConstructionStepsPage />,
       compare: <DrawingComparePage autosaveStore={autosaveStore} />,
       approval: <ReviewApprovalPage />,
       print: <PrintExportPage />,
+      audit: <AuditLogPage />,
       settings: <SystemSettingsPage />,
     }),
-    [autosaveStore],
+    [autosaveStore, openEditorWithDemoData],
   )
 
   const implementedViews: readonly AppView[] = [
@@ -335,7 +375,15 @@ function AppShell() {
     setTheme(next)
   }
 
-  const registeredPage = view !== 'home' && view !== 'editor' ? sidebarPages[view] : undefined
+  const handleNavigate = (nextView: AppView) => {
+    if (nextView === 'editor') {
+      openEditorWithDemoData()
+      return
+    }
+    setView(nextView)
+  }
+
+  const registeredPage = view !== 'home' ? sidebarPages[view] : undefined
 
   return (
     <div
@@ -350,27 +398,15 @@ function AppShell() {
         color: 'var(--ink)',
       }}
     >
-      {view === 'editor' ? (
-        <div style={{ flex: 1, minWidth: 0, display: 'flex', flexDirection: 'column' }}>
-          <EditorToolbar onGoHome={() => setView('home')} />
-          <main style={{ flex: 1, minHeight: 0, background: 'var(--bg)' }}>
-            <CanvasStage />
-          </main>
-          <AutosaveManager autosaveStore={autosaveStore} />
-        </div>
-      ) : (
-        <>
-          <Sidebar
-            activeView={view}
-            theme={theme}
-            implementedViews={implementedViews}
-            onNavigate={setView}
-            onToggleTheme={toggleTheme}
-          />
-          {registeredPage ?? (
-            <HomePage autosaveStore={autosaveStore} onOpenEditor={() => setView('editor')} />
-          )}
-        </>
+      <Sidebar
+        activeView={view}
+        theme={theme}
+        implementedViews={implementedViews}
+        onNavigate={handleNavigate}
+        onToggleTheme={toggleTheme}
+      />
+      {registeredPage ?? (
+        <HomePage autosaveStore={autosaveStore} onOpenEditor={openEditorWithDemoData} />
       )}
     </div>
   )

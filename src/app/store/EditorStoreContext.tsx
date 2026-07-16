@@ -9,7 +9,7 @@ import { useState } from 'react'
 import type { ReactNode } from 'react'
 import { createEditorStore } from './editorStore'
 import type { EditorStore } from './editorStore'
-import { EditorStoreContext } from './editorStoreContext'
+import { EditorStoreContext } from './editorStoreContextValue'
 
 export interface EditorStoreProviderProps {
   /** テスト・複数図面用に外部生成したstoreを注入する。省略時は内部で生成。 */

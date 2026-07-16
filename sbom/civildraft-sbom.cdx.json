@@ -5,7 +5,7 @@
   "serialNumber": "urn:uuid:***",
   "version": 1,
   "metadata": {
-    "timestamp": "2026-07-15T05:53:17.929Z",
+    "timestamp": "2026-07-16T06:15:05.043Z",
     "lifecycles": [
       {
         "phase": "build"
@@ -1512,13 +1512,13 @@
       ]
     },
     {
-      "bom-ref": "@esbuild/linux-x64@0.28.1",
+      "bom-ref": "@esbuild/win32-x64@0.28.1",
       "type": "library",
-      "name": "@esbuild/linux-x64",
+      "name": "@esbuild/win32-x64",
       "version": "0.28.1",
       "scope": "optional",
-      "description": "The Linux 64-bit binary for esbuild, a JavaScript bundler.",
-      "purl": "pkg:npm/%40esbuild/linux-x64@0.28.1",
+      "description": "The Windows 64-bit binary for esbuild, a JavaScript bundler.",
+      "purl": "pkg:npm/%40esbuild/win32-x64@0.28.1",
       "properties": [
         {
           "name": "cdx:npm:package:development",
@@ -1528,7 +1528,7 @@
       "externalReferences": [
         {
           "type": "distribution",
-          "url": "https://registry.npmjs.org/@esbuild/linux-x64/-/linux-x64-0.28.1.tgz"
+          "url": "https://registry.npmjs.org/@esbuild/win32-x64/-/win32-x64-0.28.1.tgz"
         },
         {
           "type": "vcs",
@@ -1538,7 +1538,7 @@
       "hashes": [
         {
           "alg": "SHA-512",
-          "content": "bbf6a73581769a654e103c0bb67435c0eaf7119f6c4cd18b5abb18198c075b3180dd28bce083a41d795b5930f5341fbdff595c9f079828ee78ba1c59c9d3737c"
+          "content": "6e6e0ca30aeff865cc969597fbe11c5f0fe22f2775a37f9b2640b60e4597615be0642a83fdb4a3f5cb59780302ddc2318234554760ee7da8aee183f1af9816d4"
         }
       ],
       "licenses": [
@@ -2674,6 +2674,49 @@
       ]
     },
     {
+      "bom-ref": "@playwright/test@1.61.1",
+      "type": "library",
+      "name": "@playwright/test",
+      "version": "1.61.1",
+      "scope": "optional",
+      "author": "Microsoft Corporation",
+      "description": "A high-level API to automate web browsers",
+      "purl": "pkg:npm/%40playwright/test@1.61.1",
+      "properties": [
+        {
+          "name": "cdx:npm:package:development",
+          "value": "true"
+        }
+      ],
+      "externalReferences": [
+        {
+          "type": "distribution",
+          "url": "https://registry.npmjs.org/@playwright/test/-/test-1.61.1.tgz"
+        },
+        {
+          "type": "vcs",
+          "url": "git+https://github.com/microsoft/playwright.git"
+        },
+        {
+          "type": "website",
+          "url": "https://playwright.dev"
+        }
+      ],
+      "hashes": [
+        {
+          "alg": "SHA-512",
+          "content": "f272afebed112522fd144e2360e1065e73de33f1e0d76a99a66ab3663461dea33463b737cf59ab3937c52e276cef6443418561f56a4b11f47959da4d5f87e48a"
+        }
+      ],
+      "licenses": [
+        {
+          "license": {
+            "id": "Apache-2.0"
+          }
+        }
+      ]
+    },
+    {
       "bom-ref": "@rolldown/pluginutils@1.0.0-beta.27",
       "type": "library",
       "name": "@rolldown/pluginutils",
@@ -2711,14 +2754,14 @@
       ]
     },
     {
-      "bom-ref": "@rollup/rollup-linux-x64-gnu@4.62.2",
+      "bom-ref": "@rollup/rollup-win32-x64-gnu@4.62.2",
       "type": "library",
-      "name": "@rollup/rollup-linux-x64-gnu",
+      "name": "@rollup/rollup-win32-x64-gnu",
       "version": "4.62.2",
       "scope": "optional",
       "author": "Lukas Taegert-Atkinson",
       "description": "Native bindings for Rollup",
-      "purl": "pkg:npm/%40rollup/rollup-linux-x64-gnu@4.62.2",
+      "purl": "pkg:npm/%40rollup/rollup-win32-x64-gnu@4.62.2",
       "properties": [
         {
           "name": "cdx:npm:package:development",
@@ -2728,7 +2771,7 @@
       "externalReferences": [
         {
           "type": "distribution",
-          "url": "https://registry.npmjs.org/@rollup/rollup-linux-x64-gnu/-/rollup-linux-x64-gnu-4.62.2.tgz"
+          "url": "https://registry.npmjs.org/@rollup/rollup-win32-x64-gnu/-/rollup-win32-x64-gnu-4.62.2.tgz"
         },
         {
           "type": "vcs",
@@ -2742,7 +2785,7 @@
       "hashes": [
         {
           "alg": "SHA-512",
-          "content": "e41ab147fa6c8637b2e758a58b2cd30f95e2dc437468b990da567796f79f555f5cf3606facba36ffa393e798a27e9581b9fb3a91dc166ee38a4bce350eb98af4"
+          "content": "4fac6beae716485b68f9519a8c0f181f6e8b7691d1b8fe182c710a02d096bc90ce967996703655088d899a3afe2051c396ddb345a4c0284e2d7e34da58b80906"
         }
       ],
       "licenses": [
@@ -2754,14 +2797,14 @@
       ]
     },
     {
-      "bom-ref": "@rollup/rollup-linux-x64-musl@4.62.2",
+      "bom-ref": "@rollup/rollup-win32-x64-msvc@4.62.2",
       "type": "library",
-      "name": "@rollup/rollup-linux-x64-musl",
+      "name": "@rollup/rollup-win32-x64-msvc",
       "version": "4.62.2",
       "scope": "optional",
       "author": "Lukas Taegert-Atkinson",
       "description": "Native bindings for Rollup",
-      "purl": "pkg:npm/%40rollup/rollup-linux-x64-musl@4.62.2",
+      "purl": "pkg:npm/%40rollup/rollup-win32-x64-msvc@4.62.2",
       "properties": [
         {
           "name": "cdx:npm:package:development",
@@ -2771,7 +2814,7 @@
       "externalReferences": [
         {
           "type": "distribution",
-          "url": "https://registry.npmjs.org/@rollup/rollup-linux-x64-musl/-/rollup-linux-x64-musl-4.62.2.tgz"
+          "url": "https://registry.npmjs.org/@rollup/rollup-win32-x64-msvc/-/rollup-win32-x64-msvc-4.62.2.tgz"
         },
         {
           "type": "vcs",
@@ -2785,7 +2828,7 @@
       "hashes": [
         {
           "alg": "SHA-512",
-          "content": "b8d37cdd7c50ad1021ff0d3fa6601f89b730c9be985ade203fe7699d028f549b21025a10efce628bc093f19088c641a0f68a55b2f0251a1162b529ba0f5263a6"
+          "content": "05fcc49c324eb7d4fc33df3dfe5037ec470981ab74d702d19e88b97507f7433387ee3ce9a930337436d57d196356be6bfa3ccaaa96c77b239f01a5f101dd0f00"
         }
       ],
       "licenses": [
@@ -9803,6 +9846,92 @@
       ]
     },
     {
+      "bom-ref": "playwright@1.61.1",
+      "type": "library",
+      "name": "playwright",
+      "version": "1.61.1",
+      "scope": "optional",
+      "author": "Microsoft Corporation",
+      "description": "A high-level API to automate web browsers",
+      "purl": "pkg:npm/playwright@1.61.1",
+      "properties": [
+        {
+          "name": "cdx:npm:package:development",
+          "value": "true"
+        }
+      ],
+      "externalReferences": [
+        {
+          "type": "distribution",
+          "url": "https://registry.npmjs.org/playwright/-/playwright-1.61.1.tgz"
+        },
+        {
+          "type": "vcs",
+          "url": "git+https://github.com/microsoft/playwright.git"
+        },
+        {
+          "type": "website",
+          "url": "https://playwright.dev"
+        }
+      ],
+      "hashes": [
+        {
+          "alg": "SHA-512",
+          "content": "0d69d8e68dd86cb58ae06a2fb80570a6a2fed55c0635d506ad1afefbc8fc3ed410cef01565420c8ca43dd1f63af3db042592416d9570d6b5da38a4938ad9333d"
+        }
+      ],
+      "licenses": [
+        {
+          "license": {
+            "id": "Apache-2.0"
+          }
+        }
+      ]
+    },
+    {
+      "bom-ref": "playwright-core@1.61.1",
+      "type": "library",
+      "name": "playwright-core",
+      "version": "1.61.1",
+      "scope": "optional",
+      "author": "Microsoft Corporation",
+      "description": "A high-level API to automate web browsers",
+      "purl": "pkg:npm/playwright-core@1.61.1",
+      "properties": [
+        {
+          "name": "cdx:npm:package:development",
+          "value": "true"
+        }
+      ],
+      "externalReferences": [
+        {
+          "type": "distribution",
+          "url": "https://registry.npmjs.org/playwright-core/-/playwright-core-1.61.1.tgz"
+        },
+        {
+          "type": "vcs",
+          "url": "git+https://github.com/microsoft/playwright.git"
+        },
+        {
+          "type": "website",
+          "url": "https://playwright.dev"
+        }
+      ],
+      "hashes": [
+        {
+          "alg": "SHA-512",
+          "content": "87b425b7a9b8444a76e6abc876f6c3b55983e0ba955dfa51c61391bfd2f48f3113334e69e1fb8f27774acae4974310d26d79e64bbf470208bde7cf65192a4b92"
+        }
+      ],
+      "licenses": [
+        {
+          "license": {
+            "id": "Apache-2.0"
+          }
+        }
+      ]
+    },
+    {
       "bom-ref": "postcss@8.5.19",
       "type": "library",
       "name": "postcss",
@@ -12965,6 +13094,7 @@
         "react-konva@19.2.5",
         "zustand@5.0.14",
         "@eslint/js@10.0.1",
+        "@playwright/test@1.61.1",
         "@testing-library/dom@10.4.1",
         "@testing-library/jest-dom@6.9.1",
         "@testing-library/react@16.3.2",
@@ -13222,7 +13352,7 @@
       "dependsOn": []
     },
     {
-      "ref": "@esbuild/linux-x64@0.28.1",
+      "ref": "@esbuild/win32-x64@0.28.1",
       "dependsOn": []
     },
     {
@@ -13374,15 +13504,21 @@
       "dependsOn": []
     },
     {
+      "ref": "@playwright/test@1.61.1",
+      "dependsOn": [
+        "playwright@1.61.1"
+      ]
+    },
+    {
       "ref": "@rolldown/pluginutils@1.0.0-beta.27",
       "dependsOn": []
     },
     {
-      "ref": "@rollup/rollup-linux-x64-gnu@4.62.2",
+      "ref": "@rollup/rollup-win32-x64-gnu@4.62.2",
       "dependsOn": []
     },
     {
-      "ref": "@rollup/rollup-linux-x64-musl@4.62.2",
+      "ref": "@rollup/rollup-win32-x64-msvc@4.62.2",
       "dependsOn": []
     },
     {
@@ -13898,7 +14034,7 @@
     {
       "ref": "esbuild@0.28.1",
       "dependsOn": [
-        "@esbuild/linux-x64@0.28.1"
+        "@esbuild/win32-x64@0.28.1"
       ]
     },
     {
@@ -14438,6 +14574,16 @@
       "dependsOn": []
     },
     {
+      "ref": "playwright@1.61.1",
+      "dependsOn": [
+        "playwright-core@1.61.1"
+      ]
+    },
+    {
+      "ref": "playwright-core@1.61.1",
+      "dependsOn": []
+    },
+    {
       "ref": "postcss@8.5.19",
       "dependsOn": [
         "nanoid@3.3.16",
@@ -14532,8 +14678,8 @@
       "ref": "rollup@4.62.2",
       "dependsOn": [
         "@types/estree@1.0.9",
-        "@rollup/rollup-linux-x64-gnu@4.62.2",
-        "@rollup/rollup-linux-x64-musl@4.62.2"
+        "@rollup/rollup-win32-x64-gnu@4.62.2",
+        "@rollup/rollup-win32-x64-msvc@4.62.2"
       ]
     },
     {

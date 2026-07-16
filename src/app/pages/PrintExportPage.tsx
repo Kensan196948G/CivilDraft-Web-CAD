@@ -3,16 +3,14 @@
  * 正本: Claude Design「CivilDraft Web CAD」Print Export.dc.html（100%適用）。
  * 「出力を実行」はデザインのモックではなく実出力に結線: PDF=exportPdf（日本語フォント
  * 注入）、DXF=exportDxf、CSV=数量算出→exportQuantityCsv（現在の図面データを使用）。
- * プレビューSVG・出力履歴はデザイン正本のサンプルを忠実表示（履歴永続化はPhase 6後続）。
+ * プレビューSVG・出力履歴はデザイン正本のサンプルを忠実表示（履歴永続化は本番データ層接続後）。
  */
 import { useState } from 'react'
 import type { CSSProperties } from 'react'
-import { exportDxf } from '@/domain/dxf/dxfExporter'
-import { exportPdf } from '@/domain/pdf/pdfExporter'
 import { exportQuantityCsv } from '@/domain/quantities/quantityCsv'
-import { loadJapaneseFont } from '@/infrastructure/pdf/fontLoader'
-import { CSV_CONTEXT, computeQuantitySummary } from './QuantitySummaryPage'
+import { CSV_CONTEXT, computeQuantitySummary } from './quantitySummaryModel'
 import { useEditorStoreApi } from '@/app/store/useEditorStore'
+import { createDemoDrawingGeometries } from '@/app/demoData'
 import {
   pageHeaderStyle,
   pageMainStyle,
@@ -35,23 +33,35 @@ function downloadBlob(blob: Blob, filename: string): void {
 
 const checkLabel: CSSProperties = { display: 'flex', alignItems: 'center', gap: 10, fontSize: 12.5 }
 
+interface ExportHistoryRow {
+  readonly label: string
+  readonly date: string
+}
+
+const INITIAL_HISTORY: readonly ExportHistoryRow[] = [
+  { label: 'PDF・Rev.2', date: '07-10' },
+  { label: 'DXF・Rev.1', date: '07-02' },
+]
+
 export function PrintExportPage() {
   const storeApi = useEditorStoreApi()
   const [pdfChecked, setPdfChecked] = useState(true)
   const [dxfChecked, setDxfChecked] = useState(false)
   const [csvChecked, setCsvChecked] = useState(false)
   const [message, setMessage] = useState<string | null>(null)
+  const [history, setHistory] = useState<readonly ExportHistoryRow[]>(INITIAL_HISTORY)
 
   const runExport = async () => {
     const s = storeApi.getState()
+    const geometries = s.geometries.length > 0 ? s.geometries : createDemoDrawingGeometries()
     const results: string[] = []
-    if (s.geometries.length === 0) {
-      setMessage('⚠️ 図面に図形がありません（CAD編集で作図するか、デモ図形を配置してください）')
-      return
-    }
     if (pdfChecked) {
+      const [{ exportPdf }, { loadJapaneseFont }] = await Promise.all([
+        import('@/domain/pdf/pdfExporter'),
+        import('@/infrastructure/pdf/fontLoader'),
+      ])
       const font = await loadJapaneseFont()
-      const pdf = await exportPdf(s.geometries, s.layers, {
+      const pdf = await exportPdf(geometries, s.layers, {
         paperSize: 'A3',
         orientation: 'landscape',
         scale: 100,
@@ -66,12 +76,13 @@ export function PrintExportPage() {
       }
     }
     if (dxfChecked) {
-      const dxf = exportDxf(s.geometries, s.layers)
+      const { exportDxf } = await import('@/domain/dxf/dxfExporter')
+      const dxf = exportDxf(geometries, s.layers)
       downloadBlob(new Blob([dxf], { type: 'application/dxf' }), 'civildraft.dxf')
       results.push('DXF✓')
     }
     if (csvChecked) {
-      const summary = computeQuantitySummary(s.geometries)
+      const summary = computeQuantitySummary(geometries)
       const result = exportQuantityCsv({
         rows: summary.items.map((item) => ({ item })),
         context: CSV_CONTEXT,
@@ -81,6 +92,13 @@ export function PrintExportPage() {
         'civildraft-quantities.csv',
       )
       results.push(`CSV✓(${summary.items.length}件)`)
+    }
+    if (results.length > 0) {
+      const today = new Date().toLocaleDateString('ja-JP', { month: '2-digit', day: '2-digit' }).replace('/', '-')
+      setHistory((current) => [
+        { label: `${results.map((result) => result.replace(/✓.*$/, '')).join('・')}・Rev.3`, date: today },
+        ...current,
+      ])
     }
     setMessage(results.length > 0 ? `📤 出力完了: ${results.join(' / ')}` : '出力形式を選択してください')
   }
@@ -194,16 +212,13 @@ export function PrintExportPage() {
             <div style={panelStyle}>
               <div style={panelHeaderStyle}>出力履歴</div>
               <div>
-                <div style={{ display: 'flex', alignItems: 'center', gap: 14, padding: '13px 18px', borderBottom: '1px solid var(--line2)', fontSize: 12.5 }}>
-                  <span>PDF・Rev.2</span>
-                  <span style={{ flex: 1 }} />
-                  <span style={{ color: 'var(--muted)' }}>07-10</span>
-                </div>
-                <div style={{ display: 'flex', alignItems: 'center', gap: 14, padding: '13px 18px', fontSize: 12.5 }}>
-                  <span>DXF・Rev.1</span>
-                  <span style={{ flex: 1 }} />
-                  <span style={{ color: 'var(--muted)' }}>07-02</span>
-                </div>
+                {history.map((row, index) => (
+                  <div key={`${row.label}-${row.date}-${index}`} style={{ display: 'flex', alignItems: 'center', gap: 14, padding: '13px 18px', borderBottom: index === history.length - 1 ? 'none' : '1px solid var(--line2)', fontSize: 12.5 }}>
+                    <span>{row.label}</span>
+                    <span style={{ flex: 1 }} />
+                    <span style={{ color: 'var(--muted)' }}>{row.date}</span>
+                  </div>
+                ))}
               </div>
             </div>
           </div>

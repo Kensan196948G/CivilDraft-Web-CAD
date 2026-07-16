@@ -3,9 +3,9 @@ import { render, screen, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import {
   CSV_CONTEXT,
-  QuantitySummaryPage,
   computeQuantitySummary,
-} from '@/app/pages/QuantitySummaryPage'
+} from '@/app/pages/quantitySummaryModel'
+import { QuantitySummaryPage } from '@/app/pages/QuantitySummaryPage'
 import { exportQuantityCsv } from '@/domain/quantities/quantityCsv'
 import { EditorStoreProvider } from '@/app/store/EditorStoreContext'
 import { createEditorStore, createDefaultLayer } from '@/app/store/editorStore'

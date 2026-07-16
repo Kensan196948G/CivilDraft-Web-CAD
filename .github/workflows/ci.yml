@@ -28,9 +28,28 @@ jobs:
 
       - run: npm run typecheck
 
+      - run: npm run migrations:check
+
       - run: npm test
 
       - run: npm run build
+
+  e2e:
+    name: Browser E2E
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 25
+          cache: npm
+
+      - run: npm ci
+
+      - run: npx playwright install --with-deps chromium
+
+      - run: npm run e2e
 
   security:
     name: Dependency Audit
@@ -47,9 +66,11 @@ jobs:
 
       - run: npm audit --audit-level=high
 
+      - run: npm run secret:scan
+
   # Issue #12: SBOM（CycloneDX）をビルド成果物として生成・保存する
-  sbom:
-    name: SBOM Generation
+  compliance:
+    name: SBOM / Notices
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -62,6 +83,10 @@ jobs:
       - run: npm ci
 
       - run: npm run sbom
+
+      - run: npm run notices
+
+      - run: git diff --exit-code THIRD-PARTY-NOTICES.md
 
       - uses: actions/upload-artifact@v4
         with:

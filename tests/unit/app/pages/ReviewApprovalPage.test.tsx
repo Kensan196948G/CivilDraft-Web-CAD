@@ -13,6 +13,7 @@ describe('ReviewApprovalPage', () => {
     render(<ReviewApprovalPage />)
     expect(screen.getByText('Rev.1')).toBeInTheDocument()
     expect(screen.getByText('編集中（draft）')).toBeInTheDocument()
+    expect(screen.getByText('ワークフロー')).toBeInTheDocument()
     expect(screen.getByRole('button', { name: '照査依頼' })).toBeInTheDocument()
     expect(screen.getByText('履歴はまだありません')).toBeInTheDocument()
   })
@@ -31,11 +32,11 @@ describe('ReviewApprovalPage', () => {
     expect(screen.getByRole('button', { name: '照査依頼' })).toBeDisabled()
   })
 
-  it('supervisor が照査依頼→照査完了→承認で approved まで進める', async () => {
+  it('supervisor が照査依頼→照査→承認で approved まで進める', async () => {
     render(<ReviewApprovalPage />)
     await switchToSupervisor()
     await userEvent.click(screen.getByRole('button', { name: '照査依頼' }))
-    await userEvent.click(screen.getByRole('button', { name: '照査完了' }))
+    await userEvent.click(screen.getByRole('button', { name: '照査' }))
     expect(screen.getByText('承認待ち（pendingApproval）')).toBeInTheDocument()
     await userEvent.click(screen.getByRole('button', { name: '承認' }))
     expect(screen.getByText('承認済み（approved）')).toBeInTheDocument()
@@ -45,7 +46,7 @@ describe('ReviewApprovalPage', () => {
     render(<ReviewApprovalPage />)
     await switchToSupervisor()
     await userEvent.click(screen.getByRole('button', { name: '照査依頼' }))
-    await userEvent.click(screen.getByRole('button', { name: '照査完了' }))
+    await userEvent.click(screen.getByRole('button', { name: '照査' }))
     await userEvent.click(screen.getByRole('button', { name: '承認' }))
     expect(screen.getByText('Rev.1')).toBeInTheDocument()
 
@@ -94,7 +95,7 @@ describe('ReviewApprovalPage', () => {
     render(<ReviewApprovalPage />)
     await switchToSupervisor()
     await userEvent.click(screen.getByRole('button', { name: '照査依頼' }))
-    await userEvent.click(screen.getByRole('button', { name: '照査完了' }))
+    await userEvent.click(screen.getByRole('button', { name: '照査' }))
     await userEvent.click(screen.getByRole('button', { name: '承認' }))
 
     // 承認済みは内容変更不可（凍結）。

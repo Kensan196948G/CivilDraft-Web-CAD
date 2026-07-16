@@ -1,6 +1,6 @@
 # 📌 CivilDraft アーキテクチャ図解（非エンジニア向け概説）
 
-> **対象フェーズ: Phase 1（MVP 開発中）。実装済みの範囲と、将来（Phase 2 以降）に足す範囲を明確に分けて記載します。**
+> **対象フェーズ: MVP 開発中。実装済みの範囲、本番接続前の検証実装、将来に足す範囲を明確に分けて記載します。**
 >
 > この文書は、CivilDraft が「いま何で動いているか」を、CAD やプログラミングに詳しくない方にも
 > 追えるように図で説明します。各図の下に「正本」（その図の根拠となる実装ファイル）を記載しています。
@@ -10,13 +10,14 @@
 
 ## 📌 1. システム全体像
 
-CivilDraft は「いまはブラウザだけで完結して動く」段階です。将来（Phase 6）に、共有・承認・監査が
-必要になった時点でサーバー側（Cloudflare Workers + Neon）を足します。**現在と将来を混同しないよう、
-図を 2 枚に分けます。**
+CivilDraft は、画面操作の大部分をブラウザ内で完結させながら、リリース前検証用の Workers API で
+案件・図面・改訂・数量・出力・監査の契約を確認できる段階です。本番DB/Storage接続はまだ行わず、
+**現在動く範囲、検証用API、将来の永続化を混同しないよう、図を分けます。**
 
-### 1.1 現在の構成（Phase 1・実際に動いている範囲）
+### 1.1 現在の構成（フロントエンド・実際に動いている範囲）
 
-いまは、あなたのパソコンの Web ブラウザの中だけで完結します。サーバーもデータベースもまだ使いません。
+通常の画面操作は、Web ブラウザの中で完結します。図形編集、出力、復旧候補、詳細画面は
+フロントエンド側の状態とダミーデータで動作します。
 
 ```mermaid
 graph TB
@@ -35,14 +36,14 @@ graph TB
 
 > ⚠️ **未配線の実装**: Cloudflare Access 認証（自動保存は 2026-07-15 に配線済み: `App.tsx` の `AutosaveManager` が起動時復元+デバウンス保存を実施）
 > （`infrastructure/auth`）は**部品としては実装済み**ですが、まだ画面本体（`src/app`）につながっていません。
-> したがって「現在」の保存はメモリ上のみです。配線は後続の Issue で行います。
+> ブラウザ内の保存・復旧は動きますが、複数ユーザー共有の正本保存は本番DB接続後です。
 >
 > 正本: `src/app/App.tsx`, `src/app/canvas/CanvasStage.tsx`, `src/app/store/editorStore.ts`, `src/main.tsx`
 
-### 1.2 将来の構成（Phase 6・未実装。方針のみ）
+### 1.2 Workers API 検証構成（本番接続前）
 
-共有・改訂・照査・承認・監査が必要になった段階で、サーバー側を足します。標準スタックは
-Systemd + GitHub + Cloudflare + Neon（Docker は使いません）。**下図はまだ作っていない将来像です。**
+`src/workers/index.ts` は、Cloudflare Access ヘッダー、相関ID、主要REST契約、監査イベントを
+検証するためのインメモリ実装です。Neon PostgreSQL や Object Storage にはまだ接続しません。
 
 ```mermaid
 graph TB
@@ -51,19 +52,21 @@ graph TB
         IDB["IndexedDB<br>編集中の自動保存・復旧候補"]
         SPA --> IDB
     end
-    subgraph EDGE["☁️ Cloudflare（将来）"]
+    subgraph EDGE["☁️ Cloudflare Workers（検証実装）"]
         ACCESS["Cloudflare Access<br>ログイン・入口の制御"]
-        WORKERS["Workers API<br>案件・改訂・数量・権限確認"]
+        WORKERS["Workers API<br>案件・改訂・数量・権限確認・監査"]
     end
-    NEON["🐘 Neon PostgreSQL<br>案件・改訂・数量・監査の正本"]
-    OBJ["Object Storage<br>図面・PDF・添付ファイル"]
+    MEMORY["インメモリストア<br>リリース前検証用"]
+    NEON["🐘 Neon PostgreSQL<br>本番接続後の正本"]
+    OBJ["Object Storage<br>本番接続後の図面・PDF・添付ファイル"]
     SPA --> ACCESS
     ACCESS --> WORKERS
-    WORKERS --> NEON
-    WORKERS --> OBJ
+    WORKERS --> MEMORY
+    WORKERS -.承認後.-> NEON
+    WORKERS -.承認後.-> OBJ
 ```
 
-> 正本（方針）: `README.md`「システム構成」節、`src/infrastructure/auth/accessIdentity.ts`（Cloudflare Access 前提の identity 取得層・未配線）
+> 正本: `src/workers/index.ts`, `tests/unit/workers/index.test.ts`, `src/infrastructure/auth/accessIdentity.ts`
 
 ---
 
@@ -273,17 +276,18 @@ graph TB
 
 ---
 
-## 🛣 7. ロードマップ（未実装機能の区別）
+## 🛣 7. ロードマップ（残作業の区別）
 
-以下は **まだ実装していない**、Phase 2 以降で足す機能です。上の図（§1〜§6）に含めていません。
+以下は、現在の検証実装から本番利用へ進めるために残っている作業です。
+一部は画面・検証APIとして先行実装済みですが、本番正本化や外部接続はまだ行っていません。
 
-| Phase | 追加予定（現時点で未実装） |
+| 領域 | 残作業 |
 | --- | --- |
-| Phase 2 | 測量座標・測点、中心線・オフセット（座標系変換の canvas↔domain を拡張） |
-| Phase 3 | 仮設・重機・土工のパラメトリック作図 |
-| Phase 4 | 業務属性・数量集計・数量根拠の追跡 |
-| Phase 5 | 縦横断・施工ステップ・簡易土量 |
-| Phase 6 | DXF 強化・改訂/照査/承認、共有版（Cloudflare Workers + Neon + Object Storage）、IndexedDB 自動保存と認証の配線 |
+| CAD | DXF互換範囲の拡大、測量座標変換の精度強化、大規模図面の性能検証 |
+| 業務 | 数量根拠の本番データ化、照査・承認ルールの権限別テスト拡充 |
+| API | Workers API を本番経路へ接続し、Neon PostgreSQL / Object Storage / Secret を設定 |
+| 監査 | 監査ログをハッシュチェーン構造で永続化し、改ざん検知を運用手順へ組み込む |
+| 運用 | E2E、性能、障害対応、ロールバック手順を本番公開後の実データ運用に合わせて更新 |
 
 > 実装済みディレクトリと雛形（⬜）ディレクトリの対応は §2 を参照。
 > 各 Phase の到達点は `README.md`「開発ロードマップ」節が正本です。
