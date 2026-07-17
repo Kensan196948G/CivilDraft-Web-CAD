@@ -70,7 +70,7 @@ function validateBalancedParentheses(sql, file, failures) {
   assert(depth === 0, `${file}: unbalanced parentheses depth=${depth}`, failures)
 }
 
-function validateSqlFile(file, sql) {
+function validateSqlFile(file, sql, known) {
   const failures = []
   const stripped = stripComments(sql)
   const normalized = stripped.replace(/\s+/g, ' ').trim()
@@ -89,38 +89,37 @@ function validateSqlFile(file, sql) {
 
   validateBalancedParentheses(stripped, file, failures)
 
-  const tableMatches = [...stripped.matchAll(/\bCREATE\s+TABLE\s+([a-z_][a-z0-9_]*)\s*\(/gi)]
-  const tables = new Set(tableMatches.map((match) => match[1].toLowerCase()))
-  for (const table of EXPECTED_TABLES) {
-    assert(tables.has(table), `${file}: missing expected table ${table}`, failures)
+  // Incremental migrations (0002+) extend the schema, so table/index presence
+  // is validated cumulatively across ordered files, not per file.
+  const tableMatches = [
+    ...stripped.matchAll(/\bCREATE\s+TABLE\s+(?:IF\s+NOT\s+EXISTS\s+)?([a-z_][a-z0-9_]*)\s*\(/gi),
+  ]
+  for (const match of tableMatches) {
+    known.tables.add(match[1].toLowerCase())
   }
 
   const fkMatches = [...stripped.matchAll(/\bREFERENCES\s+([a-z_][a-z0-9_]*)\s*\(/gi)]
   for (const match of fkMatches) {
     const target = match[1].toLowerCase()
-    assert(tables.has(target), `${file}: foreign key references unknown table ${target}`, failures)
+    assert(known.tables.has(target), `${file}: foreign key references unknown table ${target}`, failures)
   }
 
-  const indexMatches = [...stripped.matchAll(/\bCREATE\s+INDEX\s+([a-z_][a-z0-9_]*)\s+ON\s+([a-z_][a-z0-9_]*)\s*\(/gi)]
-  const indexes = new Set(indexMatches.map((match) => match[1].toLowerCase()))
-  for (const indexName of REQUIRED_INDEXES) {
-    assert(indexes.has(indexName), `${file}: missing required index ${indexName}`, failures)
+  const alterMatches = [...stripped.matchAll(/\bALTER\s+TABLE\s+([a-z_][a-z0-9_]*)\b/gi)]
+  for (const match of alterMatches) {
+    const target = match[1].toLowerCase()
+    assert(known.tables.has(target), `${file}: ALTER TABLE targets unknown table ${target}`, failures)
   }
+
+  const indexMatches = [
+    ...stripped.matchAll(
+      /\bCREATE\s+INDEX\s+(?:IF\s+NOT\s+EXISTS\s+)?([a-z_][a-z0-9_]*)\s+ON\s+([a-z_][a-z0-9_]*)\s*\(/gi,
+    ),
+  ]
   for (const match of indexMatches) {
+    known.indexes.add(match[1].toLowerCase())
     const table = match[2].toLowerCase()
-    assert(tables.has(table), `${file}: index ${match[1]} targets unknown table ${table}`, failures)
+    assert(known.tables.has(table), `${file}: index ${match[1]} targets unknown table ${table}`, failures)
   }
-
-  assert(
-    /\bCREATE\s+TABLE\s+audit_logs\b[\s\S]*?\bcorrelation_id\s+text\b/i.test(stripped),
-    `${file}: audit_logs.correlation_id is required for request tracing`,
-    failures,
-  )
-  assert(
-    /\bCREATE\s+TABLE\s+drawing_contents\b[\s\S]*?\bcontent_checksum\s+text\s+NOT\s+NULL\b/i.test(stripped),
-    `${file}: drawing_contents.content_checksum is required`,
-    failures,
-  )
 
   return failures
 }
@@ -132,10 +131,34 @@ const migrationFiles = readdirSync(MIGRATIONS_DIR)
 const failures = []
 assert(migrationFiles.length > 0, 'migrations: no numbered SQL files found', failures)
 
+const known = { tables: new Set(), indexes: new Set() }
+let combinedSql = ''
 for (const file of migrationFiles) {
   const sql = readFileSync(join(MIGRATIONS_DIR, file), 'utf8')
-  failures.push(...validateSqlFile(file, sql))
+  combinedSql += `\n${stripComments(sql)}`
+  failures.push(...validateSqlFile(file, sql, known))
 }
+
+for (const table of EXPECTED_TABLES) {
+  assert(known.tables.has(table), `migrations: missing expected table ${table}`, failures)
+}
+for (const indexName of REQUIRED_INDEXES) {
+  assert(known.indexes.has(indexName), `migrations: missing required index ${indexName}`, failures)
+}
+assert(
+  /\bCREATE\s+TABLE\s+(?:IF\s+NOT\s+EXISTS\s+)?audit_logs\b[\s\S]*?\bcorrelation_id\s+text\b/i.test(
+    combinedSql,
+  ),
+  'migrations: audit_logs.correlation_id is required for request tracing',
+  failures,
+)
+assert(
+  /\bCREATE\s+TABLE\s+(?:IF\s+NOT\s+EXISTS\s+)?drawing_contents\b[\s\S]*?\bcontent_checksum\s+text\s+NOT\s+NULL\b/i.test(
+    combinedSql,
+  ),
+  'migrations: drawing_contents.content_checksum is required',
+  failures,
+)
 
 if (failures.length > 0) {
   console.error('Migration validation failed:')

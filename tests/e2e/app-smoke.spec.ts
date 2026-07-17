@@ -12,8 +12,8 @@ test('ホームから新規案件作成、CAD編集、監査ログHTML出力ま�
 
   await page.getByRole('button', { name: /^作図/ }).click()
   await page.getByRole('button', { name: '✏️ CAD編集' }).click()
-  await expect(page.getByRole('button', { name: 'PDF出力' })).toBeVisible()
-  await expect(page.getByText(/図形:\s*\d+/)).toBeVisible()
+  await expect(page.getByRole('button', { name: '共有保存' })).toBeVisible()
+  await expect(page.getByRole('button', { name: '共有再読込' })).toBeVisible()
 
   await page.getByRole('button', { name: /^出力・管理/ }).click()
   await page.getByRole('button', { name: /監査ログ/ }).click()
