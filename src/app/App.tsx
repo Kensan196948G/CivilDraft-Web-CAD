@@ -15,7 +15,8 @@
 import { useMemo, useState } from 'react'
 import { Sidebar } from './layout/Sidebar'
 import type { AppView } from './layout/Sidebar'
-import { CadEditorPage } from './pages/CadEditorPage'
+import { CadEditorPage, DEFAULT_CLOUD_DRAFT_SESSION } from './pages/CadEditorPage'
+import type { CloudDraftSession } from './pages/CadEditorPage'
 import { ConstructionStepsPage } from './pages/ConstructionStepsPage'
 import { CrossSectionPage } from './pages/CrossSectionPage'
 import { DrawingComparePage } from './pages/DrawingComparePage'
@@ -47,13 +48,19 @@ function AppShell() {
   const [view, setView] = useState<AppView>('home')
   const [theme, setTheme] = useState<'light' | 'dark'>(loadTheme)
   const [autosaveStore] = useState<AutosaveStore>(() => createAutosaveStore())
+  const [cloudDraftSession, setCloudDraftSession] = useState<CloudDraftSession>(DEFAULT_CLOUD_DRAFT_SESSION)
+
+  const openEditor = (session: CloudDraftSession = DEFAULT_CLOUD_DRAFT_SESSION) => {
+    setCloudDraftSession(session)
+    setView('editor')
+  }
 
   // ビューレジストリ: サイドバー付きで表示するページ群（editorのみ全画面レイアウト）。
   // ここへ登録すると Sidebar の disabled が自動解除される。
   const sidebarPages = useMemo<Partial<Record<AppView, React.ReactElement>>>(
     () => ({
-      editor: <CadEditorPage autosaveStore={autosaveStore} onNavigate={setView} />,
-      project: <ProjectDetailPage onOpenEditor={() => setView('editor')} />,
+      editor: <CadEditorPage autosaveStore={autosaveStore} onNavigate={setView} cloudDraftSession={cloudDraftSession} />,
+      project: <ProjectDetailPage onOpenEditor={openEditor} />,
       drawingSettings: <DrawingSettingsPage />,
       survey: <SurveyPointsPage />,
       parts: <PartsPalettePage />,
@@ -65,7 +72,7 @@ function AppShell() {
       print: <PrintExportPage />,
       settings: <SystemSettingsPage />,
     }),
-    [autosaveStore],
+    [autosaveStore, cloudDraftSession],
   )
 
   const implementedViews: readonly AppView[] = [
@@ -106,7 +113,7 @@ function AppShell() {
         onToggleTheme={toggleTheme}
       />
       {registeredPage ?? (
-        <HomePage autosaveStore={autosaveStore} onOpenEditor={() => setView('editor')} />
+        <HomePage autosaveStore={autosaveStore} onOpenEditor={() => openEditor()} />
       )}
     </div>
   )

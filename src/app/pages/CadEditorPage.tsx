@@ -12,7 +12,7 @@
  * ため、正直に不掲載または「未設定」表示とする（捏造しない）。
  * DXF取込のUI導線は本画面に対応する置き場所がなく、別Issueで扱う。
  */
-import { useEffect, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import type { CSSProperties } from 'react'
 import { CanvasStage } from '../canvas/CanvasStage'
 import type { AppView } from '../layout/Sidebar'
@@ -24,6 +24,13 @@ import { DEFAULT_CONSTRUCTION_STEPS } from '@/domain/construction-steps'
 import type { ToolType } from '@/domain/tools/draftGeometry'
 import type { AutosaveStore } from '@/infrastructure/autosave/autosaveStore'
 import { scheduleAutosave } from '@/infrastructure/autosave/autosaveScheduler'
+import {
+  createCivilDraftApiClient,
+  type CloudContent,
+  type CloudSaveDraftInput,
+  type CloudSaveDraftResult,
+} from '@/infrastructure/cloud/civilDraftApiClient'
+import type { Result, ValidationIssue } from '@/shared/types'
 import type { DrawingLayer, Geometry, GeometryStyle, GeometryType, LayerId } from '@/shared/types'
 import { ghostButtonStyle, monoStyle, pageRootStyle, primaryButtonStyle, statusBadgeStyle } from './pageStyles'
 
@@ -31,6 +38,37 @@ export interface CadEditorPageProps {
   /** HomePage/DrawingComparePageと共有する自動保存ストア（復旧候補の一貫性のため同一インスタンス）。 */
   readonly autosaveStore: AutosaveStore
   readonly onNavigate: (view: AppView) => void
+  /** Workers APIクライアント。テストでは実Workerハンドラやモックを注入する。 */
+  readonly cloudApiClient?: CloudSaveClient
+  /** 共有保存へ渡す案件・図面コンテキスト。ProjectDetailPage等の実画面導線から注入する。 */
+  readonly cloudDraftSession?: CloudDraftSession
+}
+
+export interface CloudSaveClient {
+  saveDraft(input: CloudSaveDraftInput): Promise<Result<CloudSaveDraftResult, ValidationIssue>>
+  getRevisionContent(revisionId: string): Promise<Result<CloudContent, ValidationIssue>>
+}
+
+export interface CloudDraftSession {
+  readonly projectNumber: string
+  readonly projectName: string
+  readonly clientName?: string
+  readonly drawingNumber: string
+  readonly drawingName: string
+  readonly drawingType?: string
+  readonly revisionNumber: string
+  readonly changeSummary?: string
+}
+
+export const DEFAULT_CLOUD_DRAFT_SESSION: CloudDraftSession = {
+  projectNumber: 'P-245-ROAD-WIDENING',
+  projectName: '国道245号 道路拡幅工事',
+  clientName: 'Mirai建設',
+  drawingNumber: 'DWG-014',
+  drawingName: '施工ヤード計画図',
+  drawingType: 'temporary-yard-plan',
+  revisionNumber: 'Rev.3',
+  changeSummary: 'CAD編集画面から共有保存',
 }
 
 const GEOMETRY_TYPE_LABELS: Record<GeometryType, string> = {
@@ -475,8 +513,52 @@ const disclaimerBoxStyle: CSSProperties = {
   lineHeight: 1.5,
 }
 
-export function CadEditorPage({ autosaveStore, onNavigate }: CadEditorPageProps) {
+function buildCloudSaveInput(
+  session: CloudDraftSession,
+  geometries: readonly Geometry[],
+  layers: readonly DrawingLayer[],
+): CloudSaveDraftInput {
+  return {
+    project: {
+      projectNumber: session.projectNumber,
+      name: session.projectName,
+      clientName: session.clientName,
+    },
+    drawing: {
+      drawingNumber: session.drawingNumber,
+      name: session.drawingName,
+      drawingType: session.drawingType,
+      settings: { paperSize: 'A3', orientation: 'landscape', scaleDenominator: 100, drawingUnit: 'mm' },
+    },
+    revision: {
+      revisionNumber: session.revisionNumber,
+      changeSummary: session.changeSummary ?? 'CAD編集画面から共有保存',
+    },
+    document: { geometries, layers },
+    exportFormat: 'json',
+  }
+}
+
+function isDocumentContent(content: unknown): content is {
+  readonly geometries: readonly Geometry[]
+  readonly layers: readonly DrawingLayer[]
+} {
+  if (typeof content !== 'object' || content === null || Array.isArray(content)) return false
+  const record = content as Record<string, unknown>
+  return Array.isArray(record.geometries) && Array.isArray(record.layers)
+}
+
+export function CadEditorPage({
+  autosaveStore,
+  onNavigate,
+  cloudApiClient,
+  cloudDraftSession = DEFAULT_CLOUD_DRAFT_SESSION,
+}: CadEditorPageProps) {
   const storeApi = useEditorStoreApi()
+  const apiClient = useMemo<CloudSaveClient>(
+    () => cloudApiClient ?? createCivilDraftApiClient(),
+    [cloudApiClient],
+  )
   const geometries = useEditorStore((s) => s.geometries)
   const layers = useEditorStore((s) => s.layers)
   const selectedIds = useEditorStore((s) => s.selectedIds)
@@ -492,6 +574,12 @@ export function CadEditorPage({ autosaveStore, onNavigate }: CadEditorPageProps)
     ok: true,
     text: '自動保存: 待機中',
   })
+  const [cloudSaveStatus, setCloudSaveStatus] = useState<{
+    readonly ok: boolean
+    readonly text: string
+  } | null>(null)
+  const [cloudSaving, setCloudSaving] = useState(false)
+  const [lastCloudRevisionId, setLastCloudRevisionId] = useState<string | null>(null)
 
   useEffect(() => {
     const scheduler = scheduleAutosave(
@@ -539,17 +627,78 @@ export function CadEditorPage({ autosaveStore, onNavigate }: CadEditorPageProps)
     storeApi.getState().dispatchCommand(createUpdateGeometryCommand(selected, next))
   }
 
+  const runCloudSave = async () => {
+    const s = storeApi.getState()
+    if (s.geometries.length === 0) {
+      setCloudSaveStatus({ ok: false, text: '共有保存できる図形がありません' })
+      return
+    }
+    setCloudSaving(true)
+    setCloudSaveStatus({ ok: true, text: '共有保存中...' })
+    try {
+      const result = await apiClient.saveDraft(buildCloudSaveInput(cloudDraftSession, s.geometries, s.layers))
+      if (result.ok) {
+        setLastCloudRevisionId(result.value.revision.id)
+        setCloudSaveStatus({
+          ok: true,
+          text: `共有保存済み: ${result.value.project.projectNumber} / ${result.value.drawing.drawingNumber}`,
+        })
+      } else {
+        setCloudSaveStatus({ ok: false, text: `共有保存失敗: ${result.error.message}` })
+      }
+    } catch (err) {
+      setCloudSaveStatus({ ok: false, text: `共有保存失敗: ${String(err)}` })
+    } finally {
+      setCloudSaving(false)
+    }
+  }
+
+  const runCloudReload = async () => {
+    if (lastCloudRevisionId === null) {
+      setCloudSaveStatus({ ok: false, text: '共有保存後に再読込できます' })
+      return
+    }
+    setCloudSaving(true)
+    setCloudSaveStatus({ ok: true, text: '共有再読込中...' })
+    try {
+      const result = await apiClient.getRevisionContent(lastCloudRevisionId)
+      if (!result.ok) {
+        setCloudSaveStatus({ ok: false, text: `共有再読込失敗: ${result.error.message}` })
+        return
+      }
+      if (!isDocumentContent(result.value.content)) {
+        setCloudSaveStatus({ ok: false, text: '共有再読込失敗: 図面内容の形式が不正です' })
+        return
+      }
+      storeApi.getState().replaceDocument(result.value.content.geometries, result.value.content.layers)
+      storeApi.getState().clearHistory()
+      setCloudSaveStatus({
+        ok: true,
+        text: `共有再読込済み: ${result.value.contentVersion}版 / 図形${result.value.content.geometries.length}件`,
+      })
+    } catch (err) {
+      setCloudSaveStatus({ ok: false, text: `共有再読込失敗: ${String(err)}` })
+    } finally {
+      setCloudSaving(false)
+    }
+  }
+
   return (
     <div style={pageRootStyle}>
       <header style={headerBarStyle}>
         <div style={{ display: 'flex', flexDirection: 'column', lineHeight: 1.3 }}>
-          <span style={{ fontSize: 11, color: 'var(--muted)' }}>国道245号 道路拡幅工事</span>
-          <span style={{ fontSize: 14.5, fontWeight: 600, color: 'var(--ink)' }}>施工ヤード計画図</span>
+          <span style={{ fontSize: 11, color: 'var(--muted)' }}>{cloudDraftSession.projectName}</span>
+          <span style={{ fontSize: 14.5, fontWeight: 600, color: 'var(--ink)' }}>{cloudDraftSession.drawingName}</span>
         </div>
-        <span style={{ ...monoStyle, fontSize: 12, color: 'var(--muted)' }}>Rev.3</span>
+        <span style={{ ...monoStyle, fontSize: 12, color: 'var(--muted)' }}>{cloudDraftSession.revisionNumber}</span>
         <span style={statusBadgeStyle(autosaveStatus.ok ? '#1F8255' : '#C5392F', autosaveStatus.ok ? '#E4F3EC' : '#FCE9E7')}>
           {autosaveStatus.text}
         </span>
+        {cloudSaveStatus !== null && (
+          <span style={statusBadgeStyle(cloudSaveStatus.ok ? '#1F8255' : '#C5392F', cloudSaveStatus.ok ? '#E4F3EC' : '#FCE9E7')}>
+            {cloudSaveStatus.text}
+          </span>
+        )}
         <button
           title="元に戻す"
           disabled={!canUndo}
@@ -585,6 +734,28 @@ export function CadEditorPage({ autosaveStore, onNavigate }: CadEditorPageProps)
         </select>
         <button style={ghostButtonStyle} onClick={() => storeApi.getState().setGridVisible(!gridVisible)}>
           表示
+        </button>
+        <button
+          style={ghostButtonStyle}
+          disabled={cloudSaving}
+          onClick={() => {
+            void runCloudSave()
+          }}
+        >
+          {cloudSaving ? '共有保存中' : '共有保存'}
+        </button>
+        <button
+          style={{
+            ...ghostButtonStyle,
+            opacity: lastCloudRevisionId === null || cloudSaving ? 0.55 : 1,
+            cursor: lastCloudRevisionId === null || cloudSaving ? 'not-allowed' : 'pointer',
+          }}
+          disabled={lastCloudRevisionId === null || cloudSaving}
+          onClick={() => {
+            void runCloudReload()
+          }}
+        >
+          共有再読込
         </button>
         <button style={primaryButtonStyle} onClick={() => onNavigate('print')}>
           出力
