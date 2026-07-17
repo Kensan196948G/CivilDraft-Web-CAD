@@ -8,11 +8,11 @@
   "session": {
     "session_start_utc": "2026-07-15T04:16:26Z",
     "max_duration_minutes": 300,
-    "last_update_utc": "2026-07-17T13:33:33Z",
-    "note": "CTOループ継続: #52クローズ(現状維持判断)、#50 TOCTOU修正マージ(PR#54)、#53ブランチ保護強化(E2E/SBOM必須化・ユーザー承認)、#36 JWT二次防御実装(PR#55・Medium1件を敵対レビューで発見即修正)。"
+    "last_update_utc": "2026-07-17T13:50:35Z",
+    "note": "CTOループ継続でPR#35/#49/#54/#55/#56を人間承認マージ。#48/#50/#52/#53解決、#36 JWT二次防御実装(敵対レビューでMedium発見即修正)、本番デプロイ手順書整備。open PR=0。"
   },
-  "goal": "Release Ready接近: PR#35/#49/#54マージ済み。#36 JWT二次防御をPR#55として実装・敵対レビュー済み(CI待ち)。残: 本番Neon/R2接続・Accessテナント設定(人間決裁)。",
-  "phase": "Verify",
+  "goal": "Release Ready間近: コード側の残セキュリティ/品質課題を解消しPR#35/#49/#54/#55/#56を全マージ。残ゲートは本番Neon/R2接続・Accessテナント設定・Secret登録・wrangler deploy（すべて人間決裁）。デプロイ手順書は整備済み。",
+  "phase": "Release",
   "kpi": {
     "success_rate_target": 0.9,
     "ci_success_rate": 1.0,
@@ -150,6 +150,16 @@
       "pr": 54,
       "merged": "2026-07-17",
       "note": "Issue#50 TOCTOU競合修正"
+    },
+    {
+      "pr": 55,
+      "merged": "2026-07-17",
+      "note": "Issue#36 Access JWT二次防御(RS256/iss/aud/exp検証・fail-closed)"
+    },
+    {
+      "pr": 56,
+      "merged": "2026-07-17",
+      "note": "本番デプロイ手順書 production-deployment.md"
     }
   ],
   "blocked_issues": [],
@@ -259,15 +269,27 @@
     ]
   },
   "pending_items": [
-    "PR #55(#36 JWT二次防御): CI成功後、認証変更のためマージは人間承認必須",
-    "Issue #36残り: 本番Neon/R2接続・Accessテナント設定・Secret登録(CIVILDRAFT_ACCESS_TEAM_DOMAIN/AUD)は人間決裁",
-    "Issue #51: workflowTargetStatusとdomain/revisionsの遷移ロジック一本化(P3)",
-    "任意: persistenceUnavailableResponseの503本文もbinding名を汎用文言化(情報最小化の完全化・低優先)"
+    "Release Ready残ゲート: 本番リソース接続（production-deployment.md §2-4の人間決裁事項）",
+    "Issue #36残り: wrangler.jsonc のAPI統合方式決定 + 本番接続",
+    "Issue #51: workflowTargetStatusとdomain/revisionsの遷移ロジック一本化（P3・コード品質）",
+    "任意: persistenceUnavailableResponseの503本文binding名を汎用文言化（情報最小化・低優先）"
   ],
   "infra_changes": [
     {
       "date": "2026-07-17",
       "change": "main branch protection: 必須チェックへ Browser E2E / SBOM・Notices を追加(ユーザー承認)"
     }
-  ]
+  ],
+  "deploy": {
+    "ready": false,
+    "blocked_by_human_decision": [
+      "本番Neonプロジェクト作成 + 0001→0002 migration適用（dev検証はCTO可）",
+      "R2バケット作成",
+      "Cloudflare Access Application作成・ポリシー設定",
+      "Workers Secret登録: CIVILDRAFT_API_MODE=neon-r2 / NEON_CONNECTION / R2_BUCKET / ACCESS_TEAM_DOMAIN / ACCESS_AUD",
+      "wrangler.jsonc の main/API routing方式決定（案A/案B・Issue #36残り）",
+      "wrangler deploy 実行 + デプロイ後スモーク"
+    ],
+    "guide": "docs/operations/production-deployment.md"
+  }
 }

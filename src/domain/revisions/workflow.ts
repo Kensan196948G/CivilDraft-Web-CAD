@@ -213,6 +213,18 @@ export function availableActions(current: RevisionStatus): readonly RevisionActi
   return TRANSITIONS.filter((rule) => rule.from === current).map((rule) => rule.action)
 }
 
+/**
+ * 状態遷移表（TRANSITIONS）から次状態のみを純粋に引く（能力・前提は検査しない）。
+ * 遷移グラフの唯一の定義を、認可や前提を独自に持つ別レイヤー（Workers API 等）と
+ * 共有するための入口。能力・前提検査が必要な場合は transition / applyRevisionAction を使う。
+ */
+export function revisionTransitionTarget(
+  current: RevisionStatus,
+  action: RevisionAction,
+): RevisionStatus | undefined {
+  return findRule(current, action)?.to
+}
+
 /** applyRevisionAction の入力。遷移条件に加え、履歴記録に必要な操作者と日時を含む。 */
 export interface RevisionActionInput {
   readonly current: RevisionStatus
