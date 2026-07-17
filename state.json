@@ -8,10 +8,11 @@
   "session": {
     "session_start_utc": "2026-07-15T04:16:26Z",
     "max_duration_minutes": 300,
-    "hard_stop_utc": "2026-07-15T09:16:26Z"
+    "last_update_utc": "2026-07-17T12:23:35Z",
+    "note": "PR#35再統合セッション: merge origin/main のコンフリクト19ファイル解消、typecheck/lint/test(1066)/build全通過、a3cac65をpush、CI監視中"
   },
-  "goal": "Phase 2-6コード実装完了（PR #31、最終フェーズ完了マージはY/N承認待ち）。全ロードマップフェーズのドメイン+UI 7画面+Workers/Neon基盤を実装、テスト1030/1030。残る人間決裁: PR #31マージ・Neonマイグレーション適用・wrangler deploy・Workersエンドポイント本実装。",
-  "phase": "Improve",
+  "goal": "PR #35のmain再統合完了（19ファイルのコンフリクト解消・検証済み）。CI成功と人間レビュー承認待ち。マージはmain宛のため人間の明示承認必須。",
+  "phase": "Verify",
   "kpi": {
     "success_rate_target": 0.9,
     "ci_success_rate": 1.0,
@@ -42,34 +43,126 @@
     ]
   },
   "completed_issues": [
-    { "issue": 5, "closed": "2026-07-15", "note": "幾何演算エンジン群17/17ファイル移植完了（rulerUtilsは#21へ一本化）。5並列エージェントで11ファイル同時移植。派生Issue #23/#24起票。commit 208de64" },
-    { "issue": 6, "closed": "2026-07-15", "note": "Canvas描画パイプライン（§9.1レイヤー構成・CoordinateTransformer§9.2・カリング§9.4・作図ツール配線）。Minimap/ContextMenuは対象外として必要時に別Issue" },
-    { "issue": 7, "closed": "2026-07-15", "note": "空間索引インスタンス化+store層シングルトン解消（EditorStoreファクトリ）。ベンチ実測32〜59倍高速で劣化なし実証" },
-    { "issue": 8, "closed": "2026-07-15", "note": "Commandパターン（差分ペイロード、メモリ約5000倍改善実証）+HistorySlice+ToolSlice配線。R-001解消" },
-    { "issue": 9, "closed": "2026-07-15", "note": "autosave IndexedDB移行+UI配線（起動時復元・デバウンス保存・容量超過警告）。R-006握り潰し解消" },
-    { "issue": 10, "closed": "2026-07-15", "note": "PDF出力新規実装（pdf-lib、§24.1、DD-TBD-006方式確定、フォント注入DI）。UIボタン配線済み" },
-    { "issue": 13, "closed": "2026-07-15", "note": "Cloudflare Access認証アプリ側（identity取得+ロール3種）。テナント設定チェックリストはIssueコメントに記録（人間確認事項）" },
-    { "issue": 18, "closed": "2026-07-15", "note": "DXF入出力移植。R-002/R-004単位不整合是正、DASHDOT不正DXF・rad二重変換・レイヤー色取り違え修正" },
-    { "issue": 19, "closed": "2026-07-15", "note": "symbolCatalog(30種as_is)+templateCatalog(6種Geometry化+instantiateTemplate)" },
-    { "issue": 20, "closed": "2026-07-15", "note": "Geometry判別共用体13種実装（前セッション）" },
-    { "issue": 21, "closed": "2026-07-15", "note": "rulerUtils+gridRenderer移植（純粋関数化）" },
-    { "issue": 22, "closed": "2026-07-15", "note": "仕様書§6.2のSplineGeometry欠落修正（前セッション）" }
+    {
+      "issue": 5,
+      "closed": "2026-07-15",
+      "note": "幾何演算エンジン群17/17ファイル移植完了（rulerUtilsは#21へ一本化）。5並列エージェントで11ファイル同時移植。派生Issue #23/#24起票。commit 208de64"
+    },
+    {
+      "issue": 6,
+      "closed": "2026-07-15",
+      "note": "Canvas描画パイプライン（§9.1レイヤー構成・CoordinateTransformer§9.2・カリング§9.4・作図ツール配線）。Minimap/ContextMenuは対象外として必要時に別Issue"
+    },
+    {
+      "issue": 7,
+      "closed": "2026-07-15",
+      "note": "空間索引インスタンス化+store層シングルトン解消（EditorStoreファクトリ）。ベンチ実測32〜59倍高速で劣化なし実証"
+    },
+    {
+      "issue": 8,
+      "closed": "2026-07-15",
+      "note": "Commandパターン（差分ペイロード、メモリ約5000倍改善実証）+HistorySlice+ToolSlice配線。R-001解消"
+    },
+    {
+      "issue": 9,
+      "closed": "2026-07-15",
+      "note": "autosave IndexedDB移行+UI配線（起動時復元・デバウンス保存・容量超過警告）。R-006握り潰し解消"
+    },
+    {
+      "issue": 10,
+      "closed": "2026-07-15",
+      "note": "PDF出力新規実装（pdf-lib、§24.1、DD-TBD-006方式確定、フォント注入DI）。UIボタン配線済み"
+    },
+    {
+      "issue": 13,
+      "closed": "2026-07-15",
+      "note": "Cloudflare Access認証アプリ側（identity取得+ロール3種）。テナント設定チェックリストはIssueコメントに記録（人間確認事項）"
+    },
+    {
+      "issue": 18,
+      "closed": "2026-07-15",
+      "note": "DXF入出力移植。R-002/R-004単位不整合是正、DASHDOT不正DXF・rad二重変換・レイヤー色取り違え修正"
+    },
+    {
+      "issue": 19,
+      "closed": "2026-07-15",
+      "note": "symbolCatalog(30種as_is)+templateCatalog(6種Geometry化+instantiateTemplate)"
+    },
+    {
+      "issue": 20,
+      "closed": "2026-07-15",
+      "note": "Geometry判別共用体13種実装（前セッション）"
+    },
+    {
+      "issue": 21,
+      "closed": "2026-07-15",
+      "note": "rulerUtils+gridRenderer移植（純粋関数化）"
+    },
+    {
+      "issue": 22,
+      "closed": "2026-07-15",
+      "note": "仕様書§6.2のSplineGeometry欠落修正（前セッション）"
+    }
   ],
   "issues_pr_ready": [],
   "merged_prs": [
-    { "pr": 1, "merged": "2026-07-15", "note": "Phase 0成果物（Issue #2）" },
-    { "pr": 14, "merged": "2026-07-15", "note": "スキャフォールド+CI（Issue #3/#4/#11）" },
-    { "pr": 16, "merged": "2026-07-15", "note": "Phase 1コア実装（Issue #15ほか10件）" },
-    { "pr": 27, "merged": "2026-07-15", "note": "CIトリガー全ブランチ化+SBOMジョブ（Issue #17/#12）" },
-    { "pr": 28, "merged": "2026-07-15", "note": "ホーム画面デザイン100%適用（Claude Design Home.dc.html）" },
-    { "pr": 29, "merged": "2026-07-15", "note": "PDF日本語フォント同梱（DD-TBD-006確定）+Workers配信手順" }
+    {
+      "pr": 1,
+      "merged": "2026-07-15",
+      "note": "Phase 0成果物（Issue #2）"
+    },
+    {
+      "pr": 14,
+      "merged": "2026-07-15",
+      "note": "スキャフォールド+CI（Issue #3/#4/#11）"
+    },
+    {
+      "pr": 16,
+      "merged": "2026-07-15",
+      "note": "Phase 1コア実装（Issue #15ほか10件）"
+    },
+    {
+      "pr": 27,
+      "merged": "2026-07-15",
+      "note": "CIトリガー全ブランチ化+SBOMジョブ（Issue #17/#12）"
+    },
+    {
+      "pr": 28,
+      "merged": "2026-07-15",
+      "note": "ホーム画面デザイン100%適用（Claude Design Home.dc.html）"
+    },
+    {
+      "pr": 29,
+      "merged": "2026-07-15",
+      "note": "PDF日本語フォント同梱（DD-TBD-006確定）+Workers配信手順"
+    }
   ],
   "blocked_issues": [],
   "open_issues_next": [
-    { "issue": 23, "title": "Arc掃引方向（CW/CCW）の規約確定", "priority": "P2", "note": "描画実機検証（ブラウザ）後に規約確定。GeometryRenderer/pdfExporterは暫定規約で一致済み。鏡像swap問題も同Issueに追記済み" },
-    { "issue": 24, "title": "スナップエンジン改善（残: 回転図形対応のみ）", "priority": "P2", "note": "許容差注入・楕円center/象限は完了（commit 7531f43）。回転図形は#25と併せ描画検証後" },
-    { "issue": 25, "title": "rectangle/ellipse 90°回転の二重適用疑い", "priority": "P2", "note": "GeometryRendererはrotationDegを描画適用するため要実機検証→transformShape修正方針決定" },
-    { "issue": 26, "title": "バンドルサイズ最適化（pdf-lib/dxf系コード分割）", "priority": "P3", "note": "gzip 708KB。dynamic import化で改善可能" }
+    {
+      "issue": 23,
+      "title": "Arc掃引方向（CW/CCW）の規約確定",
+      "priority": "P2",
+      "note": "描画実機検証（ブラウザ）後に規約確定。GeometryRenderer/pdfExporterは暫定規約で一致済み。鏡像swap問題も同Issueに追記済み"
+    },
+    {
+      "issue": 24,
+      "title": "スナップエンジン改善（残: 回転図形対応のみ）",
+      "priority": "P2",
+      "note": "許容差注入・楕円center/象限は完了（commit 7531f43）。回転図形は#25と併せ描画検証後"
+    },
+    {
+      "issue": 25,
+      "title": "rectangle/ellipse 90°回転の二重適用疑い",
+      "priority": "P2",
+      "note": "GeometryRendererはrotationDegを描画適用するため要実機検証→transformShape修正方針決定"
+    },
+    {
+      "issue": 26,
+      "title": "バンドルサイズ最適化（pdf-lib/dxf系コード分割）",
+      "priority": "P3",
+      "note": "gzip 708KB。dynamic import化で改善可能"
+    }
   ],
   "learning": {
     "failure_patterns": [
@@ -149,5 +242,11 @@
         "fix": "viewportCulling.ts移植時、getShapeBBoxを新規移植する必要はない。isInViewport相当のロジックはdomain/geometry/shapeBBox.tsのshapeBBox()をそのまま呼び出す設計にできる。selection.ts側で追加移植が要るのはbboxContainsPoint/bboxIntersects/rectFromPoints/findShapesInRect/findShapeAtPoint（BBox型のみに依存し図形型非依存）のみで、これらは軽量。次セッションのselection.ts着手時はgetShapeBBoxの再実装を避け、shapeBBox.tsのBBox型・関数を再利用する方針で見積もること"
       }
     ]
-  }
+  },
+  "pending_items": [
+    "PR#35: CI 4ジョブ成功確認後、main宛のためマージは人間承認待ち（自動マージ禁止）",
+    "改善候補: src/workers/index.ts の workflowTargetStatus が domain/revisions と遷移ロジック重複（§16単一の真実）→ Issue化検討",
+    "改善候補: Workers APIの不正URLエンコード応答（旧実装は400、現行はルート不一致404系）→ 防御強化の要否判断",
+    "GitHub Projects #44: PR#34/#35未登録・対応Issueなしの実態をユーザーへ報告済み事項として整理"
+  ]
 }

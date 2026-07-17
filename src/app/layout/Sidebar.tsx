@@ -1,9 +1,9 @@
 /**
  * 左サイドバー（ナビゲーション・テーマ切替・ユーザー表示）。
  * 正本: Claude Design「CivilDraft Web CAD」Home.dc.html（100%適用）。
- * ナビ項目のうち実装済みは ホーム・案件一覧（home）と CAD編集（editor）のみで、
- * 他はPhase 2以降の画面（デザイン上のリンク先を disabled 表示で保持）。
+ * 表示可能な項目は AppShell のページレジストリから渡される implementedViews で制御する。
  */
+import { useState } from 'react'
 import type { CSSProperties } from 'react'
 
 export type AppView =
@@ -19,12 +19,13 @@ export type AppView =
   | 'compare'
   | 'approval'
   | 'print'
+  | 'audit'
   | 'settings'
 
 export interface SidebarProps {
   readonly activeView: AppView
   readonly theme: 'light' | 'dark'
-  /** 実装済み（ナビゲート可能）なビュー。含まれない項目は disabled 表示（Phase 2以降）。 */
+  /** 現在のビルドでナビゲート可能なビュー。含まれない項目は disabled 表示。 */
   readonly implementedViews: readonly AppView[]
   readonly onNavigate: (view: AppView) => void
   readonly onToggleTheme: () => void
@@ -72,17 +73,36 @@ const NAV_SECTIONS: readonly NavSection[] = [
     heading: '出力・管理',
     items: [
       { icon: '🖨️', label: '印刷・出力', view: 'print' },
+      { icon: '📋', label: '監査ログ', view: 'audit' },
       { icon: '⚙️', label: 'システム設定', view: 'settings' },
     ],
   },
 ]
 
-const sectionHeadingStyle: CSSProperties = {
-  padding: '13px 8px 6px',
+function sectionHeadingStyle(open: boolean): CSSProperties {
+  return {
+    display: 'flex',
+    alignItems: 'center',
+    width: '100%',
+    padding: '13px 8px 6px',
+    border: 'none',
+    background: 'transparent',
+    cursor: 'pointer',
+    font: 'inherit',
+    textAlign: 'left',
+    fontSize: 10,
+    letterSpacing: 1,
+    color: open ? 'var(--side-heading)' : 'var(--side-label)',
+    fontWeight: 600,
+  }
+}
+
+const disclosureIconStyle: CSSProperties = {
+  marginLeft: 'auto',
+  width: 14,
+  textAlign: 'center',
   fontSize: 10,
-  letterSpacing: 1,
-  color: 'var(--side-label)',
-  fontWeight: 600,
+  color: 'var(--side-muted)',
 }
 
 function navItemStyle(active: boolean, implemented: boolean): CSSProperties {
@@ -90,7 +110,7 @@ function navItemStyle(active: boolean, implemented: boolean): CSSProperties {
     display: 'flex',
     alignItems: 'center',
     gap: 10,
-    padding: active ? '8px 8px' : '8px 11px',
+    padding: '8px 11px',
     borderRadius: 7,
     backgroundColor: active ? 'var(--side2)' : 'transparent',
     color: active ? 'var(--side-heading)' : 'var(--side-fg)',
@@ -98,7 +118,6 @@ function navItemStyle(active: boolean, implemented: boolean): CSSProperties {
     fontWeight: 500,
     textDecoration: 'none',
     border: 'none',
-    borderLeft: active ? '3px solid #E08A2B' : 'none',
     font: 'inherit',
     textAlign: 'left',
     width: '100%',
@@ -114,6 +133,20 @@ export function Sidebar({
   onNavigate,
   onToggleTheme,
 }: SidebarProps) {
+  const [openSections, setOpenSections] = useState<ReadonlySet<string>>(() => new Set(['案件']))
+
+  const toggleSection = (heading: string) => {
+    setOpenSections((current) => {
+      const next = new Set(current)
+      if (next.has(heading)) {
+        next.delete(heading)
+      } else {
+        next.add(heading)
+      }
+      return next
+    })
+  }
+
   return (
     <aside
       style={{
@@ -186,10 +219,20 @@ export function Sidebar({
           gap: 1,
         }}
       >
-        {NAV_SECTIONS.map((section) => (
-          <div key={section.heading} style={{ display: 'contents' }}>
-            <div style={sectionHeadingStyle}>{section.heading}</div>
-            {section.items.map((item) => {
+        {NAV_SECTIONS.map((section) => {
+          const open = openSections.has(section.heading)
+          return (
+            <div key={section.heading}>
+              <button
+                type="button"
+                style={sectionHeadingStyle(open)}
+                aria-expanded={open}
+                onClick={() => toggleSection(section.heading)}
+              >
+                <span>{section.heading}</span>
+                <span style={disclosureIconStyle}>{open ? '⌄' : '›'}</span>
+              </button>
+              {open && section.items.map((item) => {
               const implemented = item.view !== undefined && implementedViews.includes(item.view)
               const active = item.view === activeView
               return (
@@ -200,15 +243,16 @@ export function Sidebar({
                     if (item.view !== undefined) onNavigate(item.view)
                   }}
                   disabled={!implemented}
-                  title={implemented ? undefined : 'Phase 2以降で実装予定'}
+                  title={implemented ? undefined : 'このビルドでは利用できません'}
                 >
                   <span style={{ width: 18, textAlign: 'center', flexShrink: 0 }}>{item.icon}</span>
                   <span>{item.label}</span>
-                </button>
-              )
-            })}
-          </div>
-        ))}
+                  </button>
+                )
+              })}
+            </div>
+          )
+        })}
       </nav>
       <div style={{ padding: '8px 14px', borderTop: '1px solid var(--side-line)' }}>
         <button

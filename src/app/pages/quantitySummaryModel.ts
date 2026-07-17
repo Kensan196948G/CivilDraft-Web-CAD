@@ -41,6 +41,8 @@ export interface QuantitySpec {
 /**
  * 属性未付与図形の既定算出区分を図形 type から推定する（設計判断）。
  * 注記系（text/dimension/leader）は数量対象外として null を返す。
+ * 閉じたポリラインは面積、開いたポリライン・線・円弧・スプラインは延長、
+ * 円・矩形・楕円・ハッチは面積、記号・パラメトリックは個数とする。
  */
 export function deriveDefaultQuantitySpec(geometry: Geometry): QuantitySpec | null {
   switch (geometry.type) {
@@ -85,6 +87,9 @@ interface SpecGroup {
 
 /**
  * 現図面の geometries から数量明細を算出する（§17.2 算出 / §17.3 sum-then-round）。
+ * 各図形の既定算出区分を推定し、算出区分×単位で束ねて 1 明細に合算する。
+ * 個々に算出不能な図形（退化ポリゴン等）は明細から除外し issues に理由を残す
+ *（黙って捨てない。§17.3 未確定の非握り潰し方針）。
  */
 export function computeQuantitySummary(geometries: readonly Geometry[]): QuantitySummary {
   const issues: ValidationIssue[] = []

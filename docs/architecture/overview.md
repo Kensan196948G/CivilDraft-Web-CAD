@@ -10,13 +10,14 @@
 
 ## 📌 1. システム全体像
 
-CivilDraft は「いまはブラウザだけで完結して動く」段階です。将来（Phase 6）に、共有・承認・監査が
-必要になった時点でサーバー側（Cloudflare Workers + Neon）を足します。**現在と将来を混同しないよう、
-図を 2 枚に分けます。**
+CivilDraft は、画面操作の大部分をブラウザ内で完結させながら、リリース前検証用の Workers API で
+案件・図面・改訂・数量・出力・監査の契約を確認できる段階です。本番DB/Storage接続はまだ行わず、
+**現在動く範囲、検証用API、将来の永続化を混同しないよう、図を分けます。**
 
-### 1.1 現在の構成（Phase 1・実際に動いている範囲）
+### 1.1 現在の構成（フロントエンド・実際に動いている範囲）
 
-いまは、あなたのパソコンの Web ブラウザの中だけで完結します。サーバーもデータベースもまだ使いません。
+通常の画面操作は、Web ブラウザの中で完結します。図形編集、出力、復旧候補、詳細画面は
+フロントエンド側の状態とダミーデータで動作します。
 
 ```mermaid
 graph TB
@@ -25,17 +26,21 @@ graph TB
         STORE["EditorStore（zustand）<br>図面・表示位置・レイヤー・選択・操作履歴"]
         INDEX["GeometryIndex（R-tree）<br>図形を素早く探す索引・メモリ上"]
         KONVA["Konva キャンバス（react-konva）<br>6枚のレイヤーで図形を描く"]
+        IDB["IndexedDB<br>自動保存・復旧候補"]
         UI --> STORE
         STORE --> INDEX
         STORE --> KONVA
+        STORE --> IDB
     end
-    MEM["メモリ上のみ<br>（ページを閉じると消える）"]
-    STORE -. "現在の保存先" .-> MEM
+    MEM["揮発状態<br>選択・Undo/Redo・表示位置など"]
+    STORE -. "ページ終了で消える状態" .-> MEM
 ```
 
-> ⚠️ **未配線の実装**: Cloudflare Access 認証（自動保存は 2026-07-15 に配線済み: `App.tsx` の `AutosaveManager` が起動時復元+デバウンス保存を実施）
+> ⚠️ **現在の永続化境界**: 自動保存と復旧候補は IndexedDB に保持されます（`App.tsx` の `AutosaveManager` が起動時復元+デバウンス保存を実施）。
+> 一方、選択状態、Undo/Redo履歴、表示位置などの作業中状態はブラウザ内メモリに残り、ページ終了で消えます。
+> Cloudflare Access 認証
 > （`infrastructure/auth`）は**部品としては実装済み**ですが、まだ画面本体（`src/app`）につながっていません。
-> したがって「現在」の保存はメモリ上のみです。配線は後続の Issue で行います。
+> ブラウザ内の保存・復旧は動きますが、複数ユーザー共有の正本保存は本番DB接続後です。
 >
 > 正本: `src/app/App.tsx`, `src/app/canvas/CanvasStage.tsx`, `src/app/store/editorStore.ts`, `src/main.tsx`
 
@@ -53,19 +58,21 @@ graph TB
         SPA --> IDB
         SPA --> CLIENT_API
     end
-    subgraph EDGE["☁️ Cloudflare（将来）"]
+    subgraph EDGE["☁️ Cloudflare Workers（検証実装）"]
         ACCESS["Cloudflare Access<br>ログイン・入口の制御"]
-        WORKERS["Workers API<br>案件・改訂・数量・権限確認"]
+        WORKERS["Workers API<br>案件・改訂・数量・権限確認・監査"]
     end
+    MEMORY["インメモリストア<br>リリース前検証用"]
     NEON["🐘 Neon PostgreSQL<br>案件・改訂・数量・監査の正本"]
     OBJ["Object Storage<br>図面・PDF・添付ファイル"]
     CLIENT_API --> ACCESS
     ACCESS --> WORKERS
-    WORKERS --> NEON
-    WORKERS --> OBJ
+    WORKERS --> MEMORY
+    WORKERS -.承認後.-> NEON
+    WORKERS -.承認後.-> OBJ
 ```
 
-> 正本（方針）: `README.md`「システム構成」節、`src/infrastructure/cloud/civilDraftApiClient.ts`（Workers APIクライアント契約）、`src/infrastructure/auth/accessIdentity.ts`（Cloudflare Access 前提の identity 取得層・未配線）
+> 正本: `src/workers/index.ts`, `tests/unit/workers/index.test.ts`, `src/infrastructure/cloud/civilDraftApiClient.ts`（Workers APIクライアント契約）, `src/infrastructure/auth/accessIdentity.ts`（Cloudflare Access 前提の identity 取得層・未配線）
 
 ---
 

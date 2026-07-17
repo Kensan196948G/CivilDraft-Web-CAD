@@ -1,10 +1,10 @@
 # 📌 障害対応手順書（Incident Response）
 
-> **対象フェーズ: Phase 1（未デプロイ段階）。本番ホスティング確定時に改訂する。**
+> **対象フェーズ: リリース前検証段階。公開後のSLO/当番/外部監視は人間決裁後に追記する。**
 >
-> Phase 1 MVP はフロントエンド単体（Vite + React SPA）で本番未稼働です。したがって現段階の
-> 「障害」は主に**開発・CI・依存・リグレッション**に関するものであり、本番サービス障害
-> （可用性・レイテンシ・データ破損）は Phase 6 のバックエンド導入後に本書へ追記します。
+> MVP は Vite + React SPA と Workers API 検証実装で構成します。したがって現段階の
+> 「障害」は主に**開発・CI・依存・リグレッション・API契約不整合**に関するものです。
+> 本番サービス障害（可用性・レイテンシ・永続データ破損）は、本番DB/Storage接続と公開決裁後に追記します。
 
 ---
 
@@ -13,9 +13,10 @@
 | 分類 | 症状の例 | 主な発生源 | 一次対応の起点 |
 | --- | --- | --- | --- |
 | 🔴 ビルド不能 | `npm run build` / `typecheck` が失敗、`dist/` 生成不可 | 型エラー・構文エラー・依存欠落 | §3 初動 → 直近 green へ |
-| ❌ CI 失敗 | GitHub Actions `quality` / `security` ジョブが fail | lint/type/test/build/audit いずれか | §3 初動 → 該当ゲート特定 |
+| ❌ CI 失敗 | GitHub Actions `quality` / `e2e` / `security` / `compliance` ジョブが fail | lint/type/test/e2e/build/audit/SBOM/NOTICES いずれか | §3 初動 → 該当ゲート特定 |
 | 🔐 依存脆弱性 | `npm audit --audit-level=high` で high 以上検出 | 依存パッケージの CVE | §4 → dependency-hygiene 手順 |
 | ⚠️ リグレッション | マージ後に既存機能が壊れる・テストが赤転 | 変更の副作用 | §3 → 必要なら rollback |
+| 🔁 API契約不整合 | Workers API が期待外の状態コード・JSON・相関IDを返す | `src/workers/index.ts` / APIテスト | §3 → `tests/unit/workers/index.test.ts` を再現起点にする |
 
 > 分類はエスカレーション経路（§6）と Auto Repair 上限（§5）の判断に用いる。
 

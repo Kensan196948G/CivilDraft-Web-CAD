@@ -89,7 +89,7 @@ flowchart TB
    npm run build                  # dist/ をタグ時点で再現
    ```
 5. **成果物を検証**する（`npm run preview` で目視確認、`release-procedure.md` §4）。
-6. **再配置**する（⚠️ **TBD**: ホスティング未確定。確定後に本ステップを具体化）。
+6. **再配置**する（⚠️ 人間実行: Cloudflare Workers Static Assets へ `npx wrangler deploy`）。
 7. 恒久対応は方式 A の revert または前進修正で `main` に反映し、`main` と配置版の乖離を残さない。
 
 > ⚠️ タグへの `git switch --detach` は読み取り目的。ここから直接コミットせず、
@@ -108,6 +108,7 @@ flowchart TB
 | --- | --- | --- |
 | IndexedDB（ブラウザ内） | 自動保存・復旧候補（利用者端末に閉じる） | サーバー操作の対象外。利用者のブラウザデータ管理に依存 |
 | CivilDraft ファイル（明示保存） | 利用者が手元に保存 | 版管理は利用者側 |
+| Workers API インメモリストア | 検証実装。プロセス永続性を前提にしない | サーバー操作の対象外 |
 | サーバー DB | ⚠️ migration定義あり・本番未適用 | dev ブランチ検証のみ。main適用後は §4.1 |
 
 ### 4.1 Neon ブランチ戦略
