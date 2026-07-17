@@ -832,6 +832,7 @@ flowchart LR
 | 文書 | 内容 |
 | --- | --- |
 | [`docs/operations/release-procedure.md`](./docs/operations/release-procedure.md) | リリース前チェックリストと成果物生成・検証手順 |
+| [`docs/operations/production-deployment.md`](./docs/operations/production-deployment.md) | 本番Neon/R2/Access接続・Secret登録・Worker有効化の手順（環境変数一覧・fail-closed仕様・デプロイ後スモーク） |
 | [`docs/operations/rollback-procedure.md`](./docs/operations/rollback-procedure.md) | 切り戻し（git revert / タグ再ビルド）手順 |
 | [`docs/operations/operations-manual.md`](./docs/operations/operations-manual.md) | 開発サーバー・品質ゲート・SBOM/NOTICES・GitHub Projects運用 |
 | [`docs/operations/incident-response.md`](./docs/operations/incident-response.md) | 障害分類・初動・Auto Repair制約・エスカレーション |
