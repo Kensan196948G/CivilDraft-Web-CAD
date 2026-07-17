@@ -37,29 +37,33 @@
 | --- | --- | --- | --- |
 | 1 | Lint | `npm run lint` | ESLint エラー 0（レイヤー間依存も `no-restricted-imports` で強制） |
 | 2 | 型検査 | `npm run typecheck` | `tsc -b --noEmit` エラー 0 |
-| 3 | テスト | `npm test` | Vitest 全件 pass |
-| 4 | ビルド | `npm run build` | `tsc -b && vite build` 成功、`dist/` 生成 |
-| 5 | 依存脆弱性 | `npm audit --audit-level=high` | high 以上 0 件（CI の `Dependency Audit` と同一基準） |
+| 3 | DBマイグレーション静的検証 | `npm run migrations:check` | 危険DDLなし、FK/索引/監査列の整合 |
+| 4 | テスト | `npm test` | Vitest 全件 pass |
+| 5 | ブラウザE2E | `npm run e2e` | Playwright スモーク全件 pass |
+| 6 | ビルド | `npm run build` | `tsc -b && vite build` 成功、`dist/` 生成 |
+| 7 | 依存脆弱性 | `npm audit --audit-level=high` | high 以上 0 件（CI の `Dependency Audit` と同一基準） |
+| 8 | Secret scan | `npm run secret:scan` | 高信頼 secret 候補 0 件 |
+| 9 | 一括監査 | `npm run release:audit` | ローカル品質ゲート、Playwright E2E、生成物、secret scan が完走 |
 
 一括実行の目安（1つでも失敗したら停止）:
 
 ```bash
-npm run lint && npm run typecheck && npm test && npm run build && npm audit --audit-level=high
+npm run release:audit
 ```
 
 ### 2.2 成果物・ドキュメント・法務
 
 | # | 項目 | コマンド / 確認先 | 合格条件 |
 | --- | --- | --- | --- |
-| 6 | SBOM 再生成 | `npm run sbom` | `sbom/civildraft-sbom.cdx.json`（CycloneDX）を最新化 |
-| 7 | サードパーティ表記再生成 | `npm run notices` | `THIRD-PARTY-NOTICES.md` を最新化 |
-| 8 | 依存衛生・ライセンス最終判断 | `docs/operations/dependency-hygiene.md` の手順 | 🚫 人間がリリース可否を判断（本書は判断を代替しない） |
-| 9 | README 最新化 | `README.md` の進捗・CI 実態・コマンド表 | 実装と乖離が無い（CLAUDE.md §17 基準） |
-| 10 | CI green | GitHub Actions（`.github/workflows/ci.yml`） | `quality` / `security` 両ジョブ success |
-| 11 | PR 承認 | 対象 PR | ⚠️ `main` 宛は人間承認1件必須・必須チェック成功・ブランチ最新（strict） |
-| 12 | DB migration確認 | `migrations/README.md` | `0001` → `0002` の順序、dev検証、人間承認境界が明記済み |
-| 13 | 永続化モード確認 | `tests/unit/workers/persistence.test.ts` | `neon-r2` 未接続時にメモリへフォールバックせず 503 で停止 |
-| 14 | ブラウザ側API契約確認 | `tests/unit/infrastructure/cloud/civilDraftApiClient.test.ts` / `tests/unit/app/pages/CadEditorPage.test.tsx` | 実Workersハンドラ差し込みで保存・再読込・Export作成が成功し、CAD編集画面の共有保存/再読込UIが成功/失敗を表示 |
+| 10 | SBOM 再生成 | `npm run sbom` | `sbom/civildraft-sbom.cdx.json`（CycloneDX）を最新化 |
+| 11 | サードパーティ表記再生成 | `npm run notices` | `THIRD-PARTY-NOTICES.md` を最新化 |
+| 12 | 依存衛生・ライセンス最終判断 | `docs/operations/dependency-hygiene.md` の手順 | 🚫 人間がリリース可否を判断（本書は判断を代替しない） |
+| 13 | README 最新化 | `README.md` の進捗・CI 実態・コマンド表 | 実装と乖離が無い（CLAUDE.md §17 基準） |
+| 14 | CI green | GitHub Actions（`.github/workflows/ci.yml`） | `quality` / `e2e` / `security` / `compliance` 各ジョブ success |
+| 15 | PR 承認 | 対象 PR | ⚠️ `main` 宛は人間承認1件必須・必須チェック成功・ブランチ最新（strict） |
+| 16 | DB migration確認 | `migrations/README.md` | `0001` → `0002` の順序、dev検証、人間承認境界が明記済み |
+| 17 | 永続化モード確認 | `tests/unit/workers/persistence.test.ts` | `neon-r2` 未接続時にメモリへフォールバックせず 503 で停止 |
+| 18 | ブラウザ側API契約確認 | `tests/unit/infrastructure/cloud/civilDraftApiClient.test.ts` / `tests/unit/app/pages/CadEditorPage.test.tsx` | 実Workersハンドラ差し込みで保存・再読込・Export作成が成功し、CAD編集画面の共有保存/再読込UIが成功/失敗を表示 |
 
 > **SBOM / NOTICES の再生成タイミング**: 依存関係（`package.json` の dependencies）が変わった時、およびリリース準備時。
 > どちらも生成物であり手動編集不可（次回生成で失われる）。詳細は運用手順書（`operations-manual.md`）を参照。
@@ -72,7 +76,7 @@ npm run lint && npm run typecheck && npm test && npm run build && npm audit --au
 | 成果物 | `dist/` 生成・SBOM・NOTICES 再生成済み | ☐ |
 | 法務 | dependency-hygiene 手順で人間がライセンス判断済み | ☐ |
 | 文書 | README・設計文書・migration/rollback手順がコードと同期 | ☐ |
-| CI | GitHub Actions 2 ジョブ success | ☐ |
+| CI | GitHub Actions 4 ジョブ success | ☐ |
 | API | Workers契約・ブラウザ側APIクライアント契約がgreen | ☐ |
 | 承認 | 対象 PR に人間承認（`main` 宛） | ☐ |
 
@@ -92,16 +96,17 @@ flowchart LR
 ### 3.1 手順（番号付き）
 
 1. **作業ブランチを最新化**する（`main` を取り込み、コンフリクト解消）。
-2. **品質ゲートを一括実行**して全 green を確認する（§2.1 のワンライナー）。
-3. **SBOM を再生成**する: `npm run sbom`。差分があればコミット対象に含める（コミットは親／人間が実施）。
-4. **サードパーティ表記を再生成**する: `npm run notices`。差分を確認する。
-5. **依存衛生の人間判断**を `docs/operations/dependency-hygiene.md` に従って仰ぐ。
-6. **本番相当ビルド**を実行する: `npm run build`。`dist/` に成果物が生成されることを確認する。
-7. **成果物を検証**する（§4）。
-8. **バージョンタグを付与**する（§5、🚫 **人間が実行**。CTO は提案のみ）。
-9. **配置**する（§6、Cloudflare Workers Static Assets。人間実行）。
+2. **品質ゲートを一括実行**して全 green を確認する（`npm run release:audit`）。
+3. **DBマイグレーション静的検証**を確認する: `npm run migrations:check`。
+4. **SBOM を再生成**する: `npm run sbom`。差分があればコミット対象に含める（コミットは親／人間が実施）。
+5. **サードパーティ表記を再生成**する: `npm run notices`。差分を確認する。
+6. **依存衛生の人間判断**を `docs/operations/dependency-hygiene.md` に従って仰ぐ。
+7. **本番相当ビルド**を実行する: `npm run build`。`dist/` に成果物が生成されることを確認する。
+8. **成果物を検証**する（§4）。
+9. **バージョンタグを付与**する（§5、🚫 **人間が実行**。CTO は提案のみ）。
+10. **配置**する（§6、Cloudflare Workers Static Assets。人間実行）。
 
-> ⚠️ CTO（自動実行側）は **手順 1〜7 の準備と検証まで**を担い、手順 8 のタグ付与・手順 9 の本番配置は人間の明示実行を待つ。
+> ⚠️ CTO（自動実行側）は **手順 1〜8 の準備と検証まで**を担い、手順 9 のタグ付与・手順 10 の本番配置は人間の明示実行を待つ。
 > `git commit` / `git push` / `git tag` / `main` 直 push はいずれも人間または統合担当（親）が行う。
 
 ---
@@ -129,7 +134,8 @@ npm run build      # tsc -b（型検査つきコンパイル）→ vite build
 npm run preview    # dist/ をローカルサーバーで配信し、実ブラウザで確認
 ```
 
-> 現時点のローカル `preview` はSPA成果物の確認が中心。
+> 成果物検証はローカル `preview` と開発サーバーでの実ブラウザ確認を行う。
+> 自動テストは Vitest の単体・結合・Worker API 契約・PDF/DXF/数量/ワークフロー検証と、Playwright のブラウザスモークを含む。
 > Workers APIは `tests/unit/workers/` と `tests/unit/infrastructure/cloud/` の契約テストで検証し、本番Neon/R2接続後にE2E/API実機検証を追加する。
 
 ---
@@ -146,7 +152,7 @@ npm run preview    # dist/ をローカルサーバーで配信し、実ブラ�
 | 4 | 🚫 人間 | タグを push: `git push origin v0.2.0` |
 
 > タグ付与は履歴に影響する操作であり、`main` 宛の変更同様に**人間の明示承認が必要な境界**（CLAUDE.md）。
-> 現時点で GitHub Releases・自動リリースノート生成は未整備（TBD）。
+> 現時点で GitHub Releases・自動リリースノート生成は未整備。導入する場合は人間承認後に手順化する。
 
 ---
 
@@ -188,7 +194,7 @@ npm run preview    # dist/ をローカルサーバーで配信し、実ブラ�
 3. 発行された `*.workers.dev` URL で表示・作図・PDF/DXF 入出力を確認
 4. Cloudflare Access ポリシーを有効化（Issue #13 のテナント設定チェックリスト参照）
 
-### 6.3 残りの人間決裁事項（TBD 一覧）
+### 6.3 残りの人間決裁事項
 
 | # | 未確定事項 | 決定主体 |
 | --- | --- | --- |
@@ -207,5 +213,7 @@ npm run preview    # dist/ をローカルサーバーで配信し、実ブラ�
 | `docs/operations/rollback-procedure.md` | リリース後の切り戻し手順 |
 | `docs/operations/operations-manual.md` | 日常運用（開発サーバー・品質ゲート・SBOM/NOTICES） |
 | `docs/operations/incident-response.md` | 障害発生時の初動・エスカレーション |
+| `docs/operations/monitoring-readiness.md` | 監視・ログ・アラートの本番前確認 |
 | `docs/operations/dependency-hygiene.md` | 依存衛生・ライセンス・リリース可否の人間判断（正本） |
+| `docs/operations/pre-release-checklist.md` | リリース前の実行チェックリスト |
 | `README.md` | CI 実態・ブランチ保護・コマンド一覧 |

@@ -7,7 +7,7 @@ CivilDraft-Web-CAD は以下のサードパーティ製オープンソースソ�
 > 対象は配布される runtime 依存（`dependencies` の本番クロージャ）のみで、devDependencies は含みません。
 > 手動編集は次回生成で失われます。再生成タイミングは `docs/operations/dependency-hygiene.md` を参照してください。
 
-- 生成日時: 2026-07-15T05:53:18.812Z
+- 生成方法: `npm run notices`
 - 対象パッケージ数: 21
 
 ## ライセンスサマリー

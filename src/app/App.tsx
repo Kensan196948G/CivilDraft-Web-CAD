@@ -19,6 +19,7 @@ import { CadEditorPage, DEFAULT_CLOUD_DRAFT_SESSION } from './pages/CadEditorPag
 import type { CloudDraftSession } from './pages/CadEditorPage'
 import { ConstructionStepsPage } from './pages/ConstructionStepsPage'
 import { CrossSectionPage } from './pages/CrossSectionPage'
+import { AuditLogPage } from './pages/AuditLogPage'
 import { DrawingComparePage } from './pages/DrawingComparePage'
 import { DrawingSettingsPage } from './pages/DrawingSettingsPage'
 import { HomePage } from './pages/HomePage'
@@ -55,7 +56,7 @@ function AppShell() {
     setView('editor')
   }
 
-  // ビューレジストリ: サイドバー付きで表示するページ群（editorのみ全画面レイアウト）。
+  // ビューレジストリ: サイドバー右側へ表示するページ群。
   // ここへ登録すると Sidebar の disabled が自動解除される。
   const sidebarPages = useMemo<Partial<Record<AppView, React.ReactElement>>>(
     () => ({
@@ -63,13 +64,14 @@ function AppShell() {
       project: <ProjectDetailPage onOpenEditor={openEditor} />,
       drawingSettings: <DrawingSettingsPage />,
       survey: <SurveyPointsPage />,
-      parts: <PartsPalettePage />,
+      parts: <PartsPalettePage onOpenEditor={() => openEditor()} />,
       quantity: <QuantitySummaryPage />,
       section: <CrossSectionPage />,
       steps: <ConstructionStepsPage />,
       compare: <DrawingComparePage autosaveStore={autosaveStore} />,
       approval: <ReviewApprovalPage />,
       print: <PrintExportPage />,
+      audit: <AuditLogPage />,
       settings: <SystemSettingsPage />,
     }),
     [autosaveStore, cloudDraftSession],

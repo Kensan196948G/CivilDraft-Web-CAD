@@ -118,7 +118,6 @@ const records = [...collected.values()].sort((a, b) => a.name.localeCompare(b.na
 const copyleft = records.filter((r) => COPYLEFT.test(r.license))
 
 // --- THIRD-PARTY-NOTICES.md 生成 ---------------------------------------------
-const generatedAt = new Date().toISOString()
 const lines = []
 lines.push('# Third-Party Notices')
 lines.push('')
@@ -129,7 +128,7 @@ lines.push('> このファイルは `npm run notices`（`scripts/generate-third-
 lines.push('> 対象は配布される runtime 依存（`dependencies` の本番クロージャ）のみで、devDependencies は含みません。')
 lines.push('> 手動編集は次回生成で失われます。再生成タイミングは `docs/operations/dependency-hygiene.md` を参照してください。')
 lines.push('')
-lines.push(`- 生成日時: ${generatedAt}`)
+lines.push('- 生成方法: `npm run notices`')
 lines.push(`- 対象パッケージ数: ${records.length}`)
 lines.push('')
 lines.push('## ライセンスサマリー')

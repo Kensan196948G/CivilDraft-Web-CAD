@@ -600,7 +600,7 @@ timeline
 | P1 | ファイル互換方針 | DXF対応範囲、JWW/SXF調査、DWG変換方針（ODA等）を明記する |
 | P2 | E2E/性能試験 | 大規模図面、Undo大量操作、DXF読込、PDF出力、クラウド保存をPlaywright等で保護する |
 
-### Pull Request（全件マージ済み 🎉）
+### Pull Request
 
 | PR | 内容 | 状態 |
 | --- | --- | --- |
@@ -610,8 +610,12 @@ timeline
 | [#27](../../pull/27) | CI: PRトリガー全ブランチ化 + SBOMジョブ | ✅ マージ済み（2026-07-15） |
 | [#28](../../pull/28) | ホーム画面デザイン100%適用 | ✅ マージ済み（2026-07-15） |
 | [#29](../../pull/29) | PDF日本語フォント同梱 + Workers配信手順確定 | ✅ マージ済み（2026-07-15） |
+| [#31](../../pull/31) | Phase 2-6 試作実装（測量・線形・パラメトリック・数量・断面・ステップ・承認・差分・Workers/Neon基盤） | ✅ マージ済み |
+| [#32](../../pull/32) | サイドメニュー全13項目の100%有効化（残4画面実装+ナビ統合テスト） | ✅ マージ済み |
+| [#34](../../pull/34) | CAD Editor.dc.htmlをCadEditorPageとして実装、Sidebarと統合 | ✅ マージ済み（enforce_admins一時解除で対応） |
+| [#35](../../pull/35) | リリース準備状況の可視化UI + Workers API P0縦線・永続化層 | 🔄 レビュー中（main統合作業中） |
 
-> すべて人間の明示承認（2026-07-15、選択式Y判断）を得てマージ済み。マージ実行時は enforce_admins を一時解除し完了後に即復元した（レビュー承認1件必須はPR作成者の自己承認不可のため）。
+> マージ済みPRは人間の明示承認（選択式Y判断）を得てマージ済み。レビュー承認1件必須はPR作成者の自己承認不可のため、マージ実行時は enforce_admins を一時解除し完了後に即復元した。
 
 進捗の詳細は[GitHub Projects「CivilDraft-Web-CAD 開発司令盤」](../../projects)、Issue一覧は[Issues](../../issues)を参照してください。
 
@@ -675,17 +679,19 @@ flowchart LR
 - 1,000・5,000・10,000図形の性能
 - 作成者、照査者、承認者、閲覧者、管理者の権限
 
-### ⚙️ 現在のCI実態（Phase 1時点）
+### ⚙️ 現在のCI実態
 
-上記は目指す品質確認プロセス全体で、E2E・性能・権限テストはPhase 1後半以降で順次追加します。
+上記は目指す品質確認プロセス全体で、性能・権限テストは今後順次追加します。
 現時点で`main`向けPRに自動実行される内容は次のとおりです。
 
 | ジョブ | 内容 | 必須チェック |
 | --- | --- | --- |
-| `Lint / Typecheck / Test / Build` | ESLint → `tsc --noEmit` → Vitest（node/jsdom 2プロジェクト）→ `vite build`を直列実行 | ✅ mainブランチ保護で必須化済み |
-| `Dependency Audit` | `npm audit --audit-level=high` | ✅ mainブランチ保護で必須化済み |
+| `Lint / Typecheck / Test / Build`（quality） | ESLint → `tsc --noEmit` → マイグレーション静的検証 → Vitest（node/jsdom 2プロジェクト）→ `vite build`を直列実行 | ✅ mainブランチ保護で必須 |
+| `Dependency Audit`（security） | `npm audit --audit-level=high` → secret候補スキャン | ✅ mainブランチ保護で必須 |
+| `Browser E2E`（e2e） | Playwright（Chromium）でホーム・新規案件・CAD編集・監査ログHTML出力・照査承認ワークフローの最小スモークを確認 | ⚠️ ブランチ保護は未設定（PRマージ前に人間がgreenを個別確認） |
+| `SBOM / Notices`（compliance） | SBOM（CycloneDX）生成・drift確認、THIRD-PARTY-NOTICES生成・drift確認 | ⚠️ ブランチ保護は未設定（npm CLIバージョン差によるドリフト誤検知の実績があるため、安定性を継続確認してから必須化を検討） |
 
-`main`ブランチはPR必須・レビュー承認1件必須・上記2チェック成功必須（`strict`のためブランチ最新化も要求）・force push禁止・削除禁止で保護されています。
+`main`ブランチはPR必須・レビュー承認1件必須・quality/securityの成功必須（`strict`のためブランチ最新化も要求）・force push禁止・削除禁止で保護されています。e2e/complianceは必須チェック未設定のため、PRマージ前に人間が個別にgreenを確認する運用でカバーしています。
 
 > 2026-07-17時点のローカル検証では、`npm run test -- --reporter=dot` が96ファイル・1048テストpassで完走しています。NAS/Windows環境ではjsdomテストの起動コストが大きいため、Vitestは `node`（domain/shared/workers/cloud client）と `jsdom`（app/infrastructure/integration）に分離しています。
 
@@ -714,7 +720,7 @@ npm run dev
 
 ### 利用可能なコマンド
 
-`package.json`を正本とします。以下はPhase 1スキャフォールド時点の実績値です。
+`package.json`を正本とします。
 
 | コマンド | 用途 |
 | --- | --- |
@@ -723,12 +729,14 @@ npm run dev
 | `npm run preview` | ビルド結果の確認 |
 | `npm run lint` | ESLint静的検査（レイヤー間依存方向を`no-restricted-imports`で強制） |
 | `npm run typecheck` | TypeScript型検査（`tsc -b --noEmit`） |
+| `npm run migrations:check` | DBマイグレーション静的検証（トランザクション境界・危険DDL不在・FK・索引・監査列） |
 | `npm run test` | 単体・結合テスト（Vitest。node/jsdomプロジェクト分離） |
 | `npm run test:watch` | Vitestをwatchモードで実行 |
+| `npm run e2e` | Playwright ブラウザE2E（Chromiumの最小スモーク） |
 | `npm run sbom` | CycloneDX形式のSBOMを生成（`sbom/civildraft-sbom.cdx.json`） |
 | `npm run notices` | サードパーティ表記を生成（`THIRD-PARTY-NOTICES.md`） |
-
-> Playwright E2Eテストは未導入（将来のE2E整備時に追加予定）。導入後、本表に`npm run test:e2e`を追記します。
+| `npm run secret:scan` | secret候補スキャン |
+| `npm run release:audit` | リリース前ローカル一括監査（品質ゲート＋E2E＋SBOM/NOTICES drift＋secretスキャン） |
 
 ### ✅ 品質ゲート（PR前・リリース前に全green必須）
 
@@ -736,17 +744,26 @@ npm run dev
 | --- | --- | --- | --- |
 | 1 | Lint | `npm run lint` | ESLintエラー0（レイヤー間依存も強制） |
 | 2 | 型検査 | `npm run typecheck` | `tsc -b --noEmit`エラー0 |
-| 3 | テスト | `npm run test` | Vitest全件pass |
-| 4 | ビルド | `npm run build` | `tsc -b && vite build`成功・`dist/`生成 |
-| 5 | 依存脆弱性 | `npm audit --audit-level=high` | high以上0件（CIの`Dependency Audit`と同一基準） |
+| 3 | マイグレーション静的検証 | `npm run migrations:check` | 危険DDL・FK/索引/監査列の欠落なし |
+| 4 | テスト | `npm run test` | Vitest全件pass |
+| 5 | ブラウザE2E | `npm run e2e` | Playwright全件pass |
+| 6 | ビルド | `npm run build` | `tsc -b && vite build`成功・`dist/`生成 |
+| 7 | 依存脆弱性 | `npm audit --audit-level=high` | high以上0件（CIの`Dependency Audit`と同一基準） |
+| 8 | SBOM/NOTICES | `npm run sbom` / `npm run notices` | 生成物がdrift（差分）なし |
 
 一括実行（1つでも失敗したら停止）:
 
 ```bash
-npm run lint && npm run typecheck && npm run test && npm run build && npm audit --audit-level=high
+npm run lint && npm run typecheck && npm run migrations:check && npm test && npm run e2e && npm run build && npm audit --audit-level=high && npm run sbom && git diff --exit-code sbom/civildraft-sbom.cdx.json && npm run notices && git diff --exit-code THIRD-PARTY-NOTICES.md
 ```
 
-> 上記1〜4はGitHub Actionsの`quality`ジョブ、5は`security`ジョブとしてPR時に自動実行されます（[⚙️ 現在のCI実態](#-現在のci実態phase-1時点)参照）。
+またはリリース前一括監査（品質ゲート全項目＋secret候補スキャンをまとめて実行）:
+
+```bash
+npm run release:audit
+```
+
+> 上記1・2・3・4・6はGitHub Actionsの`quality`ジョブ、5は`e2e`ジョブ、7は`security`ジョブ、8は`compliance`ジョブとしてPR時に自動実行されます（[⚙️ 現在のCI実態](#️-現在のci実態)参照）。
 > リリース・ロールバック・障害対応の手順は [`docs/operations/`](./docs/operations/) を参照してください。
 
 ### 環境変数
@@ -795,10 +812,21 @@ flowchart LR
 | 文書 | 内容 |
 | --- | --- |
 | [`docs/architecture/overview.md`](./docs/architecture/overview.md) | 非エンジニア向けアーキテクチャ図解（構成・レイヤー・データフロー・座標系・DXF・用語集） |
+| [`docs/adr/0001-auth-cloudflare-access-not-msal-browser.md`](./docs/adr/0001-auth-cloudflare-access-not-msal-browser.md) | 認証はCloudflare Accessモデルを採用し、MSAL/Entra ID直接統合は不採用 |
+| [`docs/adr/0002-nominal-id-brand-types.md`](./docs/adr/0002-nominal-id-brand-types.md) | 全エンティティIDに`Brand<T,B>`による公称型付けを導入 |
+| [`docs/adr/0003-result-type-for-expected-failures.md`](./docs/adr/0003-result-type-for-expected-failures.md) | 予期される失敗の表現に`Result<T,E>`を採用し、例外送出と分離 |
+| [`docs/adr/0004-command-pattern-undo-redo.md`](./docs/adr/0004-command-pattern-undo-redo.md) | Undo/RedoはCommandパターンで再実装し、全スナップショット方式を廃止 |
+| [`docs/adr/0005-unit-safe-coordinate-values.md`](./docs/adr/0005-unit-safe-coordinate-values.md) | 座標・寸法値は単位タグ付き値型（`LengthValue`等）で扱う |
+| [`docs/adr/0006-deploy-stack-systemd-cloudflare-neon.md`](./docs/adr/0006-deploy-stack-systemd-cloudflare-neon.md) | デプロイ標準スタックをSystemd + GitHub + Cloudflare + Neonとし、Docker関連資産を非継承 |
+| [`docs/adr/0007-autosave-indexeddb-migration.md`](./docs/adr/0007-autosave-indexeddb-migration.md) | 自動保存はlocalStorageからIndexedDBへ移行 |
+| [`docs/adr/0008-spatial-index-per-drawing-instance.md`](./docs/adr/0008-spatial-index-per-drawing-instance.md) | 空間索引（R-tree）はグローバルシングルトンではなく描画インスタンス単位で保持 |
+| [`docs/adr/0009-audit-log-hash-chain-workers-neon.md`](./docs/adr/0009-audit-log-hash-chain-workers-neon.md) | 監査ログはハッシュチェーン構造とし、Cloudflare Workers + Neonで永続化 |
+| [`docs/adr/0010-ci-quality-gate-enforcement.md`](./docs/adr/0010-ci-quality-gate-enforcement.md) | CI品質ゲートは名ばかりステップを禁止し、実効性を機械的に検証 |
+| [`docs/adr/0011-dependency-license-hygiene.md`](./docs/adr/0011-dependency-license-hygiene.md) | 依存関係ライセンスはSBOM自動生成とNOTICEファイル維持で衛生管理 |
 | [`docs/adr/0012-internal-coordinate-baseline.md`](./docs/adr/0012-internal-coordinate-baseline.md) | 内部座標基準（mm・X右・Y下、公開APIは度数法） |
 | [`docs/adr/0013-geometry-id-generation.md`](./docs/adr/0013-geometry-id-generation.md) | 図形ID発番（`crypto.randomUUID` + コンテキスト注入） |
 
-### 運用文書（Phase 1版）
+### 運用文書
 
 | 文書 | 内容 |
 | --- | --- |
@@ -806,7 +834,11 @@ flowchart LR
 | [`docs/operations/rollback-procedure.md`](./docs/operations/rollback-procedure.md) | 切り戻し（git revert / タグ再ビルド）手順 |
 | [`docs/operations/operations-manual.md`](./docs/operations/operations-manual.md) | 開発サーバー・品質ゲート・SBOM/NOTICES・GitHub Projects運用 |
 | [`docs/operations/incident-response.md`](./docs/operations/incident-response.md) | 障害分類・初動・Auto Repair制約・エスカレーション |
+| [`docs/operations/monitoring-readiness.md`](./docs/operations/monitoring-readiness.md) | 監視準備チェックリスト |
 | [`docs/operations/dependency-hygiene.md`](./docs/operations/dependency-hygiene.md) | 依存衛生・ライセンス・リリース可否の人間判断（正本） |
+| [`docs/operations/pre-release-checklist.md`](./docs/operations/pre-release-checklist.md) | リリース前チェックリスト |
+| [`docs/operations/release-readiness-report.md`](./docs/operations/release-readiness-report.md) | リリース準備レポート |
+| [`migrations/README.md`](./migrations/README.md) | DBマイグレーション手順 |
 
 ```mermaid
 flowchart TD

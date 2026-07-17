@@ -14,6 +14,10 @@ test-results/
 # vite
 .vite/
 
+# design-sync (local sync artifacts, not part of the source tree)
+.ds-sync/
+ds-bundle/
+
 # env
 .env
 .env.local
@@ -34,10 +38,9 @@ test-results/
 npm-debug.log*
 yarn-debug.log*
 yarn-error.log*
+vite-*.log
 
 # design-sync (claude.ai/design) — staged converter + local build output
-.ds-sync/
-ds-bundle/
 .design-sync/.cache/
 .design-sync/learnings/
 .design-sync/node_modules

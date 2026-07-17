@@ -795,6 +795,67 @@ describe('§25.2 ルーティング', () => {
   })
 })
 
+describe('API障害系・例外処理', () => {
+  it('JSONが壊れているPOSTは未捕捉例外にせず 400 CD-REQ-001 を返す', async () => {
+    const res = await handleRequest(
+      new Request('https://api.example.com/api/v1/projects', {
+        method: 'POST',
+        headers: {
+          [AUTH_HEADER]: 'jwt-token',
+          [USER_HEADER]: 'engineer@example.test',
+          'Content-Type': 'application/json',
+        },
+        body: '{broken json',
+      }),
+      testEnv(),
+    )
+    expect(res.status).toBe(400)
+    const body = await json<ApiErrorBody>(res)
+    expect(body.error.code).toBe('CD-REQ-001')
+  })
+
+  it('未知の出力形式は 400 CD-REQ-001 を返し、出力ジョブを作らない', async () => {
+    const store = createMemoryStore()
+    const env: WorkerEnv = { CIVILDRAFT_API_MODE: 'memory', CIVILDRAFT_DEV_STORE: store }
+    const projectRes = await handleRequest(
+      authedRequest('POST', '/api/v1/projects', { projectNumber: 'P-BADFMT', name: '出力形式試験' }),
+      env,
+    )
+    const projectBody = await json<ProjectBody>(projectRes)
+    const drawingRes = await handleRequest(
+      authedRequest('POST', `/api/v1/projects/${projectBody.project.id}/drawings`, {
+        drawingNumber: 'D-BADFMT',
+        name: '出力形式図面',
+      }),
+      env,
+    )
+    const drawingBody = await json<DrawingBody>(drawingRes)
+    const revisionRes = await handleRequest(
+      authedRequest('POST', `/api/v1/drawings/${drawingBody.drawing.id}/revisions`, {
+        revisionNumber: '1',
+        changeSummary: '初版',
+      }),
+      env,
+    )
+    const revisionBody = await json<RevisionBody>(revisionRes)
+    await handleRequest(
+      authedRequest('PUT', `/api/v1/revisions/${revisionBody.revision.id}/content`, {
+        schemaVersion: 1,
+        content: { geometries: [] },
+      }),
+      env,
+    )
+
+    const badFormatRes = await handleRequest(
+      authedRequest('POST', `/api/v1/revisions/${revisionBody.revision.id}/exports`, { format: 'xlsx' }),
+      env,
+    )
+    expect(badFormatRes.status).toBe(400)
+    expect((await json<ApiErrorBody>(badFormatRes)).error.code).toBe('CD-REQ-001')
+    expect(store.exportJobs.size).toBe(0)
+  })
+})
+
 describe('未知エンドポイント', () => {
   it('一致しない経路は 404 を返す', async () => {
     const res = await handleRequest(authedRequest('GET', '/api/v1/does-not-exist'), testEnv())

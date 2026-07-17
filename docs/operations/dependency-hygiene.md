@@ -15,10 +15,10 @@ SBOM（Software Bill of Materials）・サードパーティ表示（THIRD-PARTY
 
 | 生成物 | コマンド | 内容 | コミット |
 |---|---|---|---|
-| `sbom/civildraft-sbom.cdx.json` | `npm run sbom` | CycloneDX 1.5 形式。依存グラフ**全体**（本番+開発）を列挙 | ✅ する |
+| `sbom/civildraft-sbom.cdx.json` | `npm run sbom` | CycloneDX 1.5 形式。本番+開発依存を列挙し、OS別optional依存は除外して決定的に生成 | ✅ する |
 | `THIRD-PARTY-NOTICES.md` | `npm run notices` | 配布 runtime 依存（`dependencies` の本番クロージャ）のライセンス一覧＋許諾条項 | ✅ する |
 
-- `npm run sbom` … `npm sbom`（npm 10+ 標準機能）を使用。新規 devDependency は導入していない。
+- `npm run sbom` … `scripts/generate-sbom.mjs` から `npm sbom --omit optional` を実行し、timestamp/serialNumber を固定して生成する。新規 devDependency は導入していない。
 - `npm run notices` … `scripts/generate-third-party-notices.mjs`（Node 標準 API のみの自作スクリプト）。
   `node_modules` の `package.json` / `LICENSE` を走査する。新規 devDependency は導入していない。
 
@@ -34,8 +34,8 @@ SBOM（Software Bill of Materials）・サードパーティ表示（THIRD-PARTY
 
 - 再生成後は **差分をレビューしコミットする**。依存に変化がなくても SBOM の
   `metadata.timestamp` / `serialNumber` は毎回変わる（`npm sbom` の仕様）。これは想定内。
-- `THIRD-PARTY-NOTICES.md` の `生成日時` 行も毎回変わる。依存に変化がなければ
-  サマリー表・許諾条項の本文は変わらない。
+- `THIRD-PARTY-NOTICES.md` は決定的出力とし、依存に変化がなければ再生成しても差分が出ない。
+  CI の `git diff --exit-code THIRD-PARTY-NOTICES.md` はこの前提で drift を検出する。
 
 ## 🔐 確認観点（レビュー時チェックリスト）
 
@@ -62,9 +62,9 @@ copyleft を検出した場合の可否判断は自動化せず、以下の順�
 3. 代替パッケージ、または当該機能の内製化を検討する。
 4. 判断結果を Issue に記録する。
 
-## 🗺️ 現状のライセンス調査結果（2026-07-15 時点）
+## 🗺️ 現状のライセンス調査結果（2026-07-16 時点）
 
-### 直接依存（`dependencies`）8 件
+### 直接依存（`dependencies`）10 件
 
 | パッケージ | ライセンス |
 |---|---|
@@ -76,14 +76,18 @@ copyleft を検出した場合の可否判断は自動化せず、以下の順�
 | rbush | MIT |
 | dxf-parser | MIT |
 | dxf-writer | MIT |
+| pdf-lib | MIT |
+| @pdf-lib/fontkit | MIT |
 
-### 本番依存クロージャ（推移的依存を含む）15 件
+### 本番依存クロージャ（推移的依存を含む）21 件
 
 `react` / `react-dom` / `konva` / `react-konva` / `zustand` / `rbush` / `dxf-parser` /
-`dxf-writer` に加え、推移的依存として `scheduler` / `react-reconciler` / `its-fine` /
-`loglevel` / `quickselect` / `@types/react-reconciler`（2 バージョン）。
+`dxf-writer` / `pdf-lib` / `@pdf-lib/fontkit` に加え、推移的依存として
+`scheduler` / `react-reconciler` / `its-fine` / `loglevel` / `quickselect` /
+`@pdf-lib/standard-fonts` / `@pdf-lib/upng` / `pako` / `tiny-inflate` /
+`@types/react-reconciler`（2 バージョン）を含む。
 
-- ライセンス構成: **MIT × 14、ISC × 1（quickselect）**。
+- ライセンス構成: **MIT 中心、ISC × 1（quickselect）、MIT AND Zlib × 1（pako）**。
 - **copyleft 系ライセンスは 0 件**。ISC は MIT と同等の許諾型ライセンスであり問題ない。
 - devDependencies（vite / eslint / vitest / typescript 等のビルド専用ツール）は
   配布物に含まれないため THIRD-PARTY-NOTICES の対象外。
@@ -98,26 +102,23 @@ copyleft を検出した場合の可否判断は自動化せず、以下の順�
 - npm 11.6.2 の `npm sbom --omit dev` は、dedupe 済みの `react` / `react-dom` / `scheduler`
   を本番クロージャから **欠落させる**（フルツリー出力には正しく含まれる）。
 - このため:
-  - SBOM は `--omit dev` を使わず **フルツリー**を出力する（`npm run sbom`）。
+  - SBOM は `--omit dev` を使わず本番+開発依存を出力する。OS別optional依存だけはCI/Windows差分を避けるため除外する（`npm run sbom`）。
   - THIRD-PARTY-NOTICES は `npm sbom` に依存せず、`generate-third-party-notices.mjs` が
     `dependencies` から **独自に本番クロージャを BFS 走査**する（react/react-dom/scheduler を正しく捕捉）。
 
-## ⚙️ CI 組み込み提案（人間承認後に `.github/workflows/ci.yml` へ追加）
+## ⚙️ CI 組み込み
 
-> ⚠️ 本手順書の作成時点では `ci.yml` は変更していない（Issue #17 の構造課題で人間承認待ち）。
-> 以下は **承認後に追加する提案**である。
+`.github/workflows/ci.yml` の `compliance` ジョブで次を実行する。
 
-- 依存関係を変更する PR で `npm run notices` を実行し、標準エラーに copyleft 警告が出たら
-  **ジョブを失敗させる**ステップの追加を提案する（現状スクリプトは報告のみのため、
-  CI 側で警告出力を検知して落とすか、スクリプトに `--strict` 相当の終了コード分岐を将来追加する）。
-- 生成物（`sbom/civildraft-sbom.cdx.json` / `THIRD-PARTY-NOTICES.md`）の
-  再生成差分が未コミットのまま残っていないかを検証するステップの追加を提案する
-  （`git diff --exit-code` による drift 検出。ただし SBOM の timestamp/serialNumber は
-  毎回変わるため、SBOM は drift 検出対象から除外するか正規化が必要）。
-- SBOM を用いた脆弱性スキャン（CycloneDX 対応スキャナ）をリリースワークフローへ追加することを提案する。
+- `npm run sbom` で CycloneDX SBOM を生成し、CI artifact として保存する。
+- `npm run notices` で `THIRD-PARTY-NOTICES.md` を再生成する。
+- `git diff --exit-code THIRD-PARTY-NOTICES.md` で、配布表記の未コミット差分を検出する。
+
+SBOM は timestamp/serialNumber を生成スクリプトで固定するため、CI の drift 検出対象に含める。
+SBOM を用いた追加脆弱性スキャン（CycloneDX 対応スキャナ）は、導入ツールと許可ポリシーを人間承認後に追加する。
 
 ## 🔗 関連
 
 - 生成スクリプト: `scripts/generate-third-party-notices.mjs`
 - npm scripts: `package.json`（`sbom` / `notices`）
-- Issue #12（依存関係ライセンス衛生・SBOM 自動生成） / Issue #17（CI 構造課題・人間承認待ち）
+- Issue #12（依存関係ライセンス衛生・SBOM 自動生成） / Issue #17（CI 構造課題）

@@ -289,9 +289,8 @@ export function QuantitySummaryPage() {
                         </div>
                       ))}
                     </div>
-                    {/* TODO: CAD画面での該当図形ハイライトは Canvas 連携（後続タスク）で実装する。 */}
                     <div style={{ fontSize: 11, color: 'var(--muted)' }}>
-                      ※ CAD画面での図形強調は今後対応（TBD）。
+                      根拠図形IDをCAD編集画面で照合できます。
                     </div>
                   </>
                 )}

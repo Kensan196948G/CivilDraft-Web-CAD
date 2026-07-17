@@ -1,10 +1,10 @@
 # 📌 運用手順書（Operations Manual）
 
-> **対象フェーズ: Phase 1（未デプロイ段階）。本番ホスティング確定時に改訂する。**
+> **対象フェーズ: リリース前検証段階。公開・本番デプロイは人間決裁後に実行する。**
 >
-> Phase 1 MVP はフロントエンド単体（Vite + React SPA）です。本書は開発・検証環境における
-> 日常運用（開発サーバー、品質ゲート、SBOM/NOTICES、GitHub Projects 運用）を対象とします。
-> 本番運用（監視・ログ・スケーリング）はホスティング確定後（Phase 6 以降）に本書へ追記します。
+> MVP は Vite + React SPA と、リリース前検証用の Cloudflare Workers API で構成します。
+> 本書は開発・検証環境における日常運用（開発サーバー、品質ゲート、SBOM/NOTICES、GitHub Projects 運用）を対象とします。
+> 本番運用（監視・ログ・スケーリング）は本番DB/Storage接続と公開決裁後に追記します。
 
 ---
 
@@ -26,7 +26,8 @@ npm ci       # ロックファイル準拠でクリーンインストール
 
 ## 🖥️ 2. 開発サーバーの起動・停止
 
-Phase 1 の稼働対象は Vite 開発サーバーのみ（バックエンドプロセス無し）。
+通常の画面確認は Vite 開発サーバーで行う。Workers API は `src/workers/index.ts` に検証実装があり、
+ユニットテストで契約確認する。本番経路へはまだ接続しない。
 
 ### 2.1 起動
 
@@ -66,15 +67,18 @@ CI（`.github/workflows/ci.yml`）と同一のチェックをローカルで再�
 | --- | --- | --- |
 | Lint | `npm run lint` | `quality`（ESLint） |
 | 型検査 | `npm run typecheck` | `quality`（`tsc -b --noEmit`） |
+| DBマイグレーション静的検証 | `npm run migrations:check` | `quality`（SQL構造・FK・索引・危険DDL） |
 | テスト | `npm test` | `quality`（Vitest `vitest run`） |
+| ブラウザE2E | `npm run e2e` | `e2e`（Playwright Chromium） |
 | ビルド | `npm run build` | `quality`（`tsc -b && vite build`） |
 | 依存監査 | `npm audit --audit-level=high` | `security`（Dependency Audit） |
+| SBOM/NOTICES | `npm run sbom` / `npm run notices` | `compliance`（SBOM artifact・NOTICES drift確認） |
 | テスト（watch） | `npm run test:watch` | ローカル開発用（CI では未使用） |
 
 ### 3.2 一括実行（PR 前の推奨シーケンス）
 
 ```bash
-npm run lint && npm run typecheck && npm test && npm run build && npm audit --audit-level=high
+npm run lint && npm run typecheck && npm run migrations:check && npm test && npm run e2e && npm run build && npm audit --audit-level=high && npm run sbom && git diff --exit-code sbom/civildraft-sbom.cdx.json && npm run notices && git diff --exit-code THIRD-PARTY-NOTICES.md
 ```
 
 > いずれか失敗で全体停止。失敗時は `docs/operations/incident-response.md` の初動に従う。
@@ -84,11 +88,13 @@ npm run lint && npm run typecheck && npm test && npm run build && npm audit --au
 ```mermaid
 flowchart LR
     subgraph LOCAL["ローカル（PR 前）"]
-      L1["lint"] --> L2["typecheck"] --> L3["test"] --> L4["build"] --> L5["audit"]
+      L1["lint"] --> L2["typecheck"] --> L3["migrations:check"] --> L4["test"] --> L5["e2e"] --> L6["build"] --> L7["audit"]
     end
     subgraph CI["GitHub Actions（push/PR to main）"]
-      Q["quality: Lint/Typecheck/Test/Build"]
+      Q["quality: Lint/Typecheck/Migration/Test/Build"]
+      E["e2e: Playwright"]
       S["security: npm audit --audit-level=high"]
+      C["compliance: SBOM/NOTICES"]
     end
     LOCAL -.->|同一基準| CI
 ```
@@ -97,8 +103,11 @@ flowchart LR
 | --- | --- | --- |
 | `Lint / Typecheck / Test / Build`（quality） | `main` への push / PR | ✅ ブランチ保護で必須 |
 | `Dependency Audit`（security） | `main` への push / PR | ✅ ブランチ保護で必須 |
+| `Browser E2E`（e2e） | `main` への push / PR | ⚠️ ブランチ保護は未設定（運用上は§3.5手順⑤でCI green確認の対象に含め、人間承認前に確認する） |
+| `SBOM / Notices`（compliance） | `main` への push / PR | ⚠️ ブランチ保護は未設定（同上。npm CLIバージョン差によるドリフト誤検知の実績があるため、安定性を継続確認してから必須化を検討） |
 
-> `main` は PR 必須・レビュー承認1件必須・上記2チェック success 必須（strict でブランチ最新化要求）・force push / 削除禁止。
+> `main` は PR 必須・レビュー承認1件必須・必須チェック（quality/security）success 必須（strict でブランチ最新化要求）・force push / 削除禁止。
+> e2e/compliance は必須チェック未設定のため、PRマージ前に人間が個別に green を確認する運用でカバーしている（CodeRabbit指摘、2026-07-17時点）。
 
 ### 3.4 typecheck が並列作業で不安定なとき
 
@@ -115,11 +124,11 @@ npm run typecheck
 
 | 生成物 | コマンド | 出力先 | 形式 |
 | --- | --- | --- | --- |
-| SBOM | `npm run sbom` | `sbom/civildraft-sbom.cdx.json` | CycloneDX（`npm sbom`） |
+| SBOM | `npm run sbom` | `sbom/civildraft-sbom.cdx.json` | CycloneDX（`npm sbom`を正規化） |
 | サードパーティ表記 | `npm run notices` | `THIRD-PARTY-NOTICES.md` | 本番依存のライセンス集約 |
 
 ```bash
-npm run sbom       # SBOM を CycloneDX 形式で出力
+npm run sbom       # SBOM を CycloneDX 形式で決定的に出力
 npm run notices    # THIRD-PARTY-NOTICES.md を再生成
 ```
 
@@ -190,7 +199,7 @@ flowchart LR
 2. ブランチ（または WorkTree）で実装・テスト追加する（`main` 直 push 禁止）。
 3. ローカルで品質ゲートを全 green にする（§3.2）。
 4. PR を作成し、変更内容・テスト結果・影響範囲・残課題を記載する。
-5. CI 2 ジョブ success と人間承認を得る（`main` 宛）。
+5. CI の quality / e2e / security / compliance が success であることと、人間承認を得る（`main` 宛）。
 6. マージし、Projects を Done へ更新、README / 文書を同期する。
 
 ---
@@ -202,5 +211,6 @@ flowchart LR
 | `docs/operations/release-procedure.md` | リリース前チェックリスト・成果物生成 |
 | `docs/operations/rollback-procedure.md` | 切り戻し手順 |
 | `docs/operations/incident-response.md` | 障害初動・Auto Repair 制約・エスカレーション |
+| `docs/operations/monitoring-readiness.md` | 監視準備 |
 | `docs/operations/dependency-hygiene.md` | 依存衛生・ライセンス判断（正本） |
 | `README.md` | CI 実態・コマンド一覧・開発の始め方 |
