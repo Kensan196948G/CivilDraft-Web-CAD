@@ -60,11 +60,22 @@ describe('App ナビゲーション統合', () => {
     },
   )
 
-  it('CAD編集クリックでエディタ（全画面レイアウト）へ遷移し、ホームで戻れる', async () => {
+  it('CAD編集クリックでエディタへ遷移し、サイドバーのホームで戻れる', async () => {
     render(<App />)
     await userEvent.click(screen.getByRole('button', { name: /CAD編集/ }))
     expect(screen.getByTestId('canvas-stage')).toBeInTheDocument()
-    await userEvent.click(screen.getByRole('button', { name: /🏠 ホーム/ }))
+    await userEvent.click(screen.getByRole('button', { name: /ホーム・案件一覧/ }))
     expect(screen.getByPlaceholderText('案件名・図面番号で検索')).toBeInTheDocument()
+  })
+
+  it('案件詳細の図面行クリックで、選択した図面コンテキストをCAD編集へ渡す', async () => {
+    render(<App />)
+    await userEvent.click(screen.getByRole('button', { name: /案件詳細/ }))
+    await userEvent.click(screen.getByText('DWG-011'))
+
+    expect(screen.getByTestId('canvas-stage')).toBeInTheDocument()
+    expect(screen.getByText('国道245号 道路拡幅工事')).toBeInTheDocument()
+    expect(screen.getByText('仮設計画図（矢板・切梁）')).toBeInTheDocument()
+    expect(screen.getByText('Rev.2')).toBeInTheDocument()
   })
 })

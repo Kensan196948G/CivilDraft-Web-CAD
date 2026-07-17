@@ -1,6 +1,6 @@
 # 📌 CivilDraft アーキテクチャ図解（非エンジニア向け概説）
 
-> **対象フェーズ: Phase 1（MVP 開発中）。実装済みの範囲と、将来（Phase 2 以降）に足す範囲を明確に分けて記載します。**
+> **対象フェーズ: 技術プレビュー。実装済みのCADコア、Phase 2-6相当の試作部品、未配線/未製品化の範囲を明確に分けて記載します。**
 >
 > この文書は、CivilDraft が「いま何で動いているか」を、CAD やプログラミングに詳しくない方にも
 > 追えるように図で説明します。各図の下に「正本」（その図の根拠となる実装ファイル）を記載しています。
@@ -39,17 +39,19 @@ graph TB
 >
 > 正本: `src/app/App.tsx`, `src/app/canvas/CanvasStage.tsx`, `src/app/store/editorStore.ts`, `src/main.tsx`
 
-### 1.2 将来の構成（Phase 6・未実装。方針のみ）
+### 1.2 共有版の構成（Phase 6・P0 API縦線）
 
 共有・改訂・照査・承認・監査が必要になった段階で、サーバー側を足します。標準スタックは
-Systemd + GitHub + Cloudflare + Neon（Docker は使いません）。**下図はまだ作っていない将来像です。**
+Systemd + GitHub + Cloudflare + Neon（Docker は使いません）。**下図は目標構成です。現時点ではWorkersの18経路すべてが業務応答または入力/認可エラーを返し、Project/Drawing/Revision/Content/Quantities/Workflow/Exports/Audit のP0縦線、案件メンバー認可、メタデータ/内容/数量更新の楽観ロック、Neon migration 0001/0002、永続化モード安全ガード、ブラウザ側APIクライアント契約、CAD編集画面からの共有保存/再読込ボタン配線があります。案件詳細の図面行から案件/図面/改訂メタデータをCAD編集へ渡し、共有保存ペイロードへ反映する導線も追加済みです。本番Neon/R2接続、Cloudflare Accessテナント設定、監査ログ永続化、R2上の実ファイル生成は後続です。**
 
 ```mermaid
 graph TB
     subgraph CLIENT["🌐 ブラウザ（SPA・現在部分を継続利用）"]
         SPA["CivilDraft SPA<br>React + Konva"]
+        CLIENT_API["CivilDraftApiClient<br>共有保存・再読込ボタンから呼び出し"]
         IDB["IndexedDB<br>編集中の自動保存・復旧候補"]
         SPA --> IDB
+        SPA --> CLIENT_API
     end
     subgraph EDGE["☁️ Cloudflare（将来）"]
         ACCESS["Cloudflare Access<br>ログイン・入口の制御"]
@@ -57,13 +59,13 @@ graph TB
     end
     NEON["🐘 Neon PostgreSQL<br>案件・改訂・数量・監査の正本"]
     OBJ["Object Storage<br>図面・PDF・添付ファイル"]
-    SPA --> ACCESS
+    CLIENT_API --> ACCESS
     ACCESS --> WORKERS
     WORKERS --> NEON
     WORKERS --> OBJ
 ```
 
-> 正本（方針）: `README.md`「システム構成」節、`src/infrastructure/auth/accessIdentity.ts`（Cloudflare Access 前提の identity 取得層・未配線）
+> 正本（方針）: `README.md`「システム構成」節、`src/infrastructure/cloud/civilDraftApiClient.ts`（Workers APIクライアント契約）、`src/infrastructure/auth/accessIdentity.ts`（Cloudflare Access 前提の identity 取得層・未配線）
 
 ---
 
@@ -273,17 +275,17 @@ graph TB
 
 ---
 
-## 🛣 7. ロードマップ（未実装機能の区別）
+## 🛣 7. ロードマップ（実装済み・試作・未製品化の区別）
 
-以下は **まだ実装していない**、Phase 2 以降で足す機能です。上の図（§1〜§6）に含めていません。
+以下は Phase 2 以降の到達点です。現在はドメイン実装や画面試作がある領域もありますが、実案件保存、CAD本体との双方向連動、権限、監査、運用検証まで閉じた製品機能とは分けて扱います。
 
-| Phase | 追加予定（現時点で未実装） |
+| Phase | 現在の状態 |
 | --- | --- |
-| Phase 2 | 測量座標・測点、中心線・オフセット（座標系変換の canvas↔domain を拡張） |
-| Phase 3 | 仮設・重機・土工のパラメトリック作図 |
-| Phase 4 | 業務属性・数量集計・数量根拠の追跡 |
-| Phase 5 | 縦横断・施工ステップ・簡易土量 |
-| Phase 6 | DXF 強化・改訂/照査/承認、共有版（Cloudflare Workers + Neon + Object Storage）、IndexedDB 自動保存と認証の配線 |
+| Phase 2 | 測量座標・測点、中心線・オフセットはドメイン部品と画面試作あり。CAD本体との実務連動は後続 |
+| Phase 3 | 仮設・重機・土工のパラメトリック作図は部品あり。操作フローと成果物テンプレートの統合は後続 |
+| Phase 4 | 業務属性・数量集計・数量根拠は部品あり。数量表から図形へのハイライト/更新連動は後続 |
+| Phase 5 | 縦横断・施工ステップ・簡易土量は部品/画面あり。図面成果物としての連動と検証は後続 |
+| Phase 6 | 改訂/照査/承認、Workers 18経路の業務応答化、P0 API縦線、数量スナップショット、Exportジョブ、案件メンバー認可、楽観ロック、Neon 0001/0002 migration、ApiStore/MemoryStore分離、本番永続化未接続時の503安全停止、ブラウザ側APIクライアント契約、CAD編集画面からの共有保存/再読込UIはあり。共有版の本番永続化、Cloudflare Accessテナント設定、監査ログ永続化、Object Storage連携は後続 |
 
 > 実装済みディレクトリと雛形（⬜）ディレクトリの対応は §2 を参照。
 > 各 Phase の到達点は `README.md`「開発ロードマップ」節が正本です。

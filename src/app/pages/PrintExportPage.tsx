@@ -11,7 +11,7 @@ import { exportDxf } from '@/domain/dxf/dxfExporter'
 import { exportPdf } from '@/domain/pdf/pdfExporter'
 import { exportQuantityCsv } from '@/domain/quantities/quantityCsv'
 import { loadJapaneseFont } from '@/infrastructure/pdf/fontLoader'
-import { CSV_CONTEXT, computeQuantitySummary } from './QuantitySummaryPage'
+import { CSV_CONTEXT, computeQuantitySummary } from './quantitySummaryModel'
 import { useEditorStoreApi } from '@/app/store/useEditorStore'
 import {
   pageHeaderStyle,

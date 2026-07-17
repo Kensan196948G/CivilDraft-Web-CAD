@@ -1,0 +1,29 @@
+{
+  "projectId": "20a7f505-602b-46a6-97b9-ec199d123566",
+  "shape": "package",
+  "pkg": "civildraft-web-cad",
+  "globalName": "CivilDraftDS",
+  "entry": ".design-sync/entry.ts",
+  "cssEntry": "src/app/home.css",
+  "tsconfig": "tsconfig.app.json",
+  "runtimeFontPrefixes": ["IBM Plex Sans JP", "IBM Plex Mono"],
+  "libOverrides": {
+    "bundle.mjs": "tsconfigPathsPlugin's exts loop matched barrel directories (e.g. @/domain/sections) before their /index.ts via bare existsSync(); and default resolveExtensions tried .tsx before .ts, colliding with this repo's intentional editorStoreContext.ts/EditorStoreContext.tsx react-refresh split. See NOTES.md."
+  },
+  "componentSrcMap": {
+    "Sidebar": "src/app/layout/Sidebar.tsx",
+    "CadEditorPage": "src/app/pages/CadEditorPage.tsx",
+    "ConstructionStepsPage": "src/app/pages/ConstructionStepsPage.tsx",
+    "CrossSectionPage": "src/app/pages/CrossSectionPage.tsx",
+    "DrawingComparePage": "src/app/pages/DrawingComparePage.tsx",
+    "DrawingSettingsPage": "src/app/pages/DrawingSettingsPage.tsx",
+    "HomePage": "src/app/pages/HomePage.tsx",
+    "PartsPalettePage": "src/app/pages/PartsPalettePage.tsx",
+    "PrintExportPage": "src/app/pages/PrintExportPage.tsx",
+    "ProjectDetailPage": "src/app/pages/ProjectDetailPage.tsx",
+    "QuantitySummaryPage": "src/app/pages/QuantitySummaryPage.tsx",
+    "ReviewApprovalPage": "src/app/pages/ReviewApprovalPage.tsx",
+    "SurveyPointsPage": "src/app/pages/SurveyPointsPage.tsx",
+    "SystemSettingsPage": "src/app/pages/SystemSettingsPage.tsx"
+  }
+}

@@ -17,6 +17,7 @@ import {
   thStyle,
   monoStyle,
 } from './pageStyles'
+import type { CloudDraftSession } from './CadEditorPage'
 
 const filterChipActive: CSSProperties = {
   fontSize: 12.5,
@@ -51,11 +52,17 @@ const typeBadge: CSSProperties = {
   fontSize: 11,
 }
 
+const PROJECT_CLOUD_CONTEXT = {
+  projectNumber: 'P-245-ROAD-WIDENING',
+  projectName: '国道245号 道路拡幅工事',
+  clientName: '○○県土木部',
+} as const
+
 const DRAWINGS = [
-  { no: 'DWG-014', name: '施工ヤード計画図', type: '施工ヤード図', rev: 'Rev.3', status: '作成中', c: '#6B45B0', bg: '#EDE7F6', by: '山田 太郎' },
-  { no: 'DWG-011', name: '仮設計画図（矢板・切梁）', type: '仮設計画図', rev: 'Rev.2', status: '照査待ち', c: '#B5701A', bg: '#FDEFE0', by: '山田 太郎' },
-  { no: 'DWG-009', name: '土工平面図・法面計画', type: '土工・断面図', rev: 'Rev.5', status: '承認済み', c: '#1F8255', bg: '#E4F3EC', by: '鈴木 花子' },
-  { no: 'DWG-002', name: '数量根拠図（土工数量）', type: '数量根拠図', rev: 'Rev.1', status: '差戻し', c: '#C5392F', bg: '#FCE9E7', by: '山田 太郎' },
+  { no: 'DWG-014', name: '施工ヤード計画図', type: '施工ヤード図', drawingType: 'temporary-yard-plan', rev: 'Rev.3', status: '作成中', c: '#6B45B0', bg: '#EDE7F6', by: '山田 太郎' },
+  { no: 'DWG-011', name: '仮設計画図（矢板・切梁）', type: '仮設計画図', drawingType: 'temporary-plan', rev: 'Rev.2', status: '照査待ち', c: '#B5701A', bg: '#FDEFE0', by: '山田 太郎' },
+  { no: 'DWG-009', name: '土工平面図・法面計画', type: '土工・断面図', drawingType: 'earthwork-plan', rev: 'Rev.5', status: '承認済み', c: '#1F8255', bg: '#E4F3EC', by: '鈴木 花子' },
+  { no: 'DWG-002', name: '数量根拠図（土工数量）', type: '数量根拠図', drawingType: 'quantity-basis', rev: 'Rev.1', status: '差戻し', c: '#C5392F', bg: '#FCE9E7', by: '山田 太郎' },
 ] as const
 
 const MEMBERS = [
@@ -82,10 +89,32 @@ const PROJECT_INFO = [
 ] as const
 
 export interface ProjectDetailPageProps {
-  readonly onOpenEditor?: () => void
+  readonly onOpenEditor?: (session: CloudDraftSession) => void
 }
 
 export function ProjectDetailPage({ onOpenEditor }: ProjectDetailPageProps) {
+  const openDrawing = (drawing: (typeof DRAWINGS)[number]) => {
+    onOpenEditor?.({
+      ...PROJECT_CLOUD_CONTEXT,
+      drawingNumber: drawing.no,
+      drawingName: drawing.name,
+      drawingType: drawing.drawingType,
+      revisionNumber: drawing.rev,
+      changeSummary: `${drawing.no} ${drawing.rev} をCAD編集画面から共有保存`,
+    })
+  }
+
+  const createDrawing = () => {
+    onOpenEditor?.({
+      ...PROJECT_CLOUD_CONTEXT,
+      drawingNumber: 'DWG-NEW',
+      drawingName: '新規図面',
+      drawingType: 'civil-drawing',
+      revisionNumber: 'Rev.0',
+      changeSummary: '新規図面をCAD編集画面から共有保存',
+    })
+  }
+
   return (
     <div style={pageRootStyle}>
       <header style={pageHeaderStyle}>
@@ -127,7 +156,7 @@ export function ProjectDetailPage({ onOpenEditor }: ProjectDetailPageProps) {
         >
           案件を編集
         </button>
-        <button style={primaryButtonStyle} onClick={onOpenEditor}>
+        <button style={primaryButtonStyle} onClick={createDrawing}>
           ＋ 図面を作成
         </button>
       </header>
@@ -177,7 +206,7 @@ export function ProjectDetailPage({ onOpenEditor }: ProjectDetailPageProps) {
                 {DRAWINGS.map((d, i) => {
                   const td = i === DRAWINGS.length - 1 ? tdLast : tdBase
                   return (
-                    <tr key={d.no} style={{ cursor: 'pointer' }} onClick={onOpenEditor}>
+                    <tr key={d.no} style={{ cursor: 'pointer' }} onClick={() => openDrawing(d)}>
                       <td style={{ ...td, ...monoStyle, color: 'var(--ink2)' }}>{d.no}</td>
                       <td style={td}>
                         <span style={{ color: 'var(--ink)', fontWeight: 500 }}>{d.name}</span>
