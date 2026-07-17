@@ -8,11 +8,11 @@
   "session": {
     "session_start_utc": "2026-07-15T04:16:26Z",
     "max_duration_minutes": 300,
-    "last_update_utc": "2026-07-17T12:23:35Z",
-    "note": "PR#35再統合セッション: merge origin/main のコンフリクト19ファイル解消、typecheck/lint/test(1066)/build全通過、a3cac65をpush、CI監視中"
+    "last_update_utc": "2026-07-17T12:44:51Z",
+    "note": "PR#35を人間承認でマージ（enforce_admins一時解除→即復元）。Issue #48のfail-closed修正をPR#49として作成しマージ承認取得済み。Issue #50-53起票、Project#44へPR2件+Issue5件登録。"
   },
-  "goal": "PR #35のmain再統合完了（19ファイルのコンフリクト解消・検証済み）。CI成功と人間レビュー承認待ち。マージはmain宛のため人間の明示承認必須。",
-  "phase": "Verify",
+  "goal": "PR #35 main再統合完了・人間承認によりマージ済み（2026-07-17）。PR #49（Issue #48 fail-closed修正）はCI再実行後にマージ承認済み・実行待ち。次: Issue #50-53 の改善対応と本番バックエンド接続（#36）準備。",
+  "phase": "Improve",
   "kpi": {
     "success_rate_target": 0.9,
     "ci_success_rate": 1.0,
@@ -135,6 +135,11 @@
       "pr": 29,
       "merged": "2026-07-15",
       "note": "PDF日本語フォント同梱（DD-TBD-006確定）+Workers配信手順"
+    },
+    {
+      "pr": 35,
+      "merged": "2026-07-17",
+      "note": "リリース準備UI+main再統合（19ファイルコンフリクト解消、テスト1066件、人間承認マージ）"
     }
   ],
   "blocked_issues": [],
@@ -244,9 +249,11 @@
     ]
   },
   "pending_items": [
-    "PR#35: CI 4ジョブ成功確認後、main宛のためマージは人間承認待ち（自動マージ禁止）",
-    "改善候補: src/workers/index.ts の workflowTargetStatus が domain/revisions と遷移ロジック重複（§16単一の真実）→ Issue化検討",
-    "改善候補: Workers APIの不正URLエンコード応答（旧実装は400、現行はルート不一致404系）→ 防御強化の要否判断",
-    "GitHub Projects #44: PR#34/#35未登録・対応Issueなしの実態をユーザーへ報告済み事項として整理"
+    "PR #49: ブランチ更新後CI成功を確認し、承認済みのためマージ実行（enforce_admins手順）",
+    "Issue #50: TOCTOU楽観ロック改善（Neonアダプタ実装時に条件付きUPDATE化）",
+    "Issue #51: workflowTargetStatusとdomain/revisionsの遷移ロジック一本化",
+    "Issue #52: 不正URLエンコード400応答の要否判断（推奨: 現状維持でクローズ）",
+    "Issue #53: ブランチ保護必須チェック追加（人間決裁待ち）",
+    "Issue #36: 本番バックエンド接続+JWT二次防御（コメントでスコープ拡張済み）"
   ]
 }
