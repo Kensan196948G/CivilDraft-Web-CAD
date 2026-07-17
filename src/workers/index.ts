@@ -980,6 +980,27 @@ async function putRevisionContent(
   }
   const serialized = JSON.stringify(body.content ?? null)
   const checksum = optionalString(body.contentChecksum) ?? `sha256:${await sha256Hex(serialized)}`
+  // The checksum await above yields the isolate, so a concurrent request may
+  // have committed meanwhile. Re-validate and write in one synchronous block
+  // so the version check and the mutation are inseparable (TOCTOU guard).
+  const latestRevision = store.revisions.get(revisionId)
+  const latestContent = store.contents.get(revisionId)
+  if (!latestRevision || latestRevision.status !== 'draft') {
+    return errorResponse(
+      409,
+      ERROR_CODES.conflict,
+      'draft以外の改訂内容は更新できません。新しい改訂を作成してください',
+      ctx.correlationId,
+    )
+  }
+  if (latestContent?.contentVersion !== previous?.contentVersion) {
+    return errorResponse(
+      409,
+      ERROR_CODES.conflict,
+      `contentVersion が一致しません（expected=${expectedContentVersion ?? '初回'}, current=${latestContent?.contentVersion ?? 0}）`,
+      ctx.correlationId,
+    )
+  }
   const content: ContentRecord = {
     revisionId,
     content: body.content ?? null,
@@ -992,7 +1013,7 @@ async function putRevisionContent(
   }
   store.contents.set(revisionId, content)
   store.revisions.set(revisionId, {
-    ...revision,
+    ...latestRevision,
     contentChecksum: checksum,
     contentVersion: content.contentVersion,
     updatedAt: content.updatedAt,

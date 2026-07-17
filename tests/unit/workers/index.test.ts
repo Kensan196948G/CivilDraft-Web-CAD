@@ -578,6 +578,62 @@ describe('§25.2 ルーティング', () => {
     expect((await json<ContentBody>(secondPutRes)).content.contentVersion).toBe(2)
   })
 
+  it('同一 expectedContentVersion の同時PUTは片方だけ成功する（TOCTOU回帰・#50）', async () => {
+    const env = testEnv()
+    const projectRes = await handleRequest(
+      authedRequest('POST', '/api/v1/projects', { projectNumber: 'P-RACE', name: '同時更新試験' }),
+      env,
+    )
+    const projectBody = await json<ProjectBody>(projectRes)
+    const drawingRes = await handleRequest(
+      authedRequest('POST', `/api/v1/projects/${projectBody.project.id}/drawings`, {
+        drawingNumber: 'D-RACE',
+        name: '同時更新図面',
+      }),
+      env,
+    )
+    const drawingBody = await json<DrawingBody>(drawingRes)
+    const revisionRes = await handleRequest(
+      authedRequest('POST', `/api/v1/drawings/${drawingBody.drawing.id}/revisions`, {
+        revisionNumber: '1',
+        changeSummary: '初版',
+      }),
+      env,
+    )
+    const revisionBody = await json<RevisionBody>(revisionRes)
+    const firstPutRes = await handleRequest(
+      authedRequest('PUT', `/api/v1/revisions/${revisionBody.revision.id}/content`, {
+        schemaVersion: 1,
+        content: { geometries: [] },
+      }),
+      env,
+    )
+    expect(firstPutRes.status).toBe(200)
+
+    // checksum計算のawaitがisolateを譲るため、修正前は両方の検査が書き込み前に
+    // 通過して二重に成功していた（contentChecksum省略でawait経路を強制する）
+    const concurrent = await Promise.all(
+      ['a', 'b'].map((marker) =>
+        handleRequest(
+          authedRequest('PUT', `/api/v1/revisions/${revisionBody.revision.id}/content`, {
+            schemaVersion: 1,
+            expectedContentVersion: 1,
+            content: { geometries: [{ id: marker }] },
+          }),
+          env,
+        ),
+      ),
+    )
+    const statuses = concurrent.map((res) => res.status).sort()
+    expect(statuses).toEqual([200, 409])
+
+    const finalContentRes = await handleRequest(
+      authedRequest('GET', `/api/v1/revisions/${revisionBody.revision.id}/content`),
+      env,
+    )
+    expect((await json<ContentBody>(finalContentRes)).content.contentVersion).toBe(2)
+  })
+
   it('数量スナップショットの再更新には expectedQuantityVersion が必要で、不一致なら 409', async () => {
     const env = testEnv()
     const projectRes = await handleRequest(
