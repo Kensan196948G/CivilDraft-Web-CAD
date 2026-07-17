@@ -8,11 +8,11 @@
   "session": {
     "session_start_utc": "2026-07-15T04:16:26Z",
     "max_duration_minutes": 300,
-    "last_update_utc": "2026-07-17T12:44:51Z",
-    "note": "PR#35を人間承認でマージ（enforce_admins一時解除→即復元）。Issue #48のfail-closed修正をPR#49として作成しマージ承認取得済み。Issue #50-53起票、Project#44へPR2件+Issue5件登録。"
+    "last_update_utc": "2026-07-17T13:33:33Z",
+    "note": "CTOループ継続: #52クローズ(現状維持判断)、#50 TOCTOU修正マージ(PR#54)、#53ブランチ保護強化(E2E/SBOM必須化・ユーザー承認)、#36 JWT二次防御実装(PR#55・Medium1件を敵対レビューで発見即修正)。"
   },
-  "goal": "PR #35 main再統合完了・人間承認によりマージ済み（2026-07-17）。PR #49（Issue #48 fail-closed修正）はCI再実行後にマージ承認済み・実行待ち。次: Issue #50-53 の改善対応と本番バックエンド接続（#36）準備。",
-  "phase": "Improve",
+  "goal": "Release Ready接近: PR#35/#49/#54マージ済み。#36 JWT二次防御をPR#55として実装・敵対レビュー済み(CI待ち)。残: 本番Neon/R2接続・Accessテナント設定(人間決裁)。",
+  "phase": "Verify",
   "kpi": {
     "success_rate_target": 0.9,
     "ci_success_rate": 1.0,
@@ -140,6 +140,16 @@
       "pr": 35,
       "merged": "2026-07-17",
       "note": "リリース準備UI+main再統合（19ファイルコンフリクト解消、テスト1066件、人間承認マージ）"
+    },
+    {
+      "pr": 49,
+      "merged": "2026-07-17",
+      "note": "Issue#48 fail-closed永続化修正"
+    },
+    {
+      "pr": 54,
+      "merged": "2026-07-17",
+      "note": "Issue#50 TOCTOU競合修正"
     }
   ],
   "blocked_issues": [],
@@ -249,11 +259,15 @@
     ]
   },
   "pending_items": [
-    "PR #49: ブランチ更新後CI成功を確認し、承認済みのためマージ実行（enforce_admins手順）",
-    "Issue #50: TOCTOU楽観ロック改善（Neonアダプタ実装時に条件付きUPDATE化）",
-    "Issue #51: workflowTargetStatusとdomain/revisionsの遷移ロジック一本化",
-    "Issue #52: 不正URLエンコード400応答の要否判断（推奨: 現状維持でクローズ）",
-    "Issue #53: ブランチ保護必須チェック追加（人間決裁待ち）",
-    "Issue #36: 本番バックエンド接続+JWT二次防御（コメントでスコープ拡張済み）"
+    "PR #55(#36 JWT二次防御): CI成功後、認証変更のためマージは人間承認必須",
+    "Issue #36残り: 本番Neon/R2接続・Accessテナント設定・Secret登録(CIVILDRAFT_ACCESS_TEAM_DOMAIN/AUD)は人間決裁",
+    "Issue #51: workflowTargetStatusとdomain/revisionsの遷移ロジック一本化(P3)",
+    "任意: persistenceUnavailableResponseの503本文もbinding名を汎用文言化(情報最小化の完全化・低優先)"
+  ],
+  "infra_changes": [
+    {
+      "date": "2026-07-17",
+      "change": "main branch protection: 必須チェックへ Browser E2E / SBOM・Notices を追加(ユーザー承認)"
+    }
   ]
 }
