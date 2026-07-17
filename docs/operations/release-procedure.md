@@ -210,6 +210,7 @@ npm run preview    # dist/ をローカルサーバーで配信し、実ブラ�
 
 | 文書 | 用途 |
 | --- | --- |
+| `docs/operations/production-deployment.md` | 本番 Neon/R2/Access 接続・Secret 登録・Worker 有効化の手順（環境変数一覧・fail-closed 仕様） |
 | `docs/operations/rollback-procedure.md` | リリース後の切り戻し手順 |
 | `docs/operations/operations-manual.md` | 日常運用（開発サーバー・品質ゲート・SBOM/NOTICES） |
 | `docs/operations/incident-response.md` | 障害発生時の初動・エスカレーション |
