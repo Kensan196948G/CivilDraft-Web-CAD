@@ -10,8 +10,16 @@ const PRODUCTION_BINDING_LABELS = [
   'CIVILDRAFT_R2_BUCKET',
 ] as const
 
-export function resolvePersistenceMode(value: unknown): PersistenceMode {
-  return value === 'neon-r2' ? 'neon-r2' : 'memory'
+/**
+ * Fail closed: only explicit 'memory' / 'neon-r2' are accepted.
+ * Unset or unrecognized values return undefined so the caller can refuse to
+ * serve requests instead of silently falling back to the in-memory store
+ * (misconfigured production would otherwise lose data without any signal).
+ */
+export function resolvePersistenceMode(value: unknown): PersistenceMode | undefined {
+  if (value === 'neon-r2') return 'neon-r2'
+  if (value === 'memory') return 'memory'
+  return undefined
 }
 
 export function inspectProductionPersistenceReadiness(

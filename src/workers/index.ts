@@ -185,14 +185,24 @@ function resolveStore(env: WorkerEnv): ApiStore | undefined {
   if (env.CIVILDRAFT_DEV_STORE) {
     return env.CIVILDRAFT_DEV_STORE
   }
-  if (resolvePersistenceMode(env.CIVILDRAFT_API_MODE) === 'neon-r2') {
-    return undefined
+  // Fail closed: the in-process store serves requests only when 'memory' is
+  // explicitly configured. Unset or unrecognized modes are treated as
+  // unconfigured persistence and rejected with 503 (never a silent fallback).
+  if (resolvePersistenceMode(env.CIVILDRAFT_API_MODE) === 'memory') {
+    return moduleStore
   }
-  // Local preview/test fallback. Production persistence must be wired to Neon/R2 before release.
-  return moduleStore
+  return undefined
 }
 
 function persistenceUnavailableResponse(env: WorkerEnv, correlationId: string): Response {
+  if (resolvePersistenceMode(env.CIVILDRAFT_API_MODE) === undefined) {
+    return errorResponse(
+      503,
+      ERROR_CODES.persistenceUnavailable,
+      "CIVILDRAFT_API_MODE が未設定または不正です（'memory' または 'neon-r2' を明示設定してください）",
+      correlationId,
+    )
+  }
   const readiness = inspectProductionPersistenceReadiness(env)
   return errorResponse(
     503,

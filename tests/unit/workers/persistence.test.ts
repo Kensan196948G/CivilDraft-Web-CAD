@@ -5,11 +5,13 @@ import {
 } from '@/workers/persistence'
 
 describe('Workers persistence readiness', () => {
-  it('未知の値は安全に memory モードへ正規化する', () => {
-    expect(resolvePersistenceMode(undefined)).toBe('memory')
+  it('明示指定のみ受け付け、未設定・不正値は undefined を返す（fail-closed）', () => {
+    expect(resolvePersistenceMode(undefined)).toBeUndefined()
     expect(resolvePersistenceMode('memory')).toBe('memory')
     expect(resolvePersistenceMode('neon-r2')).toBe('neon-r2')
-    expect(resolvePersistenceMode('production')).toBe('memory')
+    expect(resolvePersistenceMode('production')).toBeUndefined()
+    expect(resolvePersistenceMode('Neon-R2')).toBeUndefined()
+    expect(resolvePersistenceMode('neon_r2')).toBeUndefined()
   })
 
   it('neon-r2 本番接続に必要なbinding不足を列挙する', () => {
