@@ -83,6 +83,10 @@ jobs:
           node-version: 25
           cache: npm
 
+      # npm CLI自体のバージョンが変わるとscope判定等の出力が変わり偽陽性のドリフト検出になるため、
+      # コミット済みSBOM（sbom/civildraft-sbom.cdx.json）を生成した時点のバージョンに固定する。
+      - run: npm install -g npm@11.6.2
+
       - run: npm ci
 
       - run: npm run sbom
