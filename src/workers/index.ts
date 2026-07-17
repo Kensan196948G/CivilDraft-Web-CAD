@@ -58,6 +58,7 @@ const ERROR_CODES = {
   preconditionRequired: 'CD-CONFLICT-002',
   persistenceUnavailable: 'CD-SYS-002',
   notImplemented: 'CD-SYS-001',
+  internal: 'CD-SYS-003',
 } as const
 
 interface ApiRoute {
@@ -257,18 +258,29 @@ function matchRouteWithParams(method: string, pathname: string): RouteMatch | un
   return undefined
 }
 
+/**
+ * リクエスト内容起因の既知エラー。catch側でこれ以外の例外（実装バグ等）と区別し、
+ * 前者のみクライアントへ詳細メッセージを返す（後者は500+ログに丸める）。
+ */
+class ValidationError extends Error {}
+
 function requireParam(params: Readonly<Record<string, string>>, name: string): string {
   const value = params[name]
   if (!value) {
-    throw new Error(`Route parameter '${name}' is missing`)
+    throw new ValidationError(`Route parameter '${name}' is missing`)
   }
   return value
 }
 
 async function readJsonObject(request: Request): Promise<Record<string, unknown>> {
-  const parsed = (await request.json()) as unknown
+  let parsed: unknown
+  try {
+    parsed = await request.json()
+  } catch {
+    throw new ValidationError('Request body must be valid JSON')
+  }
   if (!isRecord(parsed)) {
-    throw new Error('JSON object body is required')
+    throw new ValidationError('JSON object body is required')
   }
   return parsed
 }
@@ -287,14 +299,14 @@ function optionalString(value: unknown): string | undefined {
 function requiredString(value: unknown, field: string): string {
   const parsed = optionalString(value)
   if (!parsed) {
-    throw new Error(`${field} is required`)
+    throw new ValidationError(`${field} is required`)
   }
   return parsed
 }
 
 function requiredPositiveInteger(value: unknown, field: string): number {
   if (typeof value !== 'number' || !Number.isInteger(value) || value <= 0) {
-    throw new Error(`${field} must be a positive integer`)
+    throw new ValidationError(`${field} must be a positive integer`)
   }
   return value
 }
@@ -303,7 +315,7 @@ function optionalNonNegativeInteger(value: unknown, field: string): number | und
   if (value === undefined || value === null) return undefined
   const parsed = typeof value === 'string' && value.trim() !== '' ? Number(value) : value
   if (typeof parsed !== 'number' || !Number.isInteger(parsed) || parsed < 0) {
-    throw new Error(`${field} must be a non-negative integer`)
+    throw new ValidationError(`${field} must be a non-negative integer`)
   }
   return parsed
 }
@@ -450,35 +462,35 @@ function isResponse(value: unknown): value is Response {
 
 function parseQuantityItem(value: unknown, revisionId: string, index: number): QuantityItemRecord {
   if (!isRecord(value)) {
-    throw new Error(`items[${index}] must be an object`)
+    throw new ValidationError(`items[${index}] must be an object`)
   }
   const id = requiredString(value.id, `items[${index}].id`)
   const groupKey = requiredString(value.groupKey, `items[${index}].groupKey`)
   const method = requiredString(value.method, `items[${index}].method`) as QuantityMethod
   if (!['length', 'area', 'perimeter', 'count', 'volume', 'manual'].includes(method)) {
-    throw new Error(`items[${index}].method is invalid`)
+    throw new ValidationError(`items[${index}].method is invalid`)
   }
   const unit = requiredString(value.unit, `items[${index}].unit`) as QuantityUnit
   if (!['m', 'm2', 'm3', 'count', 'set', 'custom'].includes(unit)) {
-    throw new Error(`items[${index}].unit is invalid`)
+    throw new ValidationError(`items[${index}].unit is invalid`)
   }
   const status = requiredString(value.status, `items[${index}].status`) as QuantityStatus
   if (!['valid', 'stale', 'invalid', 'manuallyAdjusted'].includes(status)) {
-    throw new Error(`items[${index}].status is invalid`)
+    throw new ValidationError(`items[${index}].status is invalid`)
   }
   const rawValue = Number(value.rawValue)
   const roundedValue = Number(value.roundedValue)
   if (!Number.isFinite(rawValue) || !Number.isFinite(roundedValue)) {
-    throw new Error(`items[${index}].rawValue and roundedValue must be finite numbers`)
+    throw new ValidationError(`items[${index}].rawValue and roundedValue must be finite numbers`)
   }
   const sourcesValue = Array.isArray(value.sources) ? value.sources : []
   const sources = sourcesValue.map((source, sourceIndex): QuantitySourceRecord => {
     if (!isRecord(source)) {
-      throw new Error(`items[${index}].sources[${sourceIndex}] must be an object`)
+      throw new ValidationError(`items[${index}].sources[${sourceIndex}] must be an object`)
     }
     const contributionRaw = Number(source.contributionRaw)
     if (!Number.isFinite(contributionRaw)) {
-      throw new Error(`items[${index}].sources[${sourceIndex}].contributionRaw must be a finite number`)
+      throw new ValidationError(`items[${index}].sources[${sourceIndex}].contributionRaw must be a finite number`)
     }
     return {
       geometryId: requiredString(source.geometryId, `items[${index}].sources[${sourceIndex}].geometryId`),
@@ -503,7 +515,7 @@ function parseQuantityItem(value: unknown, revisionId: string, index: number): Q
 function parseWorkflowAction(value: unknown): WorkflowAction {
   const action = requiredString(value, 'action') as WorkflowAction
   if (!['submitReview', 'resumeEditing', 'return', 'completeReview', 'approve', 'obsolete'].includes(action)) {
-    throw new Error('action is invalid')
+    throw new ValidationError('action is invalid')
   }
   return action
 }
@@ -511,7 +523,7 @@ function parseWorkflowAction(value: unknown): WorkflowAction {
 function parseExportFormat(value: unknown): ExportFormat {
   const format = requiredString(value, 'format') as ExportFormat
   if (!['pdf', 'dxf', 'csv', 'json'].includes(format)) {
-    throw new Error('format must be one of pdf, dxf, csv, json')
+    throw new ValidationError('format must be one of pdf, dxf, csv, json')
   }
   return format
 }
@@ -520,7 +532,7 @@ function parseLifecycleStatus(value: unknown, field: string): 'active' | 'archiv
   if (value === undefined || value === null) return undefined
   const status = requiredString(value, field) as 'active' | 'archived'
   if (!['active', 'archived'].includes(status)) {
-    throw new Error(`${field} must be active or archived`)
+    throw new ValidationError(`${field} must be active or archived`)
   }
   return status
 }
@@ -1036,7 +1048,7 @@ async function putRevisionQuantities(
     )
   }
   if (!Array.isArray(body.items)) {
-    throw new Error('items must be an array')
+    throw new ValidationError('items must be an array')
   }
   const previous = store.quantities.get(revisionId)
   const expectedQuantityVersion =
@@ -1244,8 +1256,23 @@ function listAuditLogs(store: ApiStore, ctx: RequestContext): Response {
   const projectId = ctx.url.searchParams.get('projectId') ?? undefined
   const limit = Number(ctx.url.searchParams.get('limit') ?? '100')
   const safeLimit = Number.isFinite(limit) ? Math.min(Math.max(Math.trunc(limit), 1), 500) : 100
+
+  if (projectId) {
+    const denied = authorizeProject(store, ctx, projectId, 'view')
+    if (denied) return denied
+    const auditLogs = store.auditLogs.filter((entry) => entry.projectId === projectId).slice(-safeLimit)
+    return jsonResponse(200, { auditLogs }, ctx.correlationId)
+  }
+
+  // projectId省略時は listProjects と同じ基準（閲覧可能ロールを持つメンバーシップ）で
+  // 自身が参照可能な案件の監査ログのみに限定し、テナント越境閲覧を防ぐ。
+  const viewableProjectIds = new Set(
+    [...store.projectMembers.values()]
+      .filter((member) => member.userId === ctx.actorId && roleCanView(member.role))
+      .map((member) => member.projectId),
+  )
   const auditLogs = store.auditLogs
-    .filter((entry) => !projectId || entry.projectId === projectId)
+    .filter((entry) => entry.projectId !== undefined && viewableProjectIds.has(entry.projectId))
     .slice(-safeLimit)
   return jsonResponse(200, { auditLogs }, ctx.correlationId)
 }
@@ -1365,12 +1392,13 @@ export async function handleRequest(request: Request, env: WorkerEnv = {}): Prom
         )
     }
   } catch (err) {
-    return errorResponse(
-      400,
-      ERROR_CODES.invalidRequest,
-      err instanceof Error ? err.message : 'Invalid request',
-      correlationId,
-    )
+    if (err instanceof ValidationError) {
+      return errorResponse(400, ERROR_CODES.invalidRequest, err.message, correlationId)
+    }
+    // 既知のバリデーション以外（実装バグ等）は詳細をクライアントへ漏らさず、
+    // 監査・調査のためログにだけ残す（§CD-SYS-003）。
+    console.error(`[CivilDraft API] unhandled error (correlationId=${correlationId})`, err)
+    return errorResponse(500, ERROR_CODES.internal, '内部エラーが発生しました', correlationId)
   }
 }
 

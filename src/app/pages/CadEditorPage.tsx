@@ -612,8 +612,14 @@ export function CadEditorPage({
       scheduler.dispose()
       // dispose()はデバウンス中タイマーの破棄のみで保存は行わないため、
       // 画面離脱直前の未保存差分をここで明示的にflushする。
+      // アンマウント後はUIへ結果を反映できないため、失敗時は最低限コンソールへ可視化する
+      // （AutosaveStoreはR-006方針によりthrowせずResultで失敗を返す契約のため、握り潰さない）。
       const s = storeApi.getState()
-      void autosaveStore.save({ savedAt: new Date().toISOString(), geometries: s.geometries, layers: s.layers })
+      autosaveStore
+        .save({ savedAt: new Date().toISOString(), geometries: s.geometries, layers: s.layers })
+        .then((result) => {
+          if (!result.ok) console.error('自動保存（画面離脱時flush）に失敗しました', result.error)
+        })
     }
   }, [storeApi, autosaveStore])
 
