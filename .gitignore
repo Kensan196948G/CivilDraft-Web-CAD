@@ -39,3 +39,8 @@ npm-debug.log*
 yarn-debug.log*
 yarn-error.log*
 vite-*.log
+
+# design-sync (claude.ai/design) — staged converter + local build output
+.design-sync/.cache/
+.design-sync/learnings/
+.design-sync/node_modules

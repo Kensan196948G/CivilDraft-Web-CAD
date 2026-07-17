@@ -139,7 +139,7 @@ export function computeQuantitySummary(geometries: readonly Geometry[]): Quantit
 
 /** 数値の表示整形（内容は変えない素の文字列化）。丸め前値・表示値の双方に用いる。 */
 export function formatQuantity(value: number): string {
-  return Number.isFinite(value) ? String(value) : '-'
+  return Number.isFinite(value) ? String(value) : '—'
 }
 
 /** 単位別に表示値（roundedValue）を合計し、既定規則で再度丸めて浮動小数誤差を抑える。 */

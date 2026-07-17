@@ -24,7 +24,19 @@ const UPPER_LAYER_PATTERNS = [
 ]
 
 export default tseslint.config(
-  { ignores: ['dist', 'coverage', 'node_modules', '**/*.d.ts', '.vite', '.ds-sync', 'ds-bundle'] },
+  {
+    ignores: [
+      'dist',
+      'coverage',
+      'node_modules',
+      '.vite',
+      '.design-sync',
+      '.ds-sync',
+      'ds-bundle',
+      'sbom',
+      '**/*.d.ts',
+    ],
+  },
 
   js.configs.recommended,
   ...tseslint.configs.recommended,

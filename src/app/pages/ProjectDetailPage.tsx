@@ -18,6 +18,7 @@ import {
   thStyle,
   monoStyle,
 } from './pageStyles'
+import type { CloudDraftSession } from './CadEditorPage'
 
 const filterChipActive: CSSProperties = {
   fontSize: 12.5,
@@ -105,6 +106,20 @@ interface ProjectInfoState {
   readonly supervisor: string
 }
 
+const PROJECT_CLOUD_CONTEXT = {
+  projectNumber: 'P-245-ROAD-WIDENING',
+  projectName: '国道245号 道路拡幅工事',
+  clientName: '○○県土木部',
+} as const
+
+/** CloudDraftSession.drawingType へ渡す種別コード（Workers API契約と対応）。 */
+const DRAWING_TYPE_CODES: Record<DrawingType, string> = {
+  施工ヤード図: 'temporary-yard-plan',
+  仮設計画図: 'temporary-plan',
+  '土工・断面図': 'earthwork-plan',
+  数量根拠図: 'quantity-basis',
+}
+
 const DRAWINGS: readonly DrawingRow[] = [
   { no: 'DWG-014', name: '施工ヤード計画図', type: '施工ヤード図', rev: 'Rev.3', status: '作成中', c: '#6B45B0', bg: '#EDE7F6', by: '山田 太郎' },
   { no: 'DWG-011', name: '仮設計画図（矢板・切梁）', type: '仮設計画図', rev: 'Rev.2', status: '照査待ち', c: '#B5701A', bg: '#FDEFE0', by: '山田 太郎' },
@@ -154,7 +169,7 @@ const ACTIVITIES = [
 ] as const
 
 export interface ProjectDetailPageProps {
-  readonly onOpenEditor?: () => void
+  readonly onOpenEditor?: (session: CloudDraftSession) => void
 }
 
 export function ProjectDetailPage({ onOpenEditor }: ProjectDetailPageProps) {
@@ -218,6 +233,16 @@ export function ProjectDetailPage({ onOpenEditor }: ProjectDetailPageProps) {
     setSelectedDrawing(drawing)
     setMode('drawingDetail')
   }
+
+  /** 選択図面から共有保存用のCloudDraftSessionを構築する（Workers API契約と対応）。 */
+  const toCloudSession = (drawing: DrawingRow): CloudDraftSession => ({
+    ...PROJECT_CLOUD_CONTEXT,
+    drawingNumber: drawing.no,
+    drawingName: drawing.name,
+    drawingType: DRAWING_TYPE_CODES[drawing.type],
+    revisionNumber: drawing.rev,
+    changeSummary: `${drawing.no} ${drawing.rev} をCAD編集画面から共有保存`,
+  })
 
   return (
     <div style={pageRootStyle}>
@@ -295,7 +320,7 @@ export function ProjectDetailPage({ onOpenEditor }: ProjectDetailPageProps) {
             <div style={panelStyle}>
               <div style={{ ...panelHeaderStyle, display: 'flex', alignItems: 'center', gap: 10 }}>
                 <div style={{ flex: 1 }}>図面詳細: {selectedDrawing.no} {selectedDrawing.name}</div>
-                <button style={primaryButtonStyle} onClick={onOpenEditor}>CAD編集で開く</button>
+                <button style={primaryButtonStyle} onClick={() => onOpenEditor?.(toCloudSession(selectedDrawing))}>CAD編集で開く</button>
                 <button style={secondaryButtonStyle} onClick={() => setMode('overview')}>閉じる</button>
               </div>
               <div style={{ padding: 18, display: 'grid', gridTemplateColumns: 'repeat(5,minmax(0,1fr))', gap: 12, fontSize: 12.5 }}>

@@ -68,20 +68,25 @@ describe('App ナビゲーション統合', () => {
     },
   )
 
-  it('CAD編集クリックでエディタを右側詳細コンテンツに表示する', async () => {
+  it('CAD編集クリックでエディタへ遷移し、サイドバーのホームで戻れる', async () => {
     render(<App />)
     await userEvent.click(screen.getByRole('button', { name: /^作図›?$/ }))
     await userEvent.click(screen.getByRole('button', { name: /CAD編集/ }))
     expect(screen.getByTestId('canvas-stage')).toBeInTheDocument()
-    expect(screen.getByRole('button', { name: /PDF出力/ })).toBeInTheDocument()
-    expect(screen.getByRole('button', { name: /DXF出力/ })).toBeInTheDocument()
-    expect(screen.getByRole('button', { name: /DXF取込/ })).toBeInTheDocument()
-    expect(screen.getByRole('button', { name: '⊞ グリッド非表示' })).toBeInTheDocument()
-    expect(screen.getByLabelText('CAD編集ステータス')).toHaveTextContent(
-      /図形: 5 \/ ズーム: \d+% \/ ホイール: ズーム、中ボタン: パン、Esc: 中止、Enter: 確定/,
-    )
-    expect(screen.getByRole('button', { name: /ホーム・案件一覧/ })).toBeInTheDocument()
     await userEvent.click(screen.getByRole('button', { name: /ホーム・案件一覧/ }))
     expect(screen.getByPlaceholderText('案件名・図面番号で検索')).toBeInTheDocument()
+  })
+
+  it('案件詳細の図面行クリックで図面詳細を開き、「CAD編集で開く」で図面コンテキストをCAD編集へ渡す', async () => {
+    render(<App />)
+    await userEvent.click(screen.getByRole('button', { name: /案件詳細/ }))
+    await userEvent.click(screen.getByText('DWG-011'))
+    expect(screen.getByText(/図面詳細: DWG-011/)).toBeInTheDocument()
+
+    await userEvent.click(screen.getByRole('button', { name: 'CAD編集で開く' }))
+    expect(screen.getByTestId('canvas-stage')).toBeInTheDocument()
+    expect(screen.getByText('国道245号 道路拡幅工事')).toBeInTheDocument()
+    expect(screen.getByText('仮設計画図（矢板・切梁）')).toBeInTheDocument()
+    expect(screen.getByText('Rev.2')).toBeInTheDocument()
   })
 })

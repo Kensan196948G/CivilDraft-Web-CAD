@@ -3,7 +3,7 @@
  */
 import { useContext } from 'react'
 import { useStore } from 'zustand'
-import { EditorStoreContext } from './editorStoreContextValue'
+import { EditorStoreContext } from './EditorStoreReactContext'
 import type { EditorState, EditorStore } from './editorStore'
 
 /** セレクター経由でstore状態を購読する（§8.2: 大きな配列全体を渡さず絞って選択）。 */

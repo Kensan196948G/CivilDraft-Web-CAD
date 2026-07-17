@@ -28,7 +28,7 @@ import {
   formatQuantity,
   totalRoundedByUnit,
   type QuantitySummary,
-} from './quantitySummaryModel'
+} from '@/app/pages/quantitySummaryModel'
 import {
   ghostButtonStyle,
   monoStyle,
