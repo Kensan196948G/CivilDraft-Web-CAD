@@ -78,7 +78,7 @@ CI（`.github/workflows/ci.yml`）と同一のチェックをローカルで再�
 ### 3.2 一括実行（PR 前の推奨シーケンス）
 
 ```bash
-npm run lint && npm run typecheck && npm run migrations:check && npm test && npm run e2e && npm run build && npm audit --audit-level=high
+npm run lint && npm run typecheck && npm run migrations:check && npm test && npm run e2e && npm run build && npm audit --audit-level=high && npm run sbom && git diff --exit-code sbom/civildraft-sbom.cdx.json && npm run notices && git diff --exit-code THIRD-PARTY-NOTICES.md
 ```
 
 > いずれか失敗で全体停止。失敗時は `docs/operations/incident-response.md` の初動に従う。
@@ -102,11 +102,12 @@ flowchart LR
 | CI ジョブ | トリガー | 必須チェック |
 | --- | --- | --- |
 | `Lint / Typecheck / Test / Build`（quality） | `main` への push / PR | ✅ ブランチ保護で必須 |
-| `Browser E2E`（e2e） | `main` への push / PR | ✅ ブランチ保護で必須 |
 | `Dependency Audit`（security） | `main` への push / PR | ✅ ブランチ保護で必須 |
-| `SBOM / Notices`（compliance） | `main` への push / PR | ✅ ブランチ保護へ追加推奨 |
+| `Browser E2E`（e2e） | `main` への push / PR | ⚠️ ブランチ保護は未設定（運用上は§3.5手順⑤でCI green確認の対象に含め、人間承認前に確認する） |
+| `SBOM / Notices`（compliance） | `main` への push / PR | ⚠️ ブランチ保護は未設定（同上。npm CLIバージョン差によるドリフト誤検知の実績があるため、安定性を継続確認してから必須化を検討） |
 
-> `main` は PR 必須・レビュー承認1件必須・必須チェック success 必須（strict でブランチ最新化要求）・force push / 削除禁止。
+> `main` は PR 必須・レビュー承認1件必須・必須チェック（quality/security）success 必須（strict でブランチ最新化要求）・force push / 削除禁止。
+> e2e/compliance は必須チェック未設定のため、PRマージ前に人間が個別に green を確認する運用でカバーしている（CodeRabbit指摘、2026-07-17時点）。
 
 ### 3.4 typecheck が並列作業で不安定なとき
 

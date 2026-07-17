@@ -39,6 +39,13 @@ function mockDownloads() {
 
 afterEach(() => {
   vi.restoreAllMocks()
+  // createObjectURL/revokeObjectURL は直接代入のためvi.restoreAllMocksでは戻らず、明示的に削除する
+  const urlObj = URL as unknown as {
+    createObjectURL?: (blob: Blob) => string
+    revokeObjectURL?: (url: string) => void
+  }
+  delete urlObj.createObjectURL
+  delete urlObj.revokeObjectURL
 })
 
 describe('AuditLogPage', () => {
