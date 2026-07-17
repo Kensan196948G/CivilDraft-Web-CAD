@@ -10,6 +10,7 @@
  *   開発/テスト用インメモリ実装に留める。
  */
 
+import { resolveAccessJwtConfig, verifyAccessJwt } from './accessJwt'
 import { createMemoryStore } from './apiStore'
 import { inspectProductionPersistenceReadiness, resolvePersistenceMode } from './persistence'
 import type {
@@ -37,6 +38,12 @@ export { createMemoryStore } from './apiStore'
 export interface WorkerEnv {
   CIVILDRAFT_DEV_STORE?: ApiStore
   CIVILDRAFT_API_MODE?: 'memory' | 'neon-r2'
+  /** Access team domain (https://<team>.cloudflareaccess.com). With AUD set, JWT検証が有効になる。 */
+  CIVILDRAFT_ACCESS_TEAM_DOMAIN?: string
+  /** Access application AUD tag. */
+  CIVILDRAFT_ACCESS_AUD?: string
+  /** テスト・オフライン検証用のJWKS注入（本番はcertsエンドポイントから取得）。 */
+  CIVILDRAFT_ACCESS_JWKS?: unknown
   [key: string]: unknown
 }
 
@@ -1321,6 +1328,40 @@ export async function handleRequest(request: Request, env: WorkerEnv = {}): Prom
     )
   }
 
+  // 二次防御（#36）: Access設定があればJWT署名・iss/aud/expを検証する。
+  // 検証失敗の詳細はログのみに残し、クライアントへは理由を漏らさない。
+  const accessConfig = resolveAccessJwtConfig(env)
+  if (accessConfig) {
+    // Defense in depth: verifyAccessJwt is written to fail closed, but wrap it
+    // so any unexpected throw still becomes a clean 401 (never a bare 500 that
+    // would bypass the audit/correlation path).
+    let verificationReason = 'verification-error'
+    let verified = false
+    try {
+      const verification = await verifyAccessJwt(accessJwt, accessConfig, {
+        injectedJwks: env.CIVILDRAFT_ACCESS_JWKS,
+      })
+      verified = verification.ok
+      verificationReason = verification.reason
+    } catch (err) {
+      console.error(
+        `[CivilDraft API] access jwt verification threw (correlationId=${correlationId})`,
+        err,
+      )
+    }
+    if (!verified) {
+      console.warn(
+        `[CivilDraft API] access jwt rejected (reason=${verificationReason}, correlationId=${correlationId})`,
+      )
+      return errorResponse(
+        401,
+        ERROR_CODES.unauthenticated,
+        '認証トークンの検証に失敗しました',
+        correlationId,
+      )
+    }
+  }
+
   const matched = matchRouteWithParams(request.method, url.pathname)
   if (!matched) {
     return errorResponse(404, ERROR_CODES.notFound, '該当するエンドポイントがありません', correlationId)
@@ -1334,6 +1375,19 @@ export async function handleRequest(request: Request, env: WorkerEnv = {}): Prom
   const store = resolveStore(env)
   if (!store) {
     return persistenceUnavailableResponse(env, correlationId)
+  }
+  // Fail closed（#36/#48と同方針）: 本番永続化モードではAccess JWT検証設定を必須にする。
+  // ヘッダー存在確認だけの一次防御で本番データへ到達させない。
+  if (!accessConfig && resolvePersistenceMode(env.CIVILDRAFT_API_MODE) === 'neon-r2') {
+    console.warn(
+      `[CivilDraft API] access verification not configured in neon-r2 mode (correlationId=${correlationId})`,
+    )
+    return errorResponse(
+      503,
+      ERROR_CODES.persistenceUnavailable,
+      'Cloudflare Access検証が未構成のため、本番モードでは応答しません',
+      correlationId,
+    )
   }
 
   try {
