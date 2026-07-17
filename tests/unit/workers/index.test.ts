@@ -171,6 +171,16 @@ describe('§25.1 共通ヘッダー検証', () => {
     expect(body.error.code).toBe('CD-SYS-002')
     expect(body.error.message).toContain('binding')
   })
+
+  it('CIVILDRAFT_API_MODE 未設定・タイポ時はインメモリへ無警告フォールバックせず 503 で停止する', async () => {
+    for (const env of [{}, { CIVILDRAFT_API_MODE: 'Neon-R2' }, { CIVILDRAFT_API_MODE: 'prod' }]) {
+      const res = await handleRequest(authedRequest('GET', '/api/v1/projects'), env)
+      expect(res.status).toBe(503)
+      const body = await json<ApiErrorBody>(res)
+      expect(body.error.code).toBe('CD-SYS-002')
+      expect(body.error.message).toContain('CIVILDRAFT_API_MODE')
+    }
+  })
 })
 
 describe('§25.2 ルーティング', () => {
