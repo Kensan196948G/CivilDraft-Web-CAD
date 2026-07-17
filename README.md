@@ -10,7 +10,7 @@
 | リポジトリ | `CivilDraft-Web-CAD` |
 | 既存技術資産 | [`Civil-Draw`](https://github.com/Kensan196948G/Civil-Draw) |
 | 開発基盤 | Claude Code on Linux＋GitHub＋Cloudflare＋Neon |
-| 現在の位置付け | **Phase 2-6 コード実装完了（PR #31 承認待ち）**。全ロードマップ機能のドメイン+画面が動作。残: デプロイ系の人間決裁（Neon適用・wrangler deploy・Workers本実装） |
+| 現在の位置付け | **土木特化Web CADの技術プレビュー**。ブラウザ内CADコアと土木ドメイン部品は拡充中。Workers APIはP0縦線（Project作成/更新→Drawing作成/更新→Revision作成→Content/数量保存→照査/承認→Export作成→Audit検索）を開発用ストアで実装済み。案件メンバー認可、メタデータ/内容/数量更新の楽観ロック、Neon migration 0001/0002もAPI契約として固定済み。Neon/R2本番接続、Cloudflare Accessテナント設定、共有運用は未製品化 |
 
 ---
 
@@ -51,21 +51,33 @@ CADやプログラミングに詳しくなくても、まず「何ができる�
 
 ## 🧭 いま何ができて、何を目指すか
 
-このREADMEは、**「いま実際に動くもの（Phase 1）」と「これから目指す姿（Phase 2 以降のロードマップ）」を分けて**説明します。以降の「解決したい課題」「主な対象図面」「目指す機能」等は**製品ビジョン（目標）**であり、そのすべてが現時点で動くわけではありません。現時点で実装済みの範囲は、次の「✅ 実装済み機能」を参照してください。
+このREADMEは、**「いま実際に動くもの」「コードや画面はあるが試作・未統合のもの」「これから製品化で仕上げるもの」**を分けて説明します。以降の「解決したい課題」「主な対象図面」「目指す機能」等は**製品ビジョン（目標）**を含み、そのすべてが現時点で製品機能として動くわけではありません。現時点の実装範囲は、次の「✅ 実装済み機能」を参照してください。
 
-| | いま動くこと（Phase 1・実装済み） | これから目指すこと（Phase 2〜6・ロードマップ） |
+| | いま動くこと（実装済み/試作） | これから製品化で仕上げること |
 | --- | --- | --- |
-| 🖥️ 動作環境 | Webブラウザ内だけで完結（サーバー・DB不要） | 共有版でCloudflare Workers + Neonを追加 |
+| 🖥️ 動作環境 | Webブラウザ内だけで完結（サーバー・DB不要） | Cloudflare Workers + Neon + R2で共有版へ拡張 |
 | ✏️ 作図 | 選択・線・矩形・円・ポリラインの作図、パン/ズーム/選択、Undo/Redo | 測点・仮設・重機・土工などの土木パラメトリック作図 |
 | 💾 保存 | ブラウザ内IndexedDBへ自動保存・起動時復元 | 案件・改訂・数量・監査をサーバーで共有 |
 | 🔄 相互運用 | DXF入出力（単位を内部mmへ変換） | DXF強化・独自形式・改訂/照査/承認 |
-| 🧮 業務属性 | （未実装） | 工種・規格・数量根拠・施工ステップの統合 |
+| 🧮 業務属性 | 数量・測量・断面・施工ステップ・承認のドメイン/UI試作あり | CAD本体との双方向連動、実案件保存、権限、監査 |
 
-> つまり、現時点のCivilDraftは「土木記号・テンプレートを配置し、DXFで受け渡しでき、ブラウザに自動保存される基本的な2D作図ツール」です。土木業務属性（数量・測点・施工段階）はこれからの実装です。
+> つまり、現時点のCivilDraftは「土木記号・テンプレートを配置し、DXFで受け渡しでき、ブラウザに自動保存される基本的な2D作図ツール」に、数量・測量・断面・承認などのドメイン部品を試作として載せた段階です。土木業務属性を実案件で一気通貫に扱う製品機能は、CAD本体・クラウド保存・権限・監査との統合が次の主戦場です。
+
+### 🎯 競合代替度の目安
+
+既存CADの完全コピーではなく、土木成果物を早く作るWeb CADとして段階的に置き換える前提です。
+
+| 対象 | 現在の代替度 | 判断 |
+| --- | ---: | --- |
+| AutoCAD LT / BricsCAD Lite 的な2D作図 | 30〜40% | 作図・表示・DXF/PDFの核はあるが、編集コマンドのUI配線、レイヤー/寸法/印刷スタイル、DWG/JWW/SXF互換が不足 |
+| 土木数量・横断・簡易計画ツール | 50〜65% | 数量、測量、断面、土量、施工ステップのドメイン部品は強い。図面連動と成果物化が次の壁 |
+| Civil 3D 的なBIM/CIM | 10〜20% | 線形・断面の基礎はあるが、サーフェス、縦断、コリドー、動的土木オブジェクト連携は未成熟 |
+| SaaS型CAD共有・承認・監査 | 35〜45% | P0縦線API、案件メンバー認可、メタデータ/内容/数量の楽観ロック、照査/承認、Exportジョブ、監査記録は動き始めたが、本番Neon/R2接続、Accessテナント設定、監査永続化の運用検証が未完 |
+| プロダクト全体 | 35〜50% | 技術プレビューとして有望。80〜90%代替を名乗るには、実務ワークフローを縦に1本完成させる必要がある |
 
 ---
 
-## ✅ 実装済み機能（Phase 1 時点）
+## ✅ 実装済み機能（現時点）
 
 以下は**実際にコードとして存在し、テスト済みの機能**です（正本＝根拠となる実装ファイル）。「実装済みだが未配線」の部品も正直に区別して記載します。
 
@@ -78,8 +90,11 @@ CADやプログラミングに詳しくなくても、まず「何ができる�
 | DXF入出力 | ✅ 実装済み | `$INSUNITS`(mm/cm/m)を内部mmへ変換して取込、書出時は単位宣言と座標を整合。未対応要素は警告(issues)に集約。ツールバーの📥取込/📤出力ボタンから操作可能 | `src/domain/dxf/` |
 | PDF出力 | ✅ 実装済み | A3等の用紙・縮尺・図面枠・表題欄つきベクター出力（pdf-lib）。日本語フォント未設定時は警告つき代替描画（文字化け黙殺なし）。ツールバーの📄ボタンから操作可能 | `src/domain/pdf/` |
 | 土木記号・テンプレート | ✅ 実装済み | 土木記号30種（仮設・車両・測量・土工・構造物）、作図テンプレート6種 | `src/domain/catalog/` |
+| 土木ドメイン部品 | 🟡 **試作・一部配線** | 測量座標、中心線、線形、パラメトリック7種、数量、断面、土量、施工ステップ、改訂ワークフロー、図面差分のドメイン/画面を実装。ただし実案件保存・CADハイライト・権限・監査との統合は未完 | `src/domain/survey/`・`src/domain/alignment/`・`src/domain/quantities/`・`src/domain/sections/`・`src/app/pages/` |
 | 自動保存（IndexedDB） | ✅ 実装・**配線済み** | 起動時に最新下書きを復元、図形/レイヤー変更をデバウンス保存、保存失敗は握り潰さず警告表示 | `src/infrastructure/autosave/`・`App.tsx`（`AutosaveManager`） |
 | 認証（Cloudflare Access） | 🟡 **部品のみ・未配線** | Access配下のidentity取得層とロール定義は実装済みだが、まだ画面本体へ接続していない（配線は共有版=Phase 6） | `src/infrastructure/auth/accessIdentity.ts` |
+| 共有APIクライアント | 🟡 **画面配線済み・本番未接続** | ブラウザ側から Workers API のP0縦線を呼ぶ `CivilDraftApiClient` を実装し、CAD編集画面の「共有保存」「共有再読込」ボタンからProject作成→Drawing作成→Revision作成→Content保存→再読込→Export作成を実行できる経路を配線。案件詳細の図面行から案件番号・図面番号・改訂番号をエディタへ渡し、保存ペイロードへ反映する。実Workersハンドラ差し込みテストと画面/ナビゲーションテストで検証済み。Secretsは扱わず、Cloudflare Accessの同一オリジン認証を前提にする | `src/infrastructure/cloud/civilDraftApiClient.ts`・`src/app/pages/CadEditorPage.tsx`・`src/app/pages/ProjectDetailPage.tsx`・`tests/unit/infrastructure/cloud/civilDraftApiClient.test.ts`・`tests/unit/app/pages/CadEditorPage.test.tsx` |
+| Workers API / Neon | 🟡 **P0縦線のみ実装** | 18経路すべてで業務応答または入力/認可エラーを返す。Access JWTヘッダー有無確認、相関ID伝播、Project作成/更新、Drawing作成/更新、Revision作成、Content保存/再読込、数量スナップショット、照査/承認ワークフロー、Export作成/取得、Audit検索、案件メンバー認可、メタデータ/内容/数量更新の楽観ロックを実装。ApiStore/MemoryStoreを分離し、本番永続化モードが未接続なら503で停止。Neon 0001/0002 migrationでAPI契約に合わせたDB/R2メタ/監査ハッシュチェーン列を定義済み。本番DB/R2接続・Accessテナント設定は未実装 | `src/workers/index.ts`・`src/workers/apiStore.ts`・`src/workers/persistence.ts`・`migrations/0001_initial_schema.sql`・`migrations/0002_api_contract_alignment.sql` |
 | SBOM・ライセンス衛生 | ✅ 実装済み | CycloneDX SBOM生成、サードパーティ表記生成、依存衛生手順 | `npm run sbom` / `npm run notices`・`docs/operations/dependency-hygiene.md` |
 
 > 🟡 の「未配線」は、部品（モジュール）としては実装・テスト済みだが、まだアプリ本体から呼び出していない状態を指します。誇張せずそのまま記載しています。
@@ -96,6 +111,7 @@ graph TB
         UI["React UI・ツールバー（App.tsx）"]
         TOOLS["作図ツール（選択・線・矩形・円・ポリライン）"]
         STORE["EditorStore（zustand）<br>図面・表示位置・レイヤー・選択・履歴"]
+        API_CLIENT["CivilDraftApiClient<br>共有保存・再読込ボタンから呼び出し"]
         INDEX["GeometryIndex（R-tree）<br>図形を高速に探す索引"]
         KONVA["Konva キャンバス（6レイヤー描画）"]
         IDB["IndexedDB<br>自動保存・起動時復元"]
@@ -104,10 +120,11 @@ graph TB
         STORE --> INDEX
         STORE --> KONVA
         STORE --> IDB
+        STORE --> API_CLIENT
     end
 ```
 
-> ⚠️ サーバー・データベースはまだ使いません。認証（Cloudflare Access）は部品のみで未配線です。共有版（Workers + Neon）は Phase 6 で追加します。
+> ⚠️ ローカルのWeb CAD利用はサーバー・データベース不要です。一方で共有版のWorkers API契約とNeon migrationは追加済みです。認証（Cloudflare Access）は部品/APIヘッダー契約までで、画面本体と本番テナントには未配線です。
 
 ### レイヤー構造（依存の向き）
 
@@ -155,7 +172,8 @@ src/
 │  └─ store/        ✅ EditorStore（zustand）と供給層
 ├─ infrastructure/  ✅一部
 │  ├─ autosave/     ✅ IndexedDB 自動保存（配線済み）
-│  └─ auth/         🟡 Cloudflare Access identity（部品のみ・未配線）
+│  ├─ auth/         🟡 Cloudflare Access identity（部品のみ・未配線）
+│  └─ cloud/        🟡 Workers APIクライアント契約（CAD画面へ配線済み・本番未接続）
 ├─ application/     ⬜ ユースケースの窓口（ports・services・commands）雛形
 ├─ features/ pages/ stores/ components/ workers/   ⬜ 雛形（Phase 2 以降）
 └─ main.tsx         ✅ エントリポイント
@@ -228,7 +246,7 @@ quadrantChart
 
 ## ✨ 目指す機能
 
-> ⚠️ この節は**製品ビジョンとしての目標機能**を示します。現時点で動くのは「[✅ 実装済み機能](#-実装済み機能phase-1-時点)」に挙げた範囲で、測点・座標、仮設・重機、土工、数量、施工ステップ、改訂・照査の大半はPhaseロードマップのPhase 2以降で実装します。「ある」と読み取らないでください。
+> ⚠️ この節は**製品ビジョンとしての目標機能**を示します。現時点で製品機能として動く範囲、試作として存在する範囲、未配線の範囲は「[✅ 実装済み機能](#-実装済み機能現時点)」で区別しています。測点・座標、仮設・重機、土工、数量、施工ステップ、改訂・照査は部品や画面があっても、実案件ワークフローとして完成しているとは読み取らないでください。
 
 ### 📐 基本作図・編集
 
@@ -503,12 +521,14 @@ timeline
 | Phase | 状態 | 到達点 |
 | --- | --- | --- |
 | 0 | ✅ 完了 | 継承するもの、改修するもの、作り直すものが確定している |
-| 1 | 🚧 進行中 | ブラウザで図面を作成・保存・復旧・PDF出力できる |
-| 2 | ⬜ 未着手 | 測点と座標を使った施工平面図を作成できる |
-| 3 | ⬜ 未着手 | 施工・仮設計画図を定型・条件入力で作成できる |
-| 4 | ⬜ 未着手 | 図形から数量根拠を確認・出力できる |
-| 5 | ⬜ 未着手 | 平面・断面・施工段階を関連付けられる |
-| 6 | ⬜ 未着手 | 代表利用者が実務利用可否をUATで判定できる |
+| 1 | ✅ コア実装済み | ブラウザで図面を作成・保存・復旧・PDF出力できる |
+| 2 | 🟡 ドメイン/UI試作 | 測点と座標を使った施工平面図を作成できる |
+| 3 | 🟡 ドメイン/UI試作 | 施工・仮設計画図を定型・条件入力で作成できる |
+| 4 | 🟡 ドメイン/UI試作 | 図形から数量根拠を確認・出力できる |
+| 5 | 🟡 ドメイン/UI試作 | 平面・断面・施工段階を関連付けられる |
+| 6 | 🟡 P0 API縦線 | 共有・承認・監査のデータ契約を固め、代表利用者がUATで判定できる |
+
+> 🟡 は「コードや画面は存在するが、実案件保存・CAD本体との双方向連動・権限/監査・運用検証まで閉じていない」状態です。READMEでは、この状態を完成品として扱いません。
 
 ### MVP
 
@@ -555,9 +575,30 @@ timeline
 | 2026-07-15 | 🔤 PDF日本語フォント同梱（Noto Sans JP・OFL、DD-TBD-006確定、PR #29マージ）。函渠等レア漢字も埋込可 |
 | 2026-07-15 | 🚀 ホスティング確定: Cloudflare Workers Static Assets（人間承認）。CI: 全ブランチPRトリガー+SBOMジョブ（PR #27マージ、Issue #12/#17完了） |
 | 2026-07-15 | 📊 最終: **テスト646/646**・オープンIssueは設計課題4件のみ（#23/#24/#25実機検証待ち・#26 P3） |
-| 2026-07-15 | 🚀 **Phase 2-6 完全実装（PR #31）**: 測量・線形（§12/§13）/ パラメトリック7種（§15）/ 属性・数量集計（§14/§17）/ 断面・土量・施工ステップ（§16/§18）/ 承認ワークフロー・図面差分（§19/§20）/ 独自ファイル形式・Workers 18エンドポイント骨格・Neon 12テーブルDDL（§22/§25/§26） |
-| 2026-07-15 | 🖥️ 業務画面7枚実装: 測点・座標一覧 / 土木部材パレット / 数量集計 / 縦横断管理 / 施工ステップ（CAD描画連動）/ 図面比較 / 照査・承認 — サイドバー全ナビが有効化 |
+| 2026-07-15 | 🟡 **Phase 2-6相当の試作実装（PR #31）**: 測量・線形（§12/§13）/ パラメトリック7種（§15）/ 属性・数量集計（§14/§17）/ 断面・土量・施工ステップ（§16/§18）/ 承認ワークフロー・図面差分（§19/§20）/ 独自ファイル形式・Workers 18エンドポイント骨格・Neon 12テーブルDDL（§22/§25/§26） |
+| 2026-07-17 | 🟡 Workers API P0縦線を実装: Project作成/更新 → Drawing作成/更新 → Revision作成 → Content/数量保存 → 照査/承認 → Export作成 → Audit検索。全18経路が501ではなく業務応答または入力/認可エラーを返す状態にし、案件メンバー認可とメタデータ/内容/数量更新の楽観ロックも追加。開発/テスト用インメモリストアで契約を固定し、本番Neon/R2接続は人間承認前の残課題として分離 |
+| 2026-07-17 | 🐘 Neon migration 0002を追加: Workers API P0契約に合わせ、quantity_snapshots、数量version、Exportメタ、R2メタ、監査ログ hash chain 列を前方互換で定義。破壊的DDLを含まないことを単体テストで検証 |
+| 2026-07-17 | 🛡️ Workers永続化境界を分離: `ApiStore`/`MemoryStore`/`persistence`契約を分け、`neon-r2` モードが未接続の場合はインメモリへフォールバックせず 503 で停止 |
+| 2026-07-17 | 🟡 ブラウザ側 Workers APIクライアントを追加し、CAD編集画面の「共有保存」「共有再読込」へ配線: `CivilDraftApiClient` から Project作成 → Drawing作成 → Revision作成 → Content保存/再読込 → Export作成を実行可能にし、実Workersハンドラ差し込みテストと画面テストで検証。本番Neon/R2接続は後続 |
+| 2026-07-17 | 🟡 共有保存の案件・図面コンテキストをサンプル固定から画面注入型へ改善: 案件詳細の図面行クリックで案件番号/図面番号/改訂番号をCAD編集へ渡し、共有保存ペイロードとヘッダー表示へ反映。統合テストでナビゲーション経由の受け渡しを検証 |
+| 2026-07-17 | ✅ VitestをNode/jsdomプロジェクトへ分離し、NAS/Windows環境でも一括テストが完走するよう改善。`npm run test -- --reporter=dot` で96ファイル・1048テストpass |
+| 2026-07-15 | 🖥️ 業務画面7枚を試作: 測点・座標一覧 / 土木部材パレット / 数量集計 / 縦横断管理 / 施工ステップ / 図面比較 / 照査・承認 — サイドバー全ナビが有効化。CAD本体との双方向連動は後続 |
 | 2026-07-15 | 📊 最終: **テスト1030/1030（×2連続STABLE）**・typecheck/lint/build green |
+
+### 🛠️ 次に閉じるべき実務ワークフロー
+
+80〜90%代替を狙う前に、次の順で「縦に1本」動く範囲を完成させます。
+
+| 優先 | 対応 | 完了条件 |
+| --- | --- | --- |
+| P0 | README/設計文書と実装状態の同期 | 実装済み・試作・未配線・未実装が外向け文書で混同されない |
+| P0 | Workers APIの最小縦線 | ✅ Project作成/更新 → Drawing作成/更新 → Revision作成 → Content/数量保存 → 照査/承認 → Export作成 → Audit記録、案件メンバー認可、楽観ロックを開発用ストアで実装。Neon 0001/0002 migrationと永続化モード安全ガードも契約固定済み。次はNeon/R2アダプタ本体とAccessテナント設定 |
+| P0 | ブラウザ側共有保存クライアント | ✅ `CivilDraftApiClient` でWorkers P0縦線を呼び出し、CAD編集画面の「共有保存」「共有再読込」からクラウド保存・再読込経路を実行可能。案件詳細の図面行から案件/図面/改訂メタデータを渡す導線も実装。次は案件一覧/検索/複製/アーカイブの実データ化、本番Neon/R2アダプタ、複数利用者/権限E2E |
+| P0 | CAD編集UIの基本セット配線 | Trim/Extend/Offset/Fillet/Move/Copy/Rotate/Mirror/Scale/Explode/Joinのうち優先コマンドを画面操作から実行できる |
+| P1 | レイヤー・寸法・印刷の実務化 | 線種/線幅/ロック/印刷尺度/寸法/注記を納品図面として確認できる |
+| P1 | 土木差別化の図面連動 | 数量表・測点・横断・施工ステップから該当図形をハイライト/更新できる |
+| P1 | ファイル互換方針 | DXF対応範囲、JWW/SXF調査、DWG変換方針（ODA等）を明記する |
+| P2 | E2E/性能試験 | 大規模図面、Undo大量操作、DXF読込、PDF出力、クラウド保存をPlaywright等で保護する |
 
 ### Pull Request（全件マージ済み 🎉）
 
@@ -641,10 +682,12 @@ flowchart LR
 
 | ジョブ | 内容 | 必須チェック |
 | --- | --- | --- |
-| `Lint / Typecheck / Test / Build` | ESLint → `tsc --noEmit` → Vitest → `vite build`を直列実行 | ✅ mainブランチ保護で必須化済み |
+| `Lint / Typecheck / Test / Build` | ESLint → `tsc --noEmit` → Vitest（node/jsdom 2プロジェクト）→ `vite build`を直列実行 | ✅ mainブランチ保護で必須化済み |
 | `Dependency Audit` | `npm audit --audit-level=high` | ✅ mainブランチ保護で必須化済み |
 
 `main`ブランチはPR必須・レビュー承認1件必須・上記2チェック成功必須（`strict`のためブランチ最新化も要求）・force push禁止・削除禁止で保護されています。
+
+> 2026-07-17時点のローカル検証では、`npm run test -- --reporter=dot` が96ファイル・1048テストpassで完走しています。NAS/Windows環境ではjsdomテストの起動コストが大きいため、Vitestは `node`（domain/shared/workers/cloud client）と `jsdom`（app/infrastructure/integration）に分離しています。
 
 ---
 
@@ -667,7 +710,7 @@ npm ci
 npm run dev
 ```
 
-> `.env`を使う機能（Cloudflare/Neon連携）はPhase 1後半以降で導入予定。現時点ではローカル起動に環境変数は不要です。
+> `.env`を使う本番接続機能（Cloudflare/Neon/R2のSecret連携）は未適用です。現時点ではローカル起動に環境変数は不要です。
 
 ### 利用可能なコマンド
 
@@ -680,7 +723,7 @@ npm run dev
 | `npm run preview` | ビルド結果の確認 |
 | `npm run lint` | ESLint静的検査（レイヤー間依存方向を`no-restricted-imports`で強制） |
 | `npm run typecheck` | TypeScript型検査（`tsc -b --noEmit`） |
-| `npm run test` | 単体・結合テスト（Vitest） |
+| `npm run test` | 単体・結合テスト（Vitest。node/jsdomプロジェクト分離） |
 | `npm run test:watch` | Vitestをwatchモードで実行 |
 | `npm run sbom` | CycloneDX形式のSBOMを生成（`sbom/civildraft-sbom.cdx.json`） |
 | `npm run notices` | サードパーティ表記を生成（`THIRD-PARTY-NOTICES.md`） |
@@ -786,7 +829,7 @@ flowchart TD
 - CivilDraft独自ファイルの拡張子と圧縮方式
 - 対応するDXFバージョンと要素
 - 日本語PDFフォントの方式と配布条件
-- 共有版の正式な認証、Neon接続、Object Storage
+- 共有版の正式な認証、Neon/R2接続、Object Storage署名付きURL発行
 - 数量の標準丸め規則と工種・規格マスター
 
 未決事項は「とりあえず実装」で埋めず、性能・運用・権利・土木実務の確認を経てADRで決定します。
@@ -804,4 +847,3 @@ CivilDraft本体、既存`Civil-Draw`から継承するコード、OSS依存関�
 > `Civil-Draw`のWeb CAD基盤を選択的に継承し、土木座標、施工・仮設計画、数量算出、断面、施工ステップを統合した「土木施工業務のためのWeb CAD」へ発展させる。
 
 CivilDraftは、いきなり巨大な万能CADを目指しません。現場で繰り返されている作図・転記・説明・照査を一つずつ確実に減らし、土木施工の知識を再利用できる道具として育てていきます。
-

@@ -1,10 +1,11 @@
 # 📌 リリース手順書（Release Procedure）
 
-> **対象フェーズ: Phase 1（未デプロイ段階）。本番ホスティング確定時に改訂する。**
+> **対象フェーズ: フロントエンドSPA + Workers API P0縦線（未デプロイ段階）。**
 >
-> 本プロジェクトは Phase 1 MVP 開発中の**フロントエンドのみ**（Vite + React SPA）です。
-> バックエンド / DB（Cloudflare Workers + Neon PostgreSQL）は Phase 6 で導入予定であり、
-> 本番ホスティングは**未選定・未デプロイ**です。したがって本書は
+> 本プロジェクトは Phase 1 MVP を起点に、現在は**フロントエンドSPA + Workers API P0縦線**まで拡張中です。
+> Cloudflare Workers API は開発/テスト用ストアで Project/Drawing/Revision/Content/Quantities/Workflow/Export/Audit、案件メンバー認可、メタデータ/内容/数量更新の楽観ロック契約を固定済みです。
+> ブラウザ側は `CivilDraftApiClient` で Project作成 → Drawing作成 → Revision作成 → Content保存/再読込 → Export作成の契約を呼び出せます。CAD編集画面の「共有保存」「共有再読込」ボタンからこの経路へ配線済みで、案件詳細の図面行から案件/図面/改訂メタデータを保存ペイロードへ渡せます。本番Neon/R2接続は後続です。
+> Neon PostgreSQL / R2 の本番接続と Cloudflare Access テナント設定は人間決裁前の残課題です。したがって本書は
 > 「成果物（`dist/`）を生成・検証し、人間がリリース可否を判断できる状態に整える」
 > ところまでを正式手順とし、本番配置は §6（Cloudflare Workers Static Assets、2026-07-15 確定）に従い人間が実行します。
 
@@ -14,9 +15,11 @@
 
 | 項目 | Phase 1 での実態 |
 | --- | --- |
-| リリース対象 | 静的成果物 `dist/`（Vite ビルド出力、SPA） |
+| リリース対象 | 静的成果物 `dist/`（Vite ビルド出力、SPA）+ Workers API P0契約 |
 | 配置先 | ✅ **Cloudflare Workers（Static Assets）に確定**（2026-07-15 人間承認） |
-| バックエンド | Phase 6 まで無し（フロント単体で完結、IndexedDB ローカル保存） |
+| バックエンド | Workers API P0縦線あり（18経路の業務応答化、開発/テスト用インメモリストア、永続化モード安全ガード）。本番Neon/R2接続は未適用 |
+| DB migration | `0001_initial_schema.sql` + `0002_api_contract_alignment.sql` を dev ブランチで検証してから人間承認で本番適用 |
+| ブラウザ側API接続 | `CivilDraftApiClient` でWorkers P0縦線を呼び出す契約あり。CAD編集画面の「共有保存」「共有再読込」から実行可能。案件詳細から選択した案件/図面/改訂メタデータを保存ペイロードへ反映。本番Neon/R2接続はリリース前残課題 |
 | リリース判断者 | 🚫 **人間（バージョンタグ・本番配置は人間実行）**。CTO は提案・準備まで |
 
 > Phase 1 の「リリース準備完了」とは、**全品質ゲートが green・脆弱性0・成果物検証済み・README 最新・PR 承認済み**の状態を指す。
@@ -54,6 +57,9 @@ npm run lint && npm run typecheck && npm test && npm run build && npm audit --au
 | 9 | README 最新化 | `README.md` の進捗・CI 実態・コマンド表 | 実装と乖離が無い（CLAUDE.md §17 基準） |
 | 10 | CI green | GitHub Actions（`.github/workflows/ci.yml`） | `quality` / `security` 両ジョブ success |
 | 11 | PR 承認 | 対象 PR | ⚠️ `main` 宛は人間承認1件必須・必須チェック成功・ブランチ最新（strict） |
+| 12 | DB migration確認 | `migrations/README.md` | `0001` → `0002` の順序、dev検証、人間承認境界が明記済み |
+| 13 | 永続化モード確認 | `tests/unit/workers/persistence.test.ts` | `neon-r2` 未接続時にメモリへフォールバックせず 503 で停止 |
+| 14 | ブラウザ側API契約確認 | `tests/unit/infrastructure/cloud/civilDraftApiClient.test.ts` / `tests/unit/app/pages/CadEditorPage.test.tsx` | 実Workersハンドラ差し込みで保存・再読込・Export作成が成功し、CAD編集画面の共有保存/再読込UIが成功/失敗を表示 |
 
 > **SBOM / NOTICES の再生成タイミング**: 依存関係（`package.json` の dependencies）が変わった時、およびリリース準備時。
 > どちらも生成物であり手動編集不可（次回生成で失われる）。詳細は運用手順書（`operations-manual.md`）を参照。
@@ -65,8 +71,9 @@ npm run lint && npm run typecheck && npm test && npm run build && npm audit --au
 | 品質 | lint / typecheck / test / build / audit すべて green | ☐ |
 | 成果物 | `dist/` 生成・SBOM・NOTICES 再生成済み | ☐ |
 | 法務 | dependency-hygiene 手順で人間がライセンス判断済み | ☐ |
-| 文書 | README・設計文書がコードと同期 | ☐ |
+| 文書 | README・設計文書・migration/rollback手順がコードと同期 | ☐ |
 | CI | GitHub Actions 2 ジョブ success | ☐ |
+| API | Workers契約・ブラウザ側APIクライアント契約がgreen | ☐ |
 | 承認 | 対象 PR に人間承認（`main` 宛） | ☐ |
 
 ---
@@ -122,8 +129,8 @@ npm run build      # tsc -b（型検査つきコンパイル）→ vite build
 npm run preview    # dist/ をローカルサーバーで配信し、実ブラウザで確認
 ```
 
-> Phase 1 は SPA 単体のため、成果物検証はローカル `preview` での目視確認が中心。
-> E2E・性能・権限テストは Phase 1 後半以降に整備予定（README「品質確認」節）。
+> 現時点のローカル `preview` はSPA成果物の確認が中心。
+> Workers APIは `tests/unit/workers/` と `tests/unit/infrastructure/cloud/` の契約テストで検証し、本番Neon/R2接続後にE2E/API実機検証を追加する。
 
 ---
 
@@ -152,13 +159,13 @@ npm run preview    # dist/ をローカルサーバーで配信し、実ブラ�
 | --- | --- | --- |
 | フロント配信 | **Cloudflare Workers + Static Assets**（`dist/` を assets として配信） | ✅ 確定（2026-07-15） |
 | 配置単位 | `dist/` 静的成果物 | ✅ 生成手順は §4 で確定 |
-| バックエンド | 同一 Worker へ API を追加（Phase 6、自然に拡張可能） | ⚠️ Phase 6 |
-| DB | Neon PostgreSQL | ⚠️ Phase 6（ブランチ戦略は `rollback-procedure.md` 参照枠） |
-| 環境変数 / Secret | Workers Secret として管理（フロントには公開可の値のみ） | ⚠️ Phase 6 |
+| バックエンド | 同一 Worker へ API を追加済み（18経路のP0縦線）。`neon-r2` 未接続時は503で停止。静的配信との統合・本番設定は後続 | ⚠️ 未デプロイ |
+| DB | Neon PostgreSQL | ⚠️ スキーマ定義済み・本番適用は人間承認待ち |
+| 環境変数 / Secret | Workers Secret として管理（フロントには公開可の値のみ） | ⚠️ 登録・変更は人間決裁 |
 
 ### 6.1 初回セットアップ（人間実行）
 
-1. `wrangler.jsonc` をリポジトリに追加する（下記テンプレート、PR経由）:
+1. `wrangler.jsonc` をリポジトリに追加する（下記テンプレート、PR経由）。現時点のファイルは本番デプロイ未実行の構成定義であり、API統合Workerへの切替はNeon/R2/Access設定の人間承認後に行う:
 
 ```jsonc
 {
@@ -188,7 +195,8 @@ npm run preview    # dist/ をローカルサーバーで配信し、実ブラ�
 | T-2 | ビルド〜配置の自動化範囲（GitHub Actions からの deploy 有無・APIトークン管理） | 🚫 人間 |
 | T-3 | Cloudflare Access のアクセスポリシー（Issue #13 チェックリスト） | 🚫 人間 |
 | T-4 | カスタムドメイン・DNS（当面 `*.workers.dev` で検証公開） | 🚫 人間 |
-| T-5 | Phase 6 の Workers API / Neon 接続構成 | 🚫 人間（Phase 6 で ADR 化） |
+| T-5 | Workers API の本番Neon/R2接続構成、Accessグループ割当、Secret登録 | 🚫 人間 |
+| T-6 | `wrangler.jsonc` のAPI統合Worker化（Static Assetsの前段にAPI routingを置くか、別Workerに分けるか） | 🚫 人間 |
 
 ---
 
