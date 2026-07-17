@@ -168,6 +168,7 @@ function withUpdatedAt<T extends Geometry>(geometry: T, patch: Partial<T>): T {
 }
 
 function formatFieldValue(value: unknown): string {
+  if (value === undefined) return '未設定'
   if (typeof value === 'number') return value.toFixed(3)
   if (typeof value === 'boolean') return value ? 'true' : 'false'
   if (typeof value === 'string') return value
@@ -609,6 +610,10 @@ export function CadEditorPage({
     return () => {
       unsubscribe()
       scheduler.dispose()
+      // dispose()はデバウンス中タイマーの破棄のみで保存は行わないため、
+      // 画面離脱直前の未保存差分をここで明示的にflushする。
+      const s = storeApi.getState()
+      void autosaveStore.save({ savedAt: new Date().toISOString(), geometries: s.geometries, layers: s.layers })
     }
   }, [storeApi, autosaveStore])
 
@@ -830,12 +835,12 @@ export function CadEditorPage({
           </div>
           <div style={statusBarStyle}>
             <span style={monoStyle}>
-              {draftCursor !== null ? `X: ${draftCursor.x.toFixed(3)} Y: ${draftCursor.y.toFixed(3)}` : 'X: -- Y: --'}
+              {draftCursor !== null ? `X: ${commaFmt.format(draftCursor.x)} Y: ${commaFmt.format(draftCursor.y)}` : 'X: -- Y: --'}
             </span>
             <span style={{ color: 'var(--side-line)' }}>|</span>
             <span>レイヤー: {activeLayer.name}</span>
             <span style={{ marginLeft: 'auto' }} />
-            <span style={{ color: autosaveStatus.ok ? '#2E9E6B' : '#C5392F' }}>● {autosaveStatus.ok ? '保存済み' : '保存失敗'}</span>
+            <span style={{ color: autosaveStatus.ok ? '#2E9E6B' : '#C5392F' }}>● {autosaveStatus.text}</span>
           </div>
         </div>
 
@@ -896,6 +901,7 @@ export function CadEditorPage({
                 <div style={fieldRowStyle}>
                   <span style={fieldLabelStyle}>不透明度(%)</span>
                   <NumInput
+                    key={`${selected.id}:opacity:${selected.style.opacity}`}
                     value={selected.style.opacity * 100}
                     precision={0}
                     onCommit={(v) => commitStyleUpdate({ opacity: Math.min(100, Math.max(0, v)) / 100 })}
