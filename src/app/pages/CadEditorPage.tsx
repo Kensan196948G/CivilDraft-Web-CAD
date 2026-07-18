@@ -19,9 +19,11 @@ import type { AppView } from '../layout/Sidebar'
 import { createDefaultLayer } from '../store/editorStore'
 import { useEditorStore, useEditorStoreApi } from '../store/useEditorStore'
 import { getCategories, SYMBOL_CATALOG } from '@/domain/catalog/symbolCatalog'
-import { createUpdateGeometryCommand } from '@/domain/commands/geometryCommands'
+import { createAddGeometryCommand, createUpdateGeometryCommand } from '@/domain/commands/geometryCommands'
 import { DEFAULT_CONSTRUCTION_STEPS } from '@/domain/construction-steps'
 import type { ToolType } from '@/domain/tools/draftGeometry'
+import { EDITING_TOOLS, PARAM_EDITING_TOOLS, SELECTION_REQUIRED_TOOLS } from '@/domain/tools/editGeometry'
+import { defaultCreationContext } from '@/domain/geometry/geometryFactory'
 import type { AutosaveStore } from '@/infrastructure/autosave/autosaveStore'
 import { scheduleAutosave } from '@/infrastructure/autosave/autosaveScheduler'
 import {
@@ -31,7 +33,7 @@ import {
   type CloudSaveDraftResult,
 } from '@/infrastructure/cloud/civilDraftApiClient'
 import type { Result, ValidationIssue } from '@/shared/types'
-import type { DrawingLayer, Geometry, GeometryStyle, GeometryType, LayerId } from '@/shared/types'
+import type { DrawingLayer, Geometry, GeometryStyle, GeometryType, HatchPattern, LayerId, Point } from '@/shared/types'
 import { ghostButtonStyle, monoStyle, pageRootStyle, primaryButtonStyle, statusBadgeStyle } from './pageStyles'
 
 export interface CadEditorPageProps {
@@ -148,12 +150,9 @@ const REAL_TOOLS: readonly { readonly tool: ToolType; readonly icon: string; rea
   { tool: 'rectangle', icon: '▭', label: '矩形' },
   { tool: 'circle', icon: '○', label: '円' },
   { tool: 'polyline', icon: '⌇', label: 'ポリライン' },
-]
-
-const UNAVAILABLE_TOOLS: readonly { readonly icon: string; readonly label: string }[] = [
-  { icon: 'A', label: '文字（未実装）' },
-  { icon: '⟺', label: '寸法（未実装）' },
-  { icon: '⧉', label: 'ハッチング（未実装）' },
+  { tool: 'text', icon: 'A', label: '文字' },
+  { tool: 'dimension', icon: '⟺', label: '寸法' },
+  { tool: 'hatch', icon: '⧉', label: 'ハッチング' },
 ]
 
 const commaFmt = new Intl.NumberFormat('ja-JP', { minimumFractionDigits: 3, maximumFractionDigits: 3 })
@@ -178,6 +177,34 @@ function formatFieldValue(value: unknown): string {
     return `(${p.x.toFixed(3)}, ${p.y.toFixed(3)})`
   }
   return String(value)
+}
+
+function getBoundaryPoints(geometry: Geometry): readonly Point[] | null {
+  switch (geometry.type) {
+    case 'polyline':
+      return geometry.closed ? geometry.points : null
+    case 'rectangle': {
+      const { origin, width, height } = geometry
+      return [
+        origin,
+        { x: origin.x + width, y: origin.y },
+        { x: origin.x + width, y: origin.y + height },
+        { x: origin.x, y: origin.y + height },
+      ]
+    }
+    case 'circle': {
+      const { center, radius } = geometry
+      const n = 32
+      const pts: Point[] = []
+      for (let i = 0; i < n; i++) {
+        const a = (2 * Math.PI * i) / n
+        pts.push({ x: center.x + radius * Math.cos(a), y: center.y + radius * Math.sin(a) })
+      }
+      return pts
+    }
+    default:
+      return null
+  }
 }
 
 const sectionLabelStyle: CSSProperties = {
@@ -495,6 +522,34 @@ const toolButtonActiveStyle: CSSProperties = {
 
 const toolButtonDisabledStyle: CSSProperties = { ...toolButtonStyle, opacity: 0.35, cursor: 'not-allowed' }
 
+const miniButtonStyle: CSSProperties = {
+  width: 22,
+  height: 22,
+  display: 'flex',
+  alignItems: 'center',
+  justifyContent: 'center',
+  border: 'none',
+  borderRadius: 4,
+  background: 'transparent',
+  cursor: 'pointer',
+  fontSize: 11,
+  font: 'inherit',
+  padding: 0,
+  flexShrink: 0,
+}
+
+const miniSelectStyle: CSSProperties = {
+  width: 48,
+  padding: '0 2px',
+  border: '1px solid var(--line)',
+  borderRadius: 4,
+  background: 'var(--surface)',
+  color: 'var(--ink2)',
+  fontSize: 10,
+  font: 'inherit',
+  flexShrink: 0,
+}
+
 const tagChipStyle: CSSProperties = {
   fontSize: 11,
   padding: '2px 8px',
@@ -549,6 +604,50 @@ function isDocumentContent(content: unknown): content is {
   return Array.isArray(record.geometries) && Array.isArray(record.layers)
 }
 
+const editParamRowStyle: CSSProperties = {
+  display: 'flex',
+  alignItems: 'center',
+  gap: 8,
+  fontSize: 11,
+  color: 'var(--ink2)',
+}
+
+const editParamInputStyle: CSSProperties = {
+  width: 72,
+  padding: '3px 6px',
+  border: '1px solid var(--line)',
+  borderRadius: 4,
+  background: 'var(--surface)',
+  color: 'var(--ink)',
+  fontSize: 11,
+  font: 'inherit',
+  textAlign: 'right',
+}
+
+function ParamInputControl({
+  label,
+  value,
+  onChange,
+}: {
+  readonly label: string
+  readonly value: number
+  readonly onChange: (v: number) => void
+}) {
+  return (
+    <div style={editParamRowStyle}>
+      <span style={{ whiteSpace: 'nowrap' }}>{label}</span>
+      <input
+        type="number"
+        value={value}
+        min={0.1}
+        step={1}
+        style={editParamInputStyle}
+        onChange={(e) => onChange(Number(e.target.value) || 0)}
+      />
+    </div>
+  )
+}
+
 export function CadEditorPage({
   autosaveStore,
   onNavigate,
@@ -564,9 +663,14 @@ export function CadEditorPage({
   const layers = useEditorStore((s) => s.layers)
   const selectedIds = useEditorStore((s) => s.selectedIds)
   const activeTool = useEditorStore((s) => s.activeTool)
+  const activeEditingTool = useEditorStore((s) => s.activeEditingTool)
+  const editingOffsetDistance = useEditorStore((s) => s.editingOffsetDistance)
+  const editingFilletRadius = useEditorStore((s) => s.editingFilletRadius)
+  const editingChamferDist = useEditorStore((s) => s.editingChamferDist)
   const gridVisible = useEditorStore((s) => s.gridVisible)
   const currentStepId = useEditorStore((s) => s.currentStepId)
   const draftCursor = useEditorStore((s) => s.draftCursor)
+  const draftPoints = useEditorStore((s) => s.draftPoints)
   const activeLayerId = useEditorStore((s) => s.activeLayerId)
   const canUndo = useEditorStore((s) => s.undoStack.length > 0)
   const canRedo = useEditorStore((s) => s.redoStack.length > 0)
@@ -581,6 +685,12 @@ export function CadEditorPage({
   } | null>(null)
   const [cloudSaving, setCloudSaving] = useState(false)
   const [lastCloudRevisionId, setLastCloudRevisionId] = useState<string | null>(null)
+
+  const [textInputValue, setTextInputValue] = useState('')
+  const [textFontSize, setTextFontSize] = useState(14)
+  const [hatchPattern, setHatchPattern] = useState<HatchPattern>('parallel')
+  const [hatchAngle, setHatchAngle] = useState(0)
+  const [hatchSpacing, setHatchSpacing] = useState(20)
 
   useEffect(() => {
     const scheduler = scheduleAutosave(
@@ -636,6 +746,60 @@ export function CadEditorPage({
     if (selected === null) return
     const next = withUpdatedAt(selected, { style: { ...selected.style, ...patch } })
     storeApi.getState().dispatchCommand(createUpdateGeometryCommand(selected, next))
+  }
+
+  const handlePlaceText = () => {
+    const point = draftPoints[0]
+    if (point === undefined || textInputValue.trim() === '') return
+    const ctx = defaultCreationContext
+    const timestamp = ctx.now()
+    const textGeom: Geometry = {
+      id: ctx.newId(),
+      layerId: activeLayer.id,
+      type: 'text',
+      style: activeLayer.defaultStyle,
+      constructionStepIds: [],
+      locked: false,
+      createdAt: timestamp,
+      updatedAt: timestamp,
+      anchor: point,
+      text: textInputValue,
+      height: textFontSize,
+      rotationDeg: 0,
+      horizontalAlign: 'left',
+    }
+    storeApi.getState().dispatchCommand(createAddGeometryCommand(textGeom, ctx))
+    storeApi.getState().cancelDraft()
+    setTextInputValue('')
+  }
+
+  const handleCancelText = () => {
+    storeApi.getState().cancelDraft()
+    setTextInputValue('')
+  }
+
+  const handleApplyHatch = () => {
+    if (selected === null) return
+    const boundaryPoints = getBoundaryPoints(selected)
+    if (boundaryPoints === null) return
+    const ctx = defaultCreationContext
+    const timestamp = ctx.now()
+    const hatchGeom: Geometry = {
+      id: ctx.newId(),
+      layerId: activeLayer.id,
+      type: 'hatch',
+      style: activeLayer.defaultStyle,
+      constructionStepIds: [],
+      locked: false,
+      createdAt: timestamp,
+      updatedAt: timestamp,
+      boundaryPoints,
+      pattern: hatchPattern,
+      angleDeg: hatchAngle,
+      spacing: hatchSpacing,
+    }
+    storeApi.getState().dispatchCommand(createAddGeometryCommand(hatchGeom, ctx))
+    storeApi.getState().clearSelection()
   }
 
   const runCloudSave = async () => {
@@ -789,13 +953,101 @@ export function CadEditorPage({
                   {icon}
                 </button>
               ))}
-              {UNAVAILABLE_TOOLS.map(({ icon, label }) => (
-                <button key={icon} title={label} disabled style={toolButtonDisabledStyle}>
-                  {icon}
-                </button>
-              ))}
             </div>
           </div>
+
+          <div style={{ marginBottom: 20 }}>
+            <div style={sectionLabelStyle}>編集</div>
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 6 }}>
+              {EDITING_TOOLS.map(({ tool, icon, label }) => {
+                const isActive = activeEditingTool === tool
+                const needsSelection = SELECTION_REQUIRED_TOOLS.has(tool)
+                const disabled = needsSelection && selectedIds.length === 0
+                return (
+                  <button
+                    key={tool}
+                    title={label}
+                    aria-pressed={isActive}
+                    disabled={disabled}
+                    style={
+                      disabled
+                        ? toolButtonDisabledStyle
+                        : isActive
+                          ? toolButtonActiveStyle
+                          : toolButtonStyle
+                    }
+                    onClick={() => {
+                      if (isActive) {
+                        storeApi.getState().activateEditingTool(null)
+                      } else {
+                        storeApi.getState().activateEditingTool(tool)
+                      }
+                    }}
+                  >
+                    {icon}
+                  </button>
+                )
+              })}
+            </div>
+            {activeEditingTool !== null && PARAM_EDITING_TOOLS.has(activeEditingTool) && (
+              <div style={{ marginTop: 8, padding: '8px 10px', borderRadius: 6, background: 'var(--subtle)', border: '1px solid var(--line)', display: 'flex', flexDirection: 'column', gap: 4 }}>
+                {activeEditingTool === 'offset' && (
+                  <ParamInputControl
+                    label="距離 (mm)"
+                    value={editingOffsetDistance}
+                    onChange={(v) => storeApi.getState().setEditingOffsetDistance(v)}
+                  />
+                )}
+                {activeEditingTool === 'fillet' && (
+                  <ParamInputControl
+                    label="半径 (mm)"
+                    value={editingFilletRadius}
+                    onChange={(v) => storeApi.getState().setEditingFilletRadius(v)}
+                  />
+                )}
+                {activeEditingTool === 'chamfer' && (
+                  <ParamInputControl
+                    label="距離 (mm)"
+                    value={editingChamferDist}
+                    onChange={(v) => storeApi.getState().setEditingChamferDist(v)}
+                  />
+                )}
+              </div>
+            )}
+          </div>
+
+          {activeTool === 'text' && draftPoints.length >= 1 && (
+            <div style={{ marginBottom: 20, padding: '12px 14px', borderRadius: 8, background: 'var(--subtle)', border: '1px solid var(--line)' }}>
+              <div style={sectionLabelStyle}>文字入力</div>
+              <input
+                type="text"
+                placeholder="文字を入力..."
+                value={textInputValue}
+                style={{ ...fieldInputStyle, width: '100%', textAlign: 'left', marginBottom: 8 }}
+                onChange={(e) => setTextInputValue(e.target.value)}
+                onKeyDown={(e) => { if (e.key === 'Enter') handlePlaceText() }}
+              />
+              <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 8 }}>
+                <span style={{ fontSize: 12, color: 'var(--ink2)', whiteSpace: 'nowrap' }}>文字高さ:</span>
+                <input
+                  type="number"
+                  value={textFontSize}
+                  min={4}
+                  max={200}
+                  style={{ ...fieldInputStyle, width: 64 }}
+                  onChange={(e) => setTextFontSize(Math.max(4, Math.min(200, Number(e.target.value) || 14)))}
+                />
+              </div>
+              <div style={{ display: 'flex', gap: 6 }}>
+                <button style={{ ...primaryButtonStyle, flex: 1, justifyContent: 'center' }} onClick={handlePlaceText}>
+                  配置
+                </button>
+                <button style={{ ...ghostButtonStyle, flex: 1 }} onClick={handleCancelText}>
+                  取消
+                </button>
+              </div>
+            </div>
+          )}
 
           <div style={{ marginBottom: 20 }}>
             <div style={sectionLabelStyle}>土木部材</div>
@@ -817,15 +1069,110 @@ export function CadEditorPage({
           </div>
 
           <div>
-            <div style={sectionLabelStyle}>レイヤー</div>
-            {layers.map((layer) => (
-              <label
-                key={layer.id}
-                style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 12.5, color: 'var(--ink2)', marginBottom: 6 }}
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 8 }}>
+              <div style={sectionLabelStyle}>レイヤー</div>
+              <button
+                style={{ ...ghostButtonStyle, padding: '2px 8px', fontSize: 11 }}
+                onClick={() => storeApi.getState().addLayer(`レイヤー${layers.length + 1}`)}
               >
-                <input type="checkbox" checked={layer.visible} onChange={() => storeApi.getState().toggleLayerVisible(layer.id)} />
-                {layer.name}
-              </label>
+                + 新規
+              </button>
+            </div>
+            {[...layers].sort((a, b) => a.order - b.order).map((layer) => (
+              <div
+                key={layer.id}
+                style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: 4,
+                  fontSize: 11.5,
+                  color: 'var(--ink2)',
+                  marginBottom: 4,
+                  padding: '4px 6px',
+                  borderRadius: 6,
+                  background: layer.id === activeLayerId ? 'var(--hover)' : 'transparent',
+                  border: layer.id === activeLayerId ? '1px solid var(--line)' : '1px solid transparent',
+                }}
+              >
+                <button
+                  title="表示/非表示"
+                  style={{ ...miniButtonStyle, color: layer.visible ? 'var(--ink)' : 'var(--muted)' }}
+                  onClick={() => storeApi.getState().toggleLayerVisible(layer.id)}
+                >
+                  {layer.visible ? '👁' : '─'}
+                </button>
+                <button
+                  title={layer.locked ? 'ロック解除' : 'ロック'}
+                  style={{ ...miniButtonStyle, color: layer.locked ? '#C5392F' : 'var(--muted)' }}
+                  onClick={() => storeApi.getState().toggleLayerLock(layer.id)}
+                >
+                  {layer.locked ? '🔒' : '🔓'}
+                </button>
+                <button
+                  title={layer.printable ? '印刷: 有効' : '印刷: 無効'}
+                  style={{ ...miniButtonStyle, color: layer.printable ? 'var(--ink)' : 'var(--muted)', fontSize: 10 }}
+                  onClick={() => storeApi.getState().toggleLayerPrintable(layer.id)}
+                >
+                  🖨
+                </button>
+                <input
+                  type="text"
+                  defaultValue={layer.name}
+                  style={{
+                    flex: 1,
+                    minWidth: 0,
+                    border: 'none',
+                    background: 'transparent',
+                    color: layer.id === activeLayerId ? 'var(--ink)' : 'var(--ink2)',
+                    fontSize: 11.5,
+                    fontWeight: layer.id === activeLayerId ? 600 : 400,
+                    font: 'inherit',
+                    padding: '2px 4px',
+                    borderRadius: 4,
+                  }}
+                  onBlur={(e) => {
+                    if (e.target.value.trim() && e.target.value !== layer.name) {
+                      storeApi.getState().updateLayerName(layer.id, e.target.value.trim())
+                    }
+                  }}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter') (e.target as HTMLInputElement).blur()
+                  }}
+                />
+                <select
+                  title="線幅"
+                  value={layer.defaultStyle.strokeWidth}
+                  style={{ ...miniSelectStyle }}
+                  onChange={(e) => storeApi.getState().updateLayerLineWidth(layer.id, Number(e.target.value))}
+                >
+                  {[0.5, 1, 1.5, 2, 3, 4, 5].map((w) => (
+                    <option key={w} value={w}>{w}px</option>
+                  ))}
+                </select>
+                <button
+                  title="上へ"
+                  style={miniButtonStyle}
+                  onClick={() => storeApi.getState().reorderLayer(layer.id, 'up')}
+                >
+                  ▲
+                </button>
+                <button
+                  title="下へ"
+                  style={miniButtonStyle}
+                  onClick={() => storeApi.getState().reorderLayer(layer.id, 'down')}
+                >
+                  ▼
+                </button>
+                {layers.length > 1 && (
+                  <button
+                    title="レイヤー削除"
+                    style={{ ...miniButtonStyle, color: '#C5392F' }}
+                    onClick={() => storeApi.getState().removeLayer(layer.id)}
+                  >
+                    ✕
+                  </button>
+                )}
+              </div>
             ))}
           </div>
         </aside>
@@ -938,6 +1285,42 @@ export function CadEditorPage({
                 </button>
               </div>
             </>
+          )}
+
+          {activeTool === 'hatch' && selected !== null && getBoundaryPoints(selected) !== null && (
+            <div style={{ padding: '12px 0', borderTop: '1px solid var(--line)', borderBottom: '1px solid var(--line)' }}>
+              <div style={sectionLabelStyle}>ハッチング設定</div>
+              <div style={fieldRowStyle}>
+                <span style={fieldLabelStyle}>パターン</span>
+                <select
+                  value={hatchPattern}
+                  style={fieldInputStyle}
+                  onChange={(e) => setHatchPattern(e.target.value as HatchPattern)}
+                >
+                  <option value="parallel">平行線</option>
+                  <option value="cross">クロス</option>
+                  <option value="gravel">砂利</option>
+                  <option value="earth">土</option>
+                  <option value="concrete">コンクリート</option>
+                  <option value="rock">岩</option>
+                  <option value="asphalt">アスファルト</option>
+                  <option value="wood">木材</option>
+                  <option value="steel">鋼材</option>
+                  <option value="water">水</option>
+                </select>
+              </div>
+              <div style={fieldRowStyle}>
+                <span style={fieldLabelStyle}>角度(°)</span>
+                <NumInput key={`hatch-angle:${hatchAngle}`} value={hatchAngle} precision={0} onCommit={setHatchAngle} />
+              </div>
+              <div style={fieldRowStyle}>
+                <span style={fieldLabelStyle}>間隔(mm)</span>
+                <NumInput key={`hatch-spacing:${hatchSpacing}`} value={hatchSpacing} precision={1} onCommit={setHatchSpacing} />
+              </div>
+              <button style={{ ...primaryButtonStyle, width: '100%', justifyContent: 'center', marginTop: 8 }} onClick={handleApplyHatch}>
+                ハッチングを適用
+              </button>
+            </div>
           )}
 
           <div style={disclaimerBoxStyle}>

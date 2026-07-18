@@ -13,6 +13,7 @@
  * （エディタで保存したスナップショットをホームの復旧候補から見えるようにするため）。
  */
 import { useMemo, useState } from 'react'
+import { ErrorBoundary } from './ErrorBoundary'
 import { Sidebar } from './layout/Sidebar'
 import type { AppView } from './layout/Sidebar'
 import { CadEditorPage, DEFAULT_CLOUD_DRAFT_SESSION } from './pages/CadEditorPage'
@@ -123,8 +124,10 @@ function AppShell() {
 
 export function App() {
   return (
-    <EditorStoreProvider>
-      <AppShell />
-    </EditorStoreProvider>
+    <ErrorBoundary>
+      <EditorStoreProvider>
+        <AppShell />
+      </EditorStoreProvider>
+    </ErrorBoundary>
   )
 }

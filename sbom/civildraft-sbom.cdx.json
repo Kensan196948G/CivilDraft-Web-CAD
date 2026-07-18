@@ -2480,6 +2480,44 @@
       ]
     },
     {
+      "bom-ref": "@neondatabase/serverless@1.1.0",
+      "type": "library",
+      "name": "@neondatabase/serverless",
+      "version": "1.1.0",
+      "scope": "required",
+      "author": "Neon",
+      "description": "node-postgres for serverless environments from neon.com",
+      "purl": "pkg:npm/%40neondatabase/serverless@1.1.0",
+      "properties": [],
+      "externalReferences": [
+        {
+          "type": "distribution",
+          "url": "https://registry.npmjs.org/@neondatabase/serverless/-/serverless-1.1.0.tgz"
+        },
+        {
+          "type": "vcs",
+          "url": "git+https://github.com/neondatabase/serverless.git"
+        },
+        {
+          "type": "website",
+          "url": "https://neon.com"
+        }
+      ],
+      "hashes": [
+        {
+          "alg": "SHA-512",
+          "content": "af76598518c471f11d288667a01d51bac360bc7b9a051a9f0b35781a2fb903dc945f44b81d3c2cfc0496aadd77c0be32e08fb4aeab1619d036c3b1105c78b7f9"
+        }
+      ],
+      "licenses": [
+        {
+          "license": {
+            "id": "MIT"
+          }
+        }
+      ]
+    },
+    {
       "bom-ref": "@pdf-lib/fontkit@1.1.1",
       "type": "library",
       "name": "@pdf-lib/fontkit",
@@ -12913,6 +12951,7 @@
     {
       "ref": "civildraft-web-cad@0.1.0",
       "dependsOn": [
+        "@neondatabase/serverless@1.1.0",
         "@pdf-lib/fontkit@1.1.1",
         "dxf-parser@1.1.2",
         "dxf-writer@1.18.4",
@@ -13306,6 +13345,10 @@
         "@jridgewell/resolve-uri@3.1.2",
         "@jridgewell/sourcemap-codec@1.5.5"
       ]
+    },
+    {
+      "ref": "@neondatabase/serverless@1.1.0",
+      "dependsOn": []
     },
     {
       "ref": "@pdf-lib/fontkit@1.1.1",

@@ -6,6 +6,11 @@ import {
   createTransformGeometriesCommand,
   createUpdateGeometryCommand,
   createUpdateLayerCommand,
+  createMoveGeometriesCommand,
+  createCopyGeometriesCommand,
+  createFilletGeometriesCommand,
+  createChamferGeometriesCommand,
+  createTrimGeometryCommand,
 } from '@/domain/commands/geometryCommands'
 import type { DocumentState } from '@/domain/commands/editorCommand'
 import type { GeometryCreationContext } from '@/domain/geometry/geometryFactory'
@@ -212,5 +217,109 @@ describe('メモリ効率（R-001: 全スナップショット方式との比較
     const payloadLen = JSON.stringify(commands.map((c) => c.payload)).length
     const snapshotEquivalentLen = JSON.stringify(geometries).length * 100
     expect(snapshotEquivalentLen / payloadLen).toBeGreaterThan(1000)
+  })
+})
+
+describe('MoveGeometriesCommand', () => {
+  it('指定図形を(dx,dy)平行移動し、undoで元に戻る', () => {
+    const ctx = seqContext()
+    const c = circle('c1', 100, 100, 50)
+    const d = doc([c])
+    const cmd = createMoveGeometriesCommand(d, [id('c1')], 50, -30, ctx)
+    const executed = cmd.execute(d)
+    const moved = executed.geometries.find((g) => g.id === 'c1')
+    expect(moved).toBeDefined()
+    if (moved !== undefined && moved.type === 'circle') {
+      expect(moved.center.x).toBe(150)
+      expect(moved.center.y).toBe(70)
+    }
+    const undone = cmd.undo(executed)
+    const restored = undone.geometries.find((g) => g.id === 'c1')
+    if (restored !== undefined && restored.type === 'circle') {
+      expect(restored.center.x).toBe(100)
+      expect(restored.center.y).toBe(100)
+    }
+  })
+
+  it('存在しないidは無視される', () => {
+    const ctx = seqContext()
+    const c = circle('c1', 100, 100, 50)
+    const d = doc([c])
+    const cmd = createMoveGeometriesCommand(d, [id('nonexistent')], 10, 10, ctx)
+    const executed = cmd.execute(d)
+    expect(executed.geometries).toHaveLength(1)
+  })
+})
+
+describe('CopyGeometriesCommand', () => {
+  it('指定図形を複写し、undoで削除される', () => {
+    const ctx = seqContext()
+    const c = circle('c1', 100, 100, 50)
+    const d = doc([c])
+    const cmd = createCopyGeometriesCommand(d, [id('c1')], 50, 0, ctx)
+    const executed = cmd.execute(d)
+    expect(executed.geometries).toHaveLength(2)
+    const copy = executed.geometries.find((g) => g.id !== 'c1')
+    expect(copy).toBeDefined()
+    if (copy !== undefined && copy.type === 'circle') {
+      expect(copy.center.x).toBe(150)
+      expect(copy.center.y).toBe(100)
+    }
+    const undone = cmd.undo(executed)
+    expect(undone.geometries).toHaveLength(1)
+  })
+})
+
+describe('FilletGeometriesCommand', () => {
+  it('交差する2線分にフィレットを適用し、undoで元に戻る', () => {
+    const ctx = seqContext()
+    const l1 = line('l1', { x: 0, y: 50 }, { x: 100, y: 50 })
+    const l2 = line('l2', { x: 50, y: 0 }, { x: 50, y: 100 })
+    const d = doc([l1, l2])
+    const cmd = createFilletGeometriesCommand(d, id('l1'), id('l2'), 10, ctx)
+    if (cmd === null) return
+    const executed = cmd.execute(d)
+    expect(executed.geometries).toHaveLength(3)
+    const undone = cmd.undo(executed)
+    expect(undone.geometries).toHaveLength(2)
+  })
+
+  it('存在しない線分idではnullを返す', () => {
+    const ctx = seqContext()
+    const l1 = line('l1', { x: 0, y: 50 }, { x: 100, y: 50 })
+    const d = doc([l1])
+    expect(createFilletGeometriesCommand(d, id('l1'), id('nonexistent'), 10, ctx)).toBeNull()
+  })
+})
+
+describe('ChamferGeometriesCommand', () => {
+  it('交差する2線分に面取りを適用し、undoで元に戻る', () => {
+    const ctx = seqContext()
+    const l1 = line('l1', { x: 0, y: 50 }, { x: 100, y: 50 })
+    const l2 = line('l2', { x: 50, y: 0 }, { x: 50, y: 100 })
+    const d = doc([l1, l2])
+    const cmd = createChamferGeometriesCommand(d, id('l1'), id('l2'), 10, ctx)
+    if (cmd === null) return
+    const executed = cmd.execute(d)
+    expect(executed.geometries).toHaveLength(3)
+    const undone = cmd.undo(executed)
+    expect(undone.geometries).toHaveLength(2)
+  })
+})
+
+describe('TrimGeometryCommand', () => {
+  it('元線分を削除し分割線分を追加、undoで復元する', () => {
+    const ctx = seqContext()
+    const original = line('orig', { x: 0, y: 50 }, { x: 100, y: 50 })
+    const r1 = line('r1', { x: 0, y: 50 }, { x: 30, y: 50 })
+    const r2 = line('r2', { x: 70, y: 50 }, { x: 100, y: 50 })
+    const d = doc([original])
+    const cmd = createTrimGeometryCommand(d, original, [r1, r2], ctx)
+    const executed = cmd.execute(d)
+    expect(executed.geometries).toHaveLength(2)
+    expect(executed.geometries.find((g) => g.id === 'orig')).toBeUndefined()
+    const undone = cmd.undo(executed)
+    expect(undone.geometries).toHaveLength(1)
+    expect(undone.geometries[0]?.id).toBe('orig')
   })
 })

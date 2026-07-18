@@ -144,3 +144,68 @@ describe('draftGeometry / プレビュー合成', () => {
     ).toBeNull()
   })
 })
+
+describe('draftGeometry / 寸法ツール', () => {
+  it('buildDraftFields dimension: 2点で寸法フィールド生成、水平線の場合は horizontal orientation', () => {
+    const fields = buildDraftFields('dimension', [p(0, 0), p(100, 10)])
+    expect(fields?.type).toBe('dimension')
+    if (fields?.type === 'dimension') {
+      expect(fields.start).toEqual(p(0, 0))
+      expect(fields.end).toEqual(p(100, 10))
+      expect(fields.orientation).toBe('horizontal')
+      expect(fields.offset).toBe(50)
+      expect(fields.textHeight).toBe(12)
+      expect(fields.arrowSize).toBe(8)
+    }
+  })
+
+  it('buildDraftFields dimension: 垂直線の場合は vertical orientation', () => {
+    const fields = buildDraftFields('dimension', [p(0, 0), p(10, 200)])
+    expect(fields?.type).toBe('dimension')
+    if (fields?.type === 'dimension') {
+      expect(fields.orientation).toBe('vertical')
+    }
+  })
+
+  it('buildDraftFields dimension: ゼロ長（始点=終点）は null', () => {
+    expect(buildDraftFields('dimension', [p(5, 5), p(5, 5)])).toBeNull()
+  })
+
+  it('buildDraftFields dimension: 点不足（1点のみ）は null', () => {
+    expect(buildDraftFields('dimension', [p(0, 0)])).toBeNull()
+  })
+
+  it('buildDraftFields text/hatch: 常に null を返す（作図ドラフト方式ではない）', () => {
+    expect(buildDraftFields('text', [p(10, 20)])).toBeNull()
+    expect(buildDraftFields('hatch', [p(10, 20), p(30, 40)])).toBeNull()
+  })
+
+  it('buildDraftPreview dimension: 1点+カーソルで寸法プレビュー、固定IDが付く', () => {
+    const preview = buildDraftPreview({
+      tool: 'dimension',
+      draftPoints: [p(0, 0)],
+      draftCursor: p(100, 0),
+      layerId: base.layerId,
+      style,
+    })
+    expect(preview?.type).toBe('dimension')
+    expect(preview?.id).toBe(DRAFT_PREVIEW_ID)
+    if (preview?.type === 'dimension') {
+      expect(preview.start).toEqual(p(0, 0))
+      expect(preview.end).toEqual(p(100, 0))
+    }
+  })
+
+  it('composeDraftGeometry: dimension フィールドを合成できる', () => {
+    const fields = buildDraftFields('dimension', [p(0, 0), p(100, 0)])
+    expect(fields).not.toBeNull()
+    if (fields === null) return
+    const g = composeDraftGeometry(fields, base)
+    expect(g.type).toBe('dimension')
+    expect(g.layerId).toBe('layer-default')
+    if (g.type === 'dimension') {
+      expect(g.start).toEqual(p(0, 0))
+      expect(g.end).toEqual(p(100, 0))
+    }
+  })
+})

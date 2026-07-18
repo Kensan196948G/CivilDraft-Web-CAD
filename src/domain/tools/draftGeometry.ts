@@ -14,6 +14,7 @@
  */
 import type {
   CircleGeometry,
+  DimensionGeometry,
   Geometry,
   GeometryBase,
   GeometryId,
@@ -24,9 +25,9 @@ import type {
   PolylineGeometry,
   RectangleGeometry,
 } from '@/shared/types'
+import { resolveDimOrientation } from '@/domain/geometry/dimensionEngine'
 
-/** Phase 1 の作図ツール種別（詳細設計仕様書 §8.1）。 */
-export type ToolType = 'select' | 'line' | 'rectangle' | 'circle' | 'polyline'
+export type ToolType = 'select' | 'line' | 'rectangle' | 'circle' | 'polyline' | 'text' | 'dimension' | 'hatch'
 
 /**
  * クリック点数の到達で自動確定するツールと、その必要点数。
@@ -36,6 +37,7 @@ export const AUTO_COMMIT_POINT_COUNT: Partial<Record<ToolType, number>> = {
   line: 2,
   rectangle: 2,
   circle: 2,
+  dimension: 2,
 }
 
 /** 途中プレビュー図形に付与する固定 ID（描画専用・永続化しない）。 */
@@ -53,6 +55,7 @@ export type DraftShapeFields =
   | Pick<RectangleGeometry, 'type' | 'origin' | 'width' | 'height' | 'rotationDeg'>
   | Pick<CircleGeometry, 'type' | 'center' | 'radius'>
   | Pick<PolylineGeometry, 'type' | 'points' | 'closed'>
+  | Pick<DimensionGeometry, 'type' | 'start' | 'end' | 'orientation' | 'offset' | 'textHeight' | 'arrowSize'>
 
 /** GeometryBase 合成に必要な素材（ID・レイヤー・配色・タイムスタンプ）。 */
 export interface DraftGeometryBase {
@@ -123,6 +126,24 @@ export function makePolylineDraft(
   return { type: 'polyline', points: [...points], closed: false }
 }
 
+function makeDimensionDraft(
+  points: readonly Point[],
+): Pick<DimensionGeometry, 'type' | 'start' | 'end' | 'orientation' | 'offset' | 'textHeight' | 'arrowSize'> | null {
+  const [start, end] = points
+  if (start === undefined || end === undefined) return null
+  if (start.x === end.x && start.y === end.y) return null
+  const orientation = resolveDimOrientation('auto', start, end)
+  return {
+    type: 'dimension',
+    start,
+    end,
+    orientation,
+    offset: 50,
+    textHeight: 12,
+    arrowSize: 8,
+  }
+}
+
 /**
  * ツール種別に対応するメーカーへ点列をディスパッチし、図形固有フィールドを得る。
  * 自動確定ツール（line/rectangle/circle）・polyline を横断的に扱う単一の入口。
@@ -138,7 +159,11 @@ export function buildDraftFields(tool: ToolType, points: readonly Point[]): Draf
       return makeCircleDraft(points)
     case 'polyline':
       return makePolylineDraft(points)
+    case 'dimension':
+      return makeDimensionDraft(points)
     case 'select':
+    case 'text':
+    case 'hatch':
       return null
     default: {
       const exhaustive: never = tool
@@ -169,6 +194,8 @@ export function composeDraftGeometry(fields: DraftShapeFields, base: DraftGeomet
     case 'circle':
       return { ...common, ...fields }
     case 'polyline':
+      return { ...common, ...fields }
+    case 'dimension':
       return { ...common, ...fields }
     default: {
       const exhaustive: never = fields

@@ -7,9 +7,11 @@
  * 履歴 LIFO の不変条件下で、あるコマンドの undo は「そのコマンドの execute 直後の状態」に
  * 対して呼ばれるため、DeleteGeometriesCommand は記録した元インデックスへ確実に復元できる。
  */
-import type { DrawingLayer, Geometry, GeometryId } from '@/shared/types'
+import type { DrawingLayer, Geometry, GeometryId, Point } from '@/shared/types'
 import { defaultCreationContext, type GeometryCreationContext } from '@/domain/geometry/geometryFactory'
 import { transformShape, type TransformOp } from '@/domain/geometry/shapeTransform'
+import { filletLines } from '@/domain/geometry/filletEngine'
+import { chamferLines } from '@/domain/geometry/chamferEngine'
 import { createCommand, type DocumentState, type EditorCommand } from './editorCommand'
 
 /** コマンド種別（監査ログ用。SCREAMING_SNAKE で統一）。 */
@@ -19,6 +21,11 @@ export const COMMAND_TYPES = {
   DELETE_GEOMETRIES: 'DELETE_GEOMETRIES',
   TRANSFORM_GEOMETRIES: 'TRANSFORM_GEOMETRIES',
   UPDATE_LAYER: 'UPDATE_LAYER',
+  MOVE_GEOMETRIES: 'MOVE_GEOMETRIES',
+  COPY_GEOMETRIES: 'COPY_GEOMETRIES',
+  FILLET_GEOMETRIES: 'FILLET_GEOMETRIES',
+  CHAMFER_GEOMETRIES: 'CHAMFER_GEOMETRIES',
+  TRIM_GEOMETRY: 'TRIM_GEOMETRY',
 } as const
 
 export interface AddGeometryPayload {
@@ -50,6 +57,43 @@ export interface TransformGeometriesPayload {
 export interface UpdateLayerPayload {
   readonly before: DrawingLayer
   readonly after: DrawingLayer
+}
+
+export interface MoveGeometriesPayload {
+  readonly dx: number
+  readonly dy: number
+  readonly pairs: readonly { readonly before: Geometry; readonly after: Geometry }[]
+}
+
+export interface CopyGeometriesPayload {
+  readonly newGeometries: readonly Geometry[]
+}
+
+export interface FilletGeometriesPayload {
+  readonly line1Id: GeometryId
+  readonly line2Id: GeometryId
+  readonly beforeLine1: Geometry
+  readonly beforeLine2: Geometry
+  readonly afterLine1: Geometry
+  readonly afterLine2: Geometry
+  readonly newArc: Geometry
+}
+
+export interface ChamferGeometriesPayload {
+  readonly line1Id: GeometryId
+  readonly line2Id: GeometryId
+  readonly beforeLine1: Geometry
+  readonly beforeLine2: Geometry
+  readonly afterLine1: Geometry
+  readonly afterLine2: Geometry
+  readonly newLine: Geometry
+}
+
+export interface TrimGeometryPayload {
+  readonly originalId: GeometryId
+  readonly replacementIds: readonly GeometryId[]
+  readonly original: Geometry
+  readonly replacements: readonly Geometry[]
 }
 
 // --- 純粋なドキュメント操作ヘルパー（破壊的変更なし） ---
@@ -191,6 +235,289 @@ export function createUpdateLayerCommand(
     { before, after },
     (document) => applyLayer(document, after),
     (document) => applyLayer(document, before),
+    ctx,
+  )
+}
+
+// --- 座標オフセットヘルパー（Move/Copy用） ---
+
+/** Point を (dx, dy) だけ平行移動する。 */
+function offsetPoint(p: Point, dx: number, dy: number): Point {
+  return { x: p.x + dx, y: p.y + dy }
+}
+
+/** Point[] 全体を (dx, dy) 平行移動する（新配列を返す）。 */
+function offsetPoints(pts: readonly Point[], dx: number, dy: number): Point[] {
+  return pts.map((p) => offsetPoint(p, dx, dy))
+}
+
+/** 図形の全座標を (dx, dy) 平行移動する（id は維持）。 */
+function offsetGeometryCoords(geometry: Geometry, dx: number, dy: number): Geometry {
+  switch (geometry.type) {
+    case 'line':
+    case 'dimension':
+    case 'leader':
+      return {
+        ...geometry,
+        start: offsetPoint(geometry.start, dx, dy),
+        end: offsetPoint(geometry.end, dx, dy),
+      }
+    case 'rectangle':
+      return {
+        ...geometry,
+        origin: offsetPoint(geometry.origin, dx, dy),
+      }
+    case 'circle':
+      return {
+        ...geometry,
+        center: offsetPoint(geometry.center, dx, dy),
+      }
+    case 'arc':
+      return {
+        ...geometry,
+        center: offsetPoint(geometry.center, dx, dy),
+      }
+    case 'ellipse':
+      return {
+        ...geometry,
+        center: offsetPoint(geometry.center, dx, dy),
+      }
+    case 'polyline':
+    case 'spline':
+      return {
+        ...geometry,
+        points: offsetPoints(geometry.points, dx, dy),
+      }
+    case 'hatch':
+      return {
+        ...geometry,
+        boundaryPoints: offsetPoints(geometry.boundaryPoints, dx, dy),
+      }
+    case 'text':
+      return {
+        ...geometry,
+        anchor: offsetPoint(geometry.anchor, dx, dy),
+      }
+    case 'symbol':
+      return {
+        ...geometry,
+        position: offsetPoint(geometry.position, dx, dy),
+      }
+    case 'parametricObject':
+      return geometry
+    default: {
+      const exhaustive: never = geometry
+      throw new Error(`Unhandled geometry type: ${JSON.stringify(exhaustive)}`)
+    }
+  }
+}
+
+// --- MoveGeometriesCommand ---
+
+/**
+ * 指定 id 群を (dx, dy) 平行移動する。変換前後のペアを保持する差分。
+ * Move と Copy で共用するため、オフセット後の Geometry 群を返すヘルパーも提供する。
+ */
+export function createMoveGeometriesCommand(
+  document: DocumentState,
+  ids: readonly GeometryId[],
+  dx: number,
+  dy: number,
+  ctx: GeometryCreationContext = defaultCreationContext,
+): EditorCommand<MoveGeometriesPayload> {
+  const idSet = new Set<GeometryId>(ids)
+  const pairs: { readonly before: Geometry; readonly after: Geometry }[] = []
+  for (const g of document.geometries) {
+    if (!idSet.has(g.id)) continue
+    pairs.push({ before: g, after: offsetGeometryCoords(g, dx, dy) })
+  }
+
+  const forward = new Map(pairs.map((p) => [p.after.id, p.after] as const))
+  const backward = new Map(pairs.map((p) => [p.before.id, p.before] as const))
+
+  return createCommand<MoveGeometriesPayload>(
+    COMMAND_TYPES.MOVE_GEOMETRIES,
+    { dx, dy, pairs },
+    (doc) => replaceGeometries(doc, forward),
+    (doc) => replaceGeometries(doc, backward),
+    ctx,
+  )
+}
+
+// --- CopyGeometriesCommand ---
+
+/**
+ * 指定 id 群を (dx, dy) 位置へ複写する。新規 ID を ctx.newId() で発番する。
+ * execute: 新図形を末尾へ追加。undo: id で除去。
+ */
+export function createCopyGeometriesCommand(
+  document: DocumentState,
+  ids: readonly GeometryId[],
+  dx: number,
+  dy: number,
+  ctx: GeometryCreationContext = defaultCreationContext,
+): EditorCommand<CopyGeometriesPayload> {
+  const idSet = new Set<GeometryId>(ids)
+  const now = ctx.now()
+  const newGeometries: Geometry[] = []
+  for (const g of document.geometries) {
+    if (!idSet.has(g.id)) continue
+    const moved = offsetGeometryCoords(g, dx, dy)
+    newGeometries.push({ ...moved, id: ctx.newId(), createdAt: now, updatedAt: now })
+  }
+
+  const newIds = new Set(newGeometries.map((g) => g.id))
+
+  return createCommand<CopyGeometriesPayload>(
+    COMMAND_TYPES.COPY_GEOMETRIES,
+    { newGeometries },
+    (doc) => withGeometries(doc, [...doc.geometries, ...newGeometries]),
+    (doc) => withGeometries(doc, doc.geometries.filter((g) => !newIds.has(g.id))),
+    ctx,
+  )
+}
+
+// --- FilletGeometriesCommand ---
+
+/**
+ * 2 本の線分にフィレットを適用する複合コマンド。
+ * execute: 元線分を削除 → トリム済み線分 2 本 + 円弧 1 本を追加。
+ * undo: 新規図形を削除 → 元線分を復元。
+ */
+export function createFilletGeometriesCommand(
+  document: DocumentState,
+  line1Id: GeometryId,
+  line2Id: GeometryId,
+  radius: number,
+  ctx: GeometryCreationContext = defaultCreationContext,
+): EditorCommand<FilletGeometriesPayload> | null {
+  const line1 = document.geometries.find((g) => g.id === line1Id)
+  const line2 = document.geometries.find((g) => g.id === line2Id)
+  if (line1 === undefined || line2 === undefined) return null
+  if (line1.type !== 'line' || line2.type !== 'line') return null
+
+  const result = filletLines(line1, line2, radius, ctx)
+  if (result === null) return null
+
+  const newIds = new Set([
+    result.line1.id,
+    result.line2.id,
+    result.arc.id,
+  ])
+  const removeIds = new Set([line1Id, line2Id])
+
+  return createCommand<FilletGeometriesPayload>(
+    COMMAND_TYPES.FILLET_GEOMETRIES,
+    {
+      line1Id,
+      line2Id,
+      beforeLine1: line1,
+      beforeLine2: line2,
+      afterLine1: result.line1,
+      afterLine2: result.line2,
+      newArc: result.arc,
+    },
+    (doc) => withGeometries(doc, [
+      ...doc.geometries.filter((g) => !removeIds.has(g.id)),
+      result.line1,
+      result.line2,
+      result.arc,
+    ]),
+    (doc) => withGeometries(doc, [
+      ...doc.geometries.filter((g) => !newIds.has(g.id)),
+      line1,
+      line2,
+    ]),
+    ctx,
+  )
+}
+
+// --- ChamferGeometriesCommand ---
+
+/**
+ * 2 本の線分に面取りを適用する複合コマンド。
+ * execute: 元線分を削除 → トリム済み線分 2 本 + 面取り線分 1 本を追加。
+ * undo: 新規図形を削除 → 元線分を復元。
+ */
+export function createChamferGeometriesCommand(
+  document: DocumentState,
+  line1Id: GeometryId,
+  line2Id: GeometryId,
+  dist: number,
+  ctx: GeometryCreationContext = defaultCreationContext,
+): EditorCommand<ChamferGeometriesPayload> | null {
+  const line1 = document.geometries.find((g) => g.id === line1Id)
+  const line2 = document.geometries.find((g) => g.id === line2Id)
+  if (line1 === undefined || line2 === undefined) return null
+  if (line1.type !== 'line' || line2.type !== 'line') return null
+
+  const result = chamferLines(line1, line2, dist, ctx)
+  if (result === null) return null
+
+  const newIds = new Set([
+    result.line1.id,
+    result.line2.id,
+    result.chamferLine.id,
+  ])
+  const removeIds = new Set([line1Id, line2Id])
+
+  return createCommand<ChamferGeometriesPayload>(
+    COMMAND_TYPES.CHAMFER_GEOMETRIES,
+    {
+      line1Id,
+      line2Id,
+      beforeLine1: line1,
+      beforeLine2: line2,
+      afterLine1: result.line1,
+      afterLine2: result.line2,
+      newLine: result.chamferLine,
+    },
+    (doc) => withGeometries(doc, [
+      ...doc.geometries.filter((g) => !removeIds.has(g.id)),
+      result.line1,
+      result.line2,
+      result.chamferLine,
+    ]),
+    (doc) => withGeometries(doc, [
+      ...doc.geometries.filter((g) => !newIds.has(g.id)),
+      line1,
+      line2,
+    ]),
+    ctx,
+  )
+}
+
+// --- TrimGeometryCommand ---
+
+/**
+ * トリム操作の複合コマンド。
+ * execute: 元線分を削除 → 分割線分を追加。
+ * undo: 分割線分を削除 → 元線分を復元。
+ */
+export function createTrimGeometryCommand(
+  _document: DocumentState,
+  original: Geometry,
+  replacements: readonly Geometry[],
+  ctx: GeometryCreationContext = defaultCreationContext,
+): EditorCommand<TrimGeometryPayload> {
+  const replacementIds = new Set(replacements.map((g) => g.id))
+
+  return createCommand<TrimGeometryPayload>(
+    COMMAND_TYPES.TRIM_GEOMETRY,
+    {
+      originalId: original.id,
+      replacementIds: [...replacementIds],
+      original,
+      replacements,
+    },
+    (doc) => withGeometries(doc, [
+      ...doc.geometries.filter((g) => g.id !== original.id),
+      ...replacements,
+    ]),
+    (doc) => withGeometries(doc, [
+      ...doc.geometries.filter((g) => !replacementIds.has(g.id)),
+      original,
+    ]),
     ctx,
   )
 }

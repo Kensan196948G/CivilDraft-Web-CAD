@@ -6,14 +6,16 @@
  * - P0縦線として Project作成 → Drawing作成 → Revision作成 → Content/数量保存 →
  *   照査/承認 → Export作成 → Audit検索を実装する。
  * - 共有CADの最低限の契約として、案件メンバー認可とメタデータ/内容/数量更新の楽観ロックを検査する。
- * - 本番Neon/R2接続は秘密情報と人間承認を要するため、このファイルではストレージ境界と
- *   開発/テスト用インメモリ実装に留める。
+ * - memory モードは開発/テスト用のインメモリ実装。
+ * - neon-r2 モードは本番永続化として Neon PostgreSQL + R2 バケットを使用する
+ *   （#36 で実装）。
  */
 
 import { revisionTransitionTarget } from '@/domain/revisions'
 import { resolveAccessJwtConfig, verifyAccessJwt } from './accessJwt'
 import { createMemoryStore } from './apiStore'
-import { inspectProductionPersistenceReadiness, resolvePersistenceMode } from './persistence'
+import { createNeonApiStore, inspectProductionPersistenceReadiness, resolvePersistenceMode } from './persistence'
+import type { R2BucketBinding } from './r2ContentStore'
 import type {
   ApiStore,
   AuditLogRecord,
@@ -35,6 +37,8 @@ import type {
 } from './apiStore'
 
 export { createMemoryStore } from './apiStore'
+export { NeonApiStore } from './neonApiStore'
+export { R2ContentStore } from './r2ContentStore'
 
 export interface WorkerEnv {
   CIVILDRAFT_DEV_STORE?: ApiStore
@@ -45,6 +49,10 @@ export interface WorkerEnv {
   CIVILDRAFT_ACCESS_AUD?: string
   /** テスト・オフライン検証用のJWKS注入（本番はcertsエンドポイントから取得）。 */
   CIVILDRAFT_ACCESS_JWKS?: unknown
+  /** Neon 接続文字列（neon-r2 モード必須）。 */
+  CIVILDRAFT_NEON_CONNECTION?: string
+  /** R2 バケット binding（neon-r2 モード必須）。 */
+  CIVILDRAFT_R2_BUCKET?: R2BucketBinding
   [key: string]: unknown
 }
 
@@ -65,7 +73,7 @@ const ERROR_CODES = {
   conflict: 'CD-CONFLICT-001',
   preconditionRequired: 'CD-CONFLICT-002',
   persistenceUnavailable: 'CD-SYS-002',
-  notImplemented: 'CD-SYS-001',
+  notImplemented: 'CD-SYS-004',
   internal: 'CD-SYS-003',
 } as const
 
@@ -189,7 +197,7 @@ export const API_ROUTES: readonly ApiRoute[] = [
 
 const moduleStore = createMemoryStore()
 
-function resolveStore(env: WorkerEnv): ApiStore | undefined {
+async function resolveStore(env: WorkerEnv): Promise<ApiStore | undefined> {
   if (env.CIVILDRAFT_DEV_STORE) {
     return env.CIVILDRAFT_DEV_STORE
   }
@@ -198,6 +206,30 @@ function resolveStore(env: WorkerEnv): ApiStore | undefined {
   // unconfigured persistence and rejected with 503 (never a silent fallback).
   if (resolvePersistenceMode(env.CIVILDRAFT_API_MODE) === 'memory') {
     return moduleStore
+  }
+  // neon-r2: create a NeonApiStore backed by Neon PostgreSQL + R2.
+  // The factory loads all data from Neon into Maps so the rest of the
+  // handler code can use the store synchronously.
+  if (resolvePersistenceMode(env.CIVILDRAFT_API_MODE) === 'neon-r2') {
+    const readiness = inspectProductionPersistenceReadiness(env)
+    if (!readiness.ready) {
+      return undefined // caller will return 503
+    }
+    const neonConnection = env.CIVILDRAFT_NEON_CONNECTION as string
+    const r2Bucket = env.CIVILDRAFT_R2_BUCKET as R2BucketBinding
+    if (!neonConnection || !r2Bucket) {
+      return undefined
+    }
+    try {
+      const { apiStore } = await createNeonApiStore({
+        CIVILDRAFT_NEON_CONNECTION: neonConnection,
+        CIVILDRAFT_R2_BUCKET: r2Bucket,
+      })
+      return apiStore
+    } catch (err) {
+      console.error('[CivilDraft API] failed to initialize NeonApiStore', err)
+      return undefined
+    }
   }
   return undefined
 }
@@ -1370,7 +1402,7 @@ export async function handleRequest(request: Request, env: WorkerEnv = {}): Prom
     correlationId,
     url,
   }
-  const store = resolveStore(env)
+  const store = await resolveStore(env)
   if (!store) {
     return persistenceUnavailableResponse(env, correlationId)
   }
