@@ -19,6 +19,7 @@ import { createStore } from 'zustand'
 import { GeometryIndex } from '@/domain/geometry/spatialIndex'
 import { unionBBox } from '@/domain/geometry/shapeBBox'
 import type { EditorCommand } from '@/domain/commands/editorCommand'
+import type { DocumentState } from '@/domain/commands/editorCommand'
 import { createAddGeometryCommand } from '@/domain/commands/geometryCommands'
 import { defaultCreationContext, type GeometryCreationContext } from '@/domain/geometry/geometryFactory'
 import {
@@ -29,6 +30,15 @@ import {
   type DraftShapeFields,
   type ToolType,
 } from '@/domain/tools/draftGeometry'
+import type { EditingToolType } from '@/domain/tools/editGeometry'
+const REPEAT_EDITING_TOOLS: ReadonlySet<EditingToolType> = new Set([
+  'rotate',
+  'mirror',
+  'offset',
+  'fillet',
+  'chamfer',
+])
+import { dispatchEditingOperation } from '@/domain/tools/editGeometry'
 import type {
   ConstructionStepId,
   DrawingLayer,
@@ -106,6 +116,12 @@ export interface LayerSlice {
   setActiveLayer: (id: LayerId) => void
   toggleLayerVisible: (id: LayerId) => void
   toggleLayerLock: (id: LayerId) => void
+  toggleLayerPrintable: (id: LayerId) => void
+  addLayer: (name: string) => LayerId
+  removeLayer: (id: LayerId) => void
+  updateLayerName: (id: LayerId, name: string) => void
+  updateLayerLineWidth: (id: LayerId, lineWidth: number) => void
+  reorderLayer: (id: LayerId, direction: 'up' | 'down') => void
 }
 
 export interface SelectionSlice {
@@ -156,24 +172,22 @@ export interface HistorySlice {
  */
 export interface ToolSlice {
   readonly activeTool: ToolType
-  /** 確定済みクリック点列（domain 座標=mm）。 */
   readonly draftPoints: readonly Point[]
-  /** 現在のカーソル位置（プレビュー用。履歴化しない、§7.2）。 */
   readonly draftCursor: Point | null
-  /** ツールを切り替える。作図中ドラフトは破棄する。 */
+  readonly activeEditingTool: EditingToolType | null
+  readonly editingOffsetDistance: number
+  readonly editingFilletRadius: number
+  readonly editingChamferDist: number
   activateTool: (tool: ToolType) => void
-  /**
-   * 確定クリック点を追加する。line/rectangle/circle は必要点数（AUTO_COMMIT_POINT_COUNT）到達で
-   * 自動的に図形生成 → dispatchCommand(AddGeometryCommand) → ドラフト初期化する。
-   * polyline は点を溜め続け、commitDraft で確定する。select では何もしない。
-   */
   addDraftPoint: (point: Point) => void
-  /** プレビュー用カーソル位置を更新する（コマンド不使用）。 */
   updateDraftCursor: (point: Point | null) => void
-  /** polyline の明示確定（ダブルクリック/Enter 相当）。2 点以上で確定、未満は破棄。他ツールでは no-op。 */
   commitDraft: () => void
-  /** 作図中ドラフトを破棄する（Esc 相当）。 */
   cancelDraft: () => void
+  activateEditingTool: (tool: EditingToolType | null) => void
+  setEditingOffsetDistance: (dist: number) => void
+  setEditingFilletRadius: (radius: number) => void
+  setEditingChamferDist: (dist: number) => void
+  executeEditingOperation: (clickPoint: Point | null) => void
 }
 
 export type EditorState = DocumentSlice &
@@ -353,6 +367,80 @@ export function createEditorStore(ctx: GeometryCreationContext = defaultCreation
       set((s) => ({
         layers: s.layers.map((l) => (l.id === id ? { ...l, locked: !l.locked } : l)),
       })),
+    toggleLayerPrintable: (id) =>
+      set((s) => ({
+        layers: s.layers.map((l) => (l.id === id ? { ...l, printable: !l.printable } : l)),
+      })),
+    addLayer: (name) => {
+      const id = crypto.randomUUID() as LayerId
+      const currentLayers = get().layers
+      const maxOrder = currentLayers.reduce((m, l) => Math.max(m, l.order), -1)
+      const newLayer: DrawingLayer = {
+        id,
+        name,
+        order: maxOrder + 1,
+        visible: true,
+        locked: false,
+        printable: true,
+        defaultStyle: { ...DEFAULT_LAYER_STYLE },
+      }
+      set({ layers: [...currentLayers, newLayer] })
+      return id
+    },
+    removeLayer: (id) => {
+      const state = get()
+      if (state.layers.length <= 1) return
+      const target = state.layers.find((l) => l.id === id)
+      if (target === undefined) return
+      const remaining = state.layers.filter((l) => l.id !== id)
+      const fallback = remaining[0]
+      if (fallback === undefined) return
+      // geometries on removed layer → reassign to fallback layer
+      const affectedIds = state.geometries
+        .filter((g) => g.layerId === id)
+        .map((g) => g.id)
+      const nextGeometries =
+        affectedIds.length > 0
+          ? state.geometries.map((g) => (g.layerId === id ? { ...g, layerId: fallback.id } : g))
+          : state.geometries
+      // sync geometry index for reassigned geometries
+      for (const gid of affectedIds) {
+        const g = nextGeometries.find((x) => x.id === gid)
+        if (g !== undefined) index.update(g)
+      }
+      set({
+        layers: remaining,
+        activeLayerId: state.activeLayerId === id ? fallback.id : state.activeLayerId,
+        geometries: nextGeometries,
+      })
+    },
+    updateLayerName: (id, name) =>
+      set((s) => ({
+        layers: s.layers.map((l) => (l.id === id ? { ...l, name } : l)),
+      })),
+    updateLayerLineWidth: (id, lineWidth) =>
+      set((s) => ({
+        layers: s.layers.map((l) =>
+          l.id === id ? { ...l, defaultStyle: { ...l.defaultStyle, strokeWidth: lineWidth } } : l,
+        ),
+      })),
+    reorderLayer: (id, direction) =>
+      set((s) => {
+        const sorted = [...s.layers].sort((a, b) => a.order - b.order)
+        const idx = sorted.findIndex((l) => l.id === id)
+        if (idx === -1) return s
+        const targetIdx = direction === 'up' ? idx - 1 : idx + 1
+        if (targetIdx < 0 || targetIdx >= sorted.length) return s
+        const a = sorted[idx]
+        const b = sorted[targetIdx]
+        if (a === undefined || b === undefined) return s
+        const swapped = sorted.map((l) => {
+          if (l.id === a.id) return { ...l, order: b.order }
+          if (l.id === b.id) return { ...l, order: a.order }
+          return l
+        })
+        return { layers: swapped }
+      }),
 
     // --- SelectionSlice ---
     selectedIds: [],
@@ -420,34 +508,63 @@ export function createEditorStore(ctx: GeometryCreationContext = defaultCreation
     },
     clearHistory: () => set({ undoStack: [], redoStack: [] }),
 
-    // --- ToolSlice（Issue #8: 作図ツール状態機械, §8.1） ---
+    // --- ToolSlice（Issue #8: 作図ツール状態機械, §8.1 + Issue #37: 編集ツール） ---
     activeTool: 'select',
     draftPoints: [],
     draftCursor: null,
-    activateTool: (tool) => set({ activeTool: tool, draftPoints: [], draftCursor: null }),
+    activeEditingTool: null,
+    editingOffsetDistance: 100,
+    editingFilletRadius: 50,
+    editingChamferDist: 50,
+    activateTool: (tool) => set({ activeTool: tool, draftPoints: [], draftCursor: null, activeEditingTool: null }),
     updateDraftCursor: (point) => set({ draftCursor: point }),
     cancelDraft: () => set({ draftPoints: [], draftCursor: null }),
     addDraftPoint: (point) => {
       const state = get()
-      if (state.activeTool === 'select') return // 選択ツールは作図しない
+      if (state.activeTool === 'select' || state.activeTool === 'hatch') return
+      if (state.activeTool === 'text' && state.draftPoints.length >= 1) return
       const nextPoints = [...state.draftPoints, point]
       const required = AUTO_COMMIT_POINT_COUNT[state.activeTool]
-      // 自動確定ツール以外（polyline）・必要点数未満は、点を溜めるだけ（履歴化しない）。
       if (required === undefined || nextPoints.length < required) {
         set({ draftPoints: nextPoints })
         return
       }
-      // 必要点数到達: 図形生成 → コマンド発行 → ドラフト初期化（退化形状で null の場合も破棄）。
       const fields = buildDraftFields(state.activeTool, nextPoints)
       if (fields !== null) emitDraftGeometry(get, ctx, fields)
       set({ draftPoints: [] })
     },
     commitDraft: () => {
       const state = get()
-      if (state.activeTool !== 'polyline') return // 自動確定ツール/選択では明示確定は使わない
+      if (state.activeTool !== 'polyline') return
       const fields = buildDraftFields(state.activeTool, state.draftPoints)
       if (fields !== null) emitDraftGeometry(get, ctx, fields)
       set({ draftPoints: [], draftCursor: null })
+    },
+    activateEditingTool: (tool) =>
+      set({ activeEditingTool: tool, activeTool: 'select', draftPoints: [], draftCursor: null }),
+    setEditingOffsetDistance: (dist) => set({ editingOffsetDistance: Math.max(0, dist) }),
+    setEditingFilletRadius: (radius) => set({ editingFilletRadius: Math.max(0.1, radius) }),
+    setEditingChamferDist: (dist) => set({ editingChamferDist: Math.max(0.1, dist) }),
+    executeEditingOperation: (clickPoint) => {
+      const s = get()
+      if (s.activeEditingTool === null) return
+      const doc: DocumentState = { geometries: s.geometries, layers: s.layers }
+      const command = dispatchEditingOperation({
+        tool: s.activeEditingTool,
+        document: doc,
+        selectedIds: s.selectedIds,
+        clickPoint,
+        offsetDistance: s.editingOffsetDistance,
+        filletRadius: s.editingFilletRadius,
+        chamferDist: s.editingChamferDist,
+        ctx,
+      })
+      if (command !== null) {
+        s.dispatchCommand(command)
+        if (!REPEAT_EDITING_TOOLS.has(s.activeEditingTool)) {
+          set({ activeEditingTool: null })
+        }
+      }
     },
   }))
 

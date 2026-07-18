@@ -92,6 +92,13 @@ export interface TextGeometry extends GeometryBase {
 /**
  * 継承元: Civil-Draw ArcShape（cx/cy/radius/startAngle/endAngle）。
  * 角度はADR-0012のTextGeometry.rotationDegに倣いdegサフィックスで統一する。
+ *
+ * 円弧の掃引方向（ADR-0012 §3.1）:
+ * - 角度は数学的規約: 度数法（deg）、X軸正方向を0°、Y軸下方向（画面下）を正方向（時計回り）とする。
+ * - 円弧は startAngleDeg から endAngleDeg まで Y軸下方向へ掃引する。
+ * - 例: startAngleDeg=0, endAngleDeg=90 は X軸正方向から 90° CW（画面下方向）へ掃引する弧。
+ * - この規約は GeometryRenderer と pdfExporter で一貫して適用される。
+ * - radToDeg/degToRad の変換が必要なのは filletEngine 等の Math.atan2 出力（ラジアン）のみ。
  */
 export interface ArcGeometry extends GeometryBase {
   readonly type: 'arc'
