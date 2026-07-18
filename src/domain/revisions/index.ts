@@ -13,6 +13,7 @@ export type {
 export {
   transition,
   availableActions,
+  revisionTransitionTarget,
   applyRevisionAction,
 } from './workflow'
 export type {

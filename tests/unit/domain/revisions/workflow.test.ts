@@ -2,10 +2,11 @@ import { describe, expect, it } from 'vitest'
 import {
   applyRevisionAction,
   availableActions,
+  revisionTransitionTarget,
   transition,
 } from '@/domain/revisions/workflow'
 import type { TransitionContext } from '@/domain/revisions/workflow'
-import type { RevisionStatus, WorkflowActor } from '@/domain/revisions'
+import type { RevisionAction, RevisionStatus, WorkflowActor } from '@/domain/revisions'
 
 // roles.ts の RolePermissions（{ canView, canEdit, canApprove }）は WorkflowActor へ
 // 構造的に代入可能。ここでは各システムロール相当の能力を再現する。
@@ -145,6 +146,45 @@ describe('availableActions', () => {
 
   it('obsolete からは操作なし', () => {
     expect(availableActions('obsolete')).toEqual([])
+  })
+})
+
+describe('revisionTransitionTarget — 遷移グラフの純粋参照（単一の真実）', () => {
+  const validTransitions: ReadonlyArray<[RevisionStatus, RevisionAction, RevisionStatus]> = [
+    ['draft', 'submitReview', 'inReview'],
+    ['returned', 'resumeEditing', 'draft'],
+    ['inReview', 'return', 'returned'],
+    ['inReview', 'completeReview', 'pendingApproval'],
+    ['pendingApproval', 'return', 'returned'],
+    ['pendingApproval', 'approve', 'approved'],
+    ['approved', 'createRevision', 'draft'],
+    ['approved', 'obsolete', 'obsolete'],
+  ]
+
+  it.each(validTransitions)('%s + %s → %s（能力・前提は検査しない）', (from, action, to) => {
+    expect(revisionTransitionTarget(from, action)).toBe(to)
+  })
+
+  it('許可されない遷移は undefined を返す', () => {
+    expect(revisionTransitionTarget('draft', 'approve')).toBeUndefined()
+    expect(revisionTransitionTarget('approved', 'submitReview')).toBeUndefined()
+    expect(revisionTransitionTarget('obsolete', 'resumeEditing')).toBeUndefined()
+  })
+
+  it('availableActions と遷移先が整合する（表の二重定義がない）', () => {
+    const statuses: readonly RevisionStatus[] = [
+      'draft',
+      'inReview',
+      'returned',
+      'pendingApproval',
+      'approved',
+      'obsolete',
+    ]
+    for (const status of statuses) {
+      for (const action of availableActions(status)) {
+        expect(revisionTransitionTarget(status, action)).toBeDefined()
+      }
+    }
   })
 })
 

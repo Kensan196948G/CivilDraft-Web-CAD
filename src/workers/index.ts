@@ -10,6 +10,7 @@
  *   開発/テスト用インメモリ実装に留める。
  */
 
+import { revisionTransitionTarget } from '@/domain/revisions'
 import { resolveAccessJwtConfig, verifyAccessJwt } from './accessJwt'
 import { createMemoryStore } from './apiStore'
 import { inspectProductionPersistenceReadiness, resolvePersistenceMode } from './persistence'
@@ -554,18 +555,15 @@ function parseLifecycleStatus(value: unknown, field: string): 'active' | 'archiv
   return status
 }
 
+// 状態遷移グラフの唯一の定義は domain/revisions の TRANSITIONS 表。
+// Worker は認可（authorizeWorkflowAction）と前提検査・HTTP 応答を担い、
+// 「どの状態でどの操作が次のどの状態へ進むか」は domain に委譲する（§16 単一の真実）。
+// WorkflowAction（6種）は RevisionAction（createRevision を含む7種）の部分集合。
 function workflowTargetStatus(
   current: RevisionRecord['status'],
   action: WorkflowAction,
 ): RevisionRecord['status'] | undefined {
-  if (current === 'draft' && action === 'submitReview') return 'inReview'
-  if (current === 'returned' && action === 'resumeEditing') return 'draft'
-  if (current === 'inReview' && action === 'return') return 'returned'
-  if (current === 'inReview' && action === 'completeReview') return 'pendingApproval'
-  if (current === 'pendingApproval' && action === 'return') return 'returned'
-  if (current === 'pendingApproval' && action === 'approve') return 'approved'
-  if (current === 'approved' && action === 'obsolete') return 'obsolete'
-  return undefined
+  return revisionTransitionTarget(current, action)
 }
 
 function authorizeWorkflowAction(
