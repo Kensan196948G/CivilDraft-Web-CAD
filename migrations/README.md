@@ -9,6 +9,7 @@ SQL ファイルは**定義のみ**であり、本リポジトリからの自動
 | --- | --- | --- |
 | `0001_initial_schema.sql` | 初期スキーマ（projects / work_sections / project_members / drawings / drawing_revisions / drawing_contents / quantity_items / quantity_sources / workflow_actions / export_jobs / master_items / audit_logs、索引一式） | 詳細設計仕様書 §25・§26・§29 |
 | `0002_api_contract_alignment.sql` | Workers API P0契約に合わせた前方互換拡張（quantity_snapshots、quantityVersion、Exportメタ、R2メタ、監査ハッシュチェーン列、索引追加） | `src/workers/index.ts`・ADR-0009 |
+| `0003_persistence_schema_drift_fix.sql` | R2スキップ決定（Neon直接格納への切替）に合わせたスキーマ追随。`drawing_contents.content` 列追加、`object_key` の NOT NULL 緩和、`quantity_items.name`/`quantity` の NOT NULL 緩和 | `src/workers/neonApiStore.ts`・ADR（R2スキップ→Neon直接格納） |
 
 命名規約: `NNNN_説明.sql`（4桁連番・前方互換で追記）。適用済み番号は巻き戻さない。
 
@@ -56,7 +57,10 @@ npm run migrations:check
 - `gen_random_uuid()` は PostgreSQL 13+ のコア組込み（Neon 15+ で利用可）。追加拡張は不要。
 - `drawings.active_revision_id` は `drawing_revisions` への循環参照のため、
   テーブル作成後に `ALTER TABLE ... ADD CONSTRAINT` で外部キーを付与する（§26.2）。
-- 完全な図面データは Object Storage に置き、DB には object key・サイズ・Checksum・MIME・
-  schemaVersion のみ保持する（§26.3、`drawing_contents`）。
-- `0002_api_contract_alignment.sql` は既存列や既存テーブルを削除しない前方互換migration。
+- 図面データは `drawing_contents.content`（jsonb）に Neon 直接格納する（R2スキップ決定、
+  2026-07-18）。`object_key` 列は R2 採用時に備えて残置するが、現在は使用しない
+  （NOT NULL 制約は `0003_persistence_schema_drift_fix.sql` で緩和済み）。§26.3 の
+  当初設計（Object Storage 前提）からの変更経緯は ADR を参照。
+- `0002_api_contract_alignment.sql` / `0003_persistence_schema_drift_fix.sql` は
+  既存列や既存テーブルを削除しない前方互換migration。
   本番データが入った後に NOT NULL 化や backfill が必要な場合は、別migrationとして人間承認後に実施する。

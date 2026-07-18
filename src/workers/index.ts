@@ -51,7 +51,7 @@ export interface WorkerEnv {
   CIVILDRAFT_ACCESS_JWKS?: unknown
   /** Neon 接続文字列（neon-r2 モード必須）。 */
   CIVILDRAFT_NEON_CONNECTION?: string
-  /** R2 バケット binding（neon-r2 モード必須）。 */
+  /** R2 バケット binding（任意。図面内容は Neon 直接格納のため共有ストレージ用途でのみ使用）。 */
   CIVILDRAFT_R2_BUCKET?: R2BucketBinding
   [key: string]: unknown
 }
@@ -216,14 +216,13 @@ async function resolveStore(env: WorkerEnv): Promise<ApiStore | undefined> {
       return undefined // caller will return 503
     }
     const neonConnection = env.CIVILDRAFT_NEON_CONNECTION as string
-    const r2Bucket = env.CIVILDRAFT_R2_BUCKET as R2BucketBinding
-    if (!neonConnection || !r2Bucket) {
+    if (!neonConnection) {
       return undefined
     }
     try {
       const { apiStore } = await createNeonApiStore({
         CIVILDRAFT_NEON_CONNECTION: neonConnection,
-        CIVILDRAFT_R2_BUCKET: r2Bucket,
+        CIVILDRAFT_R2_BUCKET: env.CIVILDRAFT_R2_BUCKET,
       })
       return apiStore
     } catch (err) {
@@ -248,8 +247,25 @@ function persistenceUnavailableResponse(env: WorkerEnv, correlationId: string): 
     503,
     ERROR_CODES.persistenceUnavailable,
     readiness.ready
-      ? 'Neon/R2永続化アダプタは未接続です'
-      : `Neon/R2永続化に必要なbindingが未設定です: ${readiness.missingBindings.join(', ')}`,
+      ? 'Neon永続化アダプタは未接続です'
+      : `Neon永続化に必要なbindingが未設定です: ${readiness.missingBindings.join(', ')}`,
+    correlationId,
+  )
+}
+
+function isSharedSaveRoute(match: RouteMatch): boolean {
+  return (
+    match.route.method === 'PUT' &&
+    (match.route.template === '/api/v1/revisions/{revisionId}/content' ||
+      match.route.template === '/api/v1/revisions/{revisionId}/quantities')
+  )
+}
+
+function sharedSaveTemporarilyUnavailableResponse(correlationId: string): Response {
+  return errorResponse(
+    503,
+    ERROR_CODES.persistenceUnavailable,
+    '共有保存は永続化アダプタ修復中のため一時停止しています。ブラウザ内の自動保存またはローカル保存を使用してください。',
     correlationId,
   )
 }
@@ -1395,6 +1411,9 @@ export async function handleRequest(request: Request, env: WorkerEnv = {}): Prom
   const matched = matchRouteWithParams(request.method, url.pathname)
   if (!matched) {
     return errorResponse(404, ERROR_CODES.notFound, '該当するエンドポイントがありません', correlationId)
+  }
+  if (resolvePersistenceMode(env.CIVILDRAFT_API_MODE) === 'neon-r2' && isSharedSaveRoute(matched)) {
+    return sharedSaveTemporarilyUnavailableResponse(correlationId)
   }
 
   const ctx: RequestContext = {

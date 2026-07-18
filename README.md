@@ -10,7 +10,7 @@
 | リポジトリ | `CivilDraft-Web-CAD` |
 | 既存技術資産 | [`Civil-Draw`](https://github.com/Kensan196948G/Civil-Draw) |
 | 開発基盤 | Claude Code on Linux＋GitHub＋Cloudflare＋Neon |
-| 現在の位置付け | **土木特化Web CADの技術プレビュー**。ブラウザ内CADコアと土木ドメイン部品は拡充中。Workers APIはP0縦線（Project作成/更新→Drawing作成/更新→Revision作成→Content/数量保存→照査/承認→Export作成→Audit検索）を開発用ストアで実装済み。案件メンバー認可、メタデータ/内容/数量更新の楽観ロック、Neon migration 0001/0002もAPI契約として固定済み。Neon/R2本番接続、Cloudflare Accessテナント設定、共有運用は未製品化 |
+| 現在の位置付け | **土木特化Web CADの技術プレビュー**。ブラウザ内CADコアと土木ドメイン部品は拡充中。Workers APIはP0縦線（Project作成/更新→Drawing作成/更新→Revision作成→Content/数量保存→照査/承認→Export作成→Audit検索）を開発用ストアで実装済み。案件メンバー認可、メタデータ/内容/数量更新の楽観ロック、Neon migration 0001/0002/0003もAPI契約として固定済み。Neon本番接続（R2は任意）、Cloudflare Accessテナント設定、共有運用は未製品化 |
 
 ---
 
@@ -55,7 +55,7 @@ CADやプログラミングに詳しくなくても、まず「何ができる�
 
 | | いま動くこと（実装済み/試作） | これから製品化で仕上げること |
 | --- | --- | --- |
-| 🖥️ 動作環境 | Webブラウザ内だけで完結（サーバー・DB不要） | Cloudflare Workers + Neon + R2で共有版へ拡張 |
+| 🖥️ 動作環境 | Webブラウザ内だけで完結（サーバー・DB不要） | Cloudflare Workers + Neonで共有版へ拡張（R2は任意・将来の共有ストレージ用途） |
 | ✏️ 作図 | 選択・線・矩形・円・ポリラインの作図、パン/ズーム/選択、Undo/Redo | 測点・仮設・重機・土工などの土木パラメトリック作図 |
 | 💾 保存 | ブラウザ内IndexedDBへ自動保存・起動時復元 | 案件・改訂・数量・監査をサーバーで共有 |
 | 🔄 相互運用 | DXF入出力（単位を内部mmへ変換） | DXF強化・独自形式・改訂/照査/承認 |
@@ -72,7 +72,7 @@ CADやプログラミングに詳しくなくても、まず「何ができる�
 | AutoCAD LT / BricsCAD Lite 的な2D作図 | 30〜40% | 作図・表示・DXF/PDFの核はあるが、編集コマンドのUI配線、レイヤー/寸法/印刷スタイル、DWG/JWW/SXF互換が不足 |
 | 土木数量・横断・簡易計画ツール | 50〜65% | 数量、測量、断面、土量、施工ステップのドメイン部品は強い。図面連動と成果物化が次の壁 |
 | Civil 3D 的なBIM/CIM | 10〜20% | 線形・断面の基礎はあるが、サーフェス、縦断、コリドー、動的土木オブジェクト連携は未成熟 |
-| SaaS型CAD共有・承認・監査 | 35〜45% | P0縦線API、案件メンバー認可、メタデータ/内容/数量の楽観ロック、照査/承認、Exportジョブ、監査記録は動き始めたが、本番Neon/R2接続、Accessテナント設定、監査永続化の運用検証が未完 |
+| SaaS型CAD共有・承認・監査 | 35〜45% | P0縦線API、案件メンバー認可、メタデータ/内容/数量の楽観ロック、照査/承認、Exportジョブ、監査記録は動き始めたが、本番Neon接続、Accessテナント設定、監査永続化の運用検証が未完 |
 | プロダクト全体 | 35〜50% | 技術プレビューとして有望。80〜90%代替を名乗るには、実務ワークフローを縦に1本完成させる必要がある |
 
 ---
@@ -94,7 +94,7 @@ CADやプログラミングに詳しくなくても、まず「何ができる�
 | 自動保存（IndexedDB） | ✅ 実装・**配線済み** | 起動時に最新下書きを復元、図形/レイヤー変更をデバウンス保存、保存失敗は握り潰さず警告表示 | `src/infrastructure/autosave/`・`App.tsx`（`AutosaveManager`） |
 | 認証（Cloudflare Access） | 🟡 **部品＋JWT二次防御実装・本番テナント未設定** | Access配下のidentity取得層とロール定義に加え、Workers側にJWT二次防御層（RS256署名・iss/aud/exp/nbf検証、JWKS取得、fail-closed）を実装。`CIVILDRAFT_ACCESS_TEAM_DOMAIN`/`CIVILDRAFT_ACCESS_AUD`設定時に全経路でJWT検証、`neon-r2`本番モードでは検証設定を必須化（未設定なら503）。本番テナント設定・画面本体への配線は未完 | `src/infrastructure/auth/accessIdentity.ts`・`src/workers/accessJwt.ts`・`tests/unit/workers/accessJwt.test.ts` |
 | 共有APIクライアント | 🟡 **画面配線済み・本番未接続** | ブラウザ側から Workers API のP0縦線を呼ぶ `CivilDraftApiClient` を実装し、CAD編集画面の「共有保存」「共有再読込」ボタンからProject作成→Drawing作成→Revision作成→Content保存→再読込→Export作成を実行できる経路を配線。案件詳細の図面行から案件番号・図面番号・改訂番号をエディタへ渡し、保存ペイロードへ反映する。実Workersハンドラ差し込みテストと画面/ナビゲーションテストで検証済み。Secretsは扱わず、Cloudflare Accessの同一オリジン認証を前提にする | `src/infrastructure/cloud/civilDraftApiClient.ts`・`src/app/pages/CadEditorPage.tsx`・`src/app/pages/ProjectDetailPage.tsx`・`tests/unit/infrastructure/cloud/civilDraftApiClient.test.ts`・`tests/unit/app/pages/CadEditorPage.test.tsx` |
-| Workers API / Neon | 🟡 **P0縦線のみ実装** | 18経路すべてで業務応答または入力/認可エラーを返す。Access JWTヘッダー有無確認、相関ID伝播、Project作成/更新、Drawing作成/更新、Revision作成、Content保存/再読込、数量スナップショット、照査/承認ワークフロー、Export作成/取得、Audit検索、案件メンバー認可、メタデータ/内容/数量更新の楽観ロックを実装。ApiStore/MemoryStoreを分離し、本番永続化モードが未接続なら503で停止。Neon 0001/0002 migrationでAPI契約に合わせたDB/R2メタ/監査ハッシュチェーン列を定義済み。本番DB/R2接続・Accessテナント設定は未実装 | `src/workers/index.ts`・`src/workers/apiStore.ts`・`src/workers/persistence.ts`・`migrations/0001_initial_schema.sql`・`migrations/0002_api_contract_alignment.sql` |
+| Workers API / Neon | 🟡 **P0縦線のみ実装** | 18経路すべてで業務応答または入力/認可エラーを返す。Access JWTヘッダー有無確認、相関ID伝播、Project作成/更新、Drawing作成/更新、Revision作成、Content保存/再読込、数量スナップショット、照査/承認ワークフロー、Export作成/取得、Audit検索、案件メンバー認可、メタデータ/内容/数量更新の楽観ロックを実装。ApiStore/MemoryStoreを分離し、本番永続化モードが未接続なら503で停止。Neon 0001/0002 migrationでAPI契約に合わせたDB/R2メタ/監査ハッシュチェーン列を定義し、0003で図面内容をNeonへ直接保存する構成（R2 binding任意化）へ整合。本番DB接続・Accessテナント設定は未実装 | `src/workers/index.ts`・`src/workers/apiStore.ts`・`src/workers/persistence.ts`・`migrations/0001_initial_schema.sql`・`migrations/0002_api_contract_alignment.sql`・`migrations/0003_persistence_schema_drift_fix.sql` |
 | SBOM・ライセンス衛生 | ✅ 実装済み | CycloneDX SBOM生成、サードパーティ表記生成、依存衛生手順 | `npm run sbom` / `npm run notices`・`docs/operations/dependency-hygiene.md` |
 
 > 🟡 の「未配線」は、部品（モジュール）としては実装・テスト済みだが、まだアプリ本体から呼び出していない状態を指します。誇張せずそのまま記載しています。
@@ -584,6 +584,7 @@ timeline
 | 2026-07-17 | ✅ VitestをNode/jsdomプロジェクトへ分離し、NAS/Windows環境でも一括テストが完走するよう改善。`npm run test -- --reporter=dot` で96ファイル・1048テストpass |
 | 2026-07-15 | 🖥️ 業務画面7枚を試作: 測点・座標一覧 / 土木部材パレット / 数量集計 / 縦横断管理 / 施工ステップ / 図面比較 / 照査・承認 — サイドバー全ナビが有効化。CAD本体との双方向連動は後続 |
 | 2026-07-15 | 📊 最終: **テスト1030/1030（×2連続STABLE）**・typecheck/lint/build green |
+| 2026-07-18 | 🐘 Neon migration 0003を追加: R2 binding を**任意化**し、図面内容（`drawing_contents.content` jsonb）をNeonへ直接保存する方針へ転換。`object_key`/`quantity_items.name`/`quantity`のNOT NULL制約も緩和。`persistence.ts`の本番readiness判定からR2を除外し、回帰テスト・migrations静的検証を追加更新。dev branch（`br-fancy-frog-aja6lujp`）でDDL適用・`persistContent`/`persistQuantities`相当の実データINSERTともに実地検証済み |
 
 ### 🛠️ 次に閉じるべき実務ワークフロー
 
@@ -592,8 +593,8 @@ timeline
 | 優先 | 対応 | 完了条件 |
 | --- | --- | --- |
 | P0 | README/設計文書と実装状態の同期 | 実装済み・試作・未配線・未実装が外向け文書で混同されない |
-| P0 | Workers APIの最小縦線 | ✅ Project作成/更新 → Drawing作成/更新 → Revision作成 → Content/数量保存 → 照査/承認 → Export作成 → Audit記録、案件メンバー認可、楽観ロックを開発用ストアで実装。Neon 0001/0002 migrationと永続化モード安全ガードも契約固定済み。次はNeon/R2アダプタ本体とAccessテナント設定 |
-| P0 | ブラウザ側共有保存クライアント | ✅ `CivilDraftApiClient` でWorkers P0縦線を呼び出し、CAD編集画面の「共有保存」「共有再読込」からクラウド保存・再読込経路を実行可能。案件詳細の図面行から案件/図面/改訂メタデータを渡す導線も実装。次は案件一覧/検索/複製/アーカイブの実データ化、本番Neon/R2アダプタ、複数利用者/権限E2E |
+| P0 | Workers APIの最小縦線 | ✅ Project作成/更新 → Drawing作成/更新 → Revision作成 → Content/数量保存 → 照査/承認 → Export作成 → Audit記録、案件メンバー認可、楽観ロックを開発用ストアで実装。Neon 0001/0002/0003 migrationと永続化モード安全ガードも契約固定済み。次は本番Neonアダプタ接続とAccessテナント設定 |
+| P0 | ブラウザ側共有保存クライアント | ✅ `CivilDraftApiClient` でWorkers P0縦線を呼び出し、CAD編集画面の「共有保存」「共有再読込」からクラウド保存・再読込経路を実行可能。案件詳細の図面行から案件/図面/改訂メタデータを渡す導線も実装。次は案件一覧/検索/複製/アーカイブの実データ化、本番Neonアダプタ接続、複数利用者/権限E2E |
 | P0 | CAD編集UIの基本セット配線 | Trim/Extend/Offset/Fillet/Move/Copy/Rotate/Mirror/Scale/Explode/Joinのうち優先コマンドを画面操作から実行できる |
 | P1 | レイヤー・寸法・印刷の実務化 | 線種/線幅/ロック/印刷尺度/寸法/注記を納品図面として確認できる |
 | P1 | 土木差別化の図面連動 | 数量表・測点・横断・施工ステップから該当図形をハイライト/更新できる |
@@ -863,7 +864,7 @@ flowchart TD
 - CivilDraft独自ファイルの拡張子と圧縮方式
 - 対応するDXFバージョンと要素
 - 日本語PDFフォントの方式と配布条件
-- 共有版の正式な認証、Neon/R2接続、Object Storage署名付きURL発行
+- 共有版の正式な認証、本番Neon接続、（任意）R2/Object Storage署名付きURL発行
 - 数量の標準丸め規則と工種・規格マスター
 
 未決事項は「とりあえず実装」で埋めず、性能・運用・権利・土木実務の確認を経てADRで決定します。

@@ -181,6 +181,26 @@ describe('§25.1 共通ヘッダー検証', () => {
       expect(body.error.message).toContain('CIVILDRAFT_API_MODE')
     }
   })
+
+  it('neon-r2 モードの共有保存PUTは一時停止し、成功したように見せない', async () => {
+    for (const path of [
+      '/api/v1/revisions/rev-1/content',
+      '/api/v1/revisions/rev-1/quantities',
+    ]) {
+      const res = await handleRequest(
+        authedRequest('PUT', path, { schemaVersion: 1, content: {}, items: [] }),
+        {
+          CIVILDRAFT_API_MODE: 'neon-r2',
+          CIVILDRAFT_NEON_CONNECTION: 'postgres://example.invalid/db',
+        },
+      )
+      expect(res.status).toBe(503)
+      const body = await json<ApiErrorBody>(res)
+      expect(body.error.code).toBe('CD-SYS-002')
+      expect(body.error.message).toContain('共有保存')
+      expect(body.error.message).toContain('一時停止')
+    }
+  })
 })
 
 describe('§25.2 ルーティング', () => {

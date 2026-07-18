@@ -1,6 +1,6 @@
 # 🚀 本番デプロイ手順書（Production Deployment）
 
-> **対象**: CivilDraft Web CAD を Cloudflare Workers + Neon PostgreSQL + R2 で本番公開する際の手順。
+> **対象**: CivilDraft Web CAD を Cloudflare Workers + Neon PostgreSQL で本番公開する際の手順（R2 は任意・§4.1 参照）。
 >
 > **前提**: 本書の各手順は**人間（運用者）が実行する**。CTO（自動開発）は手順書の整備・dev ブランチでの検証までを担い、
 > 本番リソース作成・Secret 登録・DNS 切替・`wrangler deploy` は実行しない（課金・秘密情報・外部サービス設定・本番公開のため）。
@@ -15,7 +15,7 @@
 flowchart TB
     subgraph HUMAN["🚫 人間決裁・実行（課金/秘密情報/外部設定/公開）"]
         N1["Neon本番プロジェクト作成"]
-        R1["R2バケット作成"]
+        R1["R2バケット作成（任意）"]
         A1["Access Application作成・ポリシー設定"]
         S1["Workers Secret登録"]
         M1["本番migration適用（dev検証後）"]
@@ -23,13 +23,13 @@ flowchart TB
         DNS1["公開DNS/ルート設定"]
     end
     subgraph CTO["✅ CTO自律（検証・手順整備）"]
-        C1["dev branchでmigration 0001→0002検証"]
+        C1["dev branchでmigration 0001→0002→0003検証"]
         C2["接続文字列不要のコード検証"]
         C3["手順書・チェックリスト維持"]
     end
     C1 --> M1
     N1 --> S1
-    R1 --> S1
+    R1 -.任意.-> S1
     A1 --> S1
     S1 --> D1
     M1 --> D1
@@ -53,13 +53,14 @@ Worker は起動時に以下を参照する。**すべて Workers Secret / bindi
 | --- | --- | --- | --- | --- |
 | `CIVILDRAFT_API_MODE` | 変数 | 本番は `neon-r2` を明示 | 永続化モード。未設定/不正値は 503 で停止（fail-closed） | `src/workers/index.ts` `resolvePersistenceMode` |
 | `CIVILDRAFT_NEON_CONNECTION` | Secret | `neon-r2` 時必須 | Neon 接続文字列 | `src/workers/persistence.ts` |
-| `CIVILDRAFT_R2_BUCKET` | R2 binding | `neon-r2` 時必須 | 図面/PDF/添付の Object Storage | `src/workers/persistence.ts` |
+| `CIVILDRAFT_R2_BUCKET` | R2 binding | **任意**（§4.1） | 図面内容は Neon (`drawing_contents.content`) へ直接保存するため不要。将来の共有ストレージ用途のみ | `src/workers/persistence.ts` |
 | `CIVILDRAFT_ACCESS_TEAM_DOMAIN` | 変数 | `neon-r2` 時必須 | Access チームドメイン（`https://<team>.cloudflareaccess.com`）。iss 検証にも使用 | `src/workers/accessJwt.ts` |
 | `CIVILDRAFT_ACCESS_AUD` | Secret/変数 | `neon-r2` 時必須 | Access Application の AUD タグ | `src/workers/accessJwt.ts` |
 
 > ⚠️ **fail-closed 仕様**: `CIVILDRAFT_API_MODE=neon-r2` かつ Access 検証設定（`CIVILDRAFT_ACCESS_TEAM_DOMAIN` / `CIVILDRAFT_ACCESS_AUD`）が未構成の場合、
 > Worker は全 API を **503 で停止**する。ヘッダー存在確認のみの弱認証で本番データへ到達させないための二次防御（#36）。
-> 永続化 binding（Neon/R2）が欠けている場合も同様に 503。
+> 永続化 binding は `CIVILDRAFT_NEON_CONNECTION` のみが必須。欠けている場合も同様に 503（fail-closed）。
+> `CIVILDRAFT_R2_BUCKET` は任意のため、未設定でも 503 の原因にはならない（migrations/0003 で Neon 直接保存へ移行済み）。
 
 Secret 登録コマンド（**人間実行**、値は対話入力でシェル履歴に残さない）:
 
@@ -79,24 +80,33 @@ wrangler secret put CIVILDRAFT_ACCESS_AUD
 
 ```
 1. Neon dev ブランチを作成（create_branch）
-2. 0001_initial_schema.sql → 0002_api_contract_alignment.sql の順に適用
+2. 0001_initial_schema.sql → 0002_api_contract_alignment.sql → 0003_persistence_schema_drift_fix.sql の順に適用
 3. npm run migrations:check の静的検証と実適用の整合を確認
 4. explain/describe で索引・FK・監査ハッシュチェーン列を確認
+5. persistContent/persistQuantities 相当の INSERT を実データで試行し、NOT NULL 制約違反がないことを確認
 ```
 
-`migrations/0002_api_contract_alignment.sql` は前方互換（既存列削除なし・`ADD COLUMN IF NOT EXISTS`）。
+`migrations/0002_api_contract_alignment.sql` ・ `migrations/0003_persistence_schema_drift_fix.sql` は前方互換（既存列削除なし・`ADD COLUMN IF NOT EXISTS` / `DROP NOT NULL` による制約緩和のみ）。
+0003 は R2 スキップ決定（本セクション・§4.1）に伴うスキーマドリフト（`drawing_contents.content` 列追加、`object_key`/`quantity_items.name`/`quantity` の NOT NULL 緩和）を解消する。2026-07-18 時点で dev ブランチ実地検証済み（DDL 適用・実データ INSERT とも成功）。
 
 ### 3.2 本番適用（🚫 人間決裁）
 
 - Neon **本番（main）ブランチ**への適用は自動実行禁止（データ影響・CLAUDE.md §8.6）。
-- 手順: dev ブランチで検証済みの `0001`→`0002` を、人間が承認して本番へ適用 → `CIVILDRAFT_NEON_CONNECTION` を Secret 登録。
+- 手順: dev ブランチで検証済みの `0001`→`0002`→`0003` を、人間が承認して本番へ適用 → `CIVILDRAFT_NEON_CONNECTION` を Secret 登録。
 - 切り戻しは [`rollback-procedure.md`](./rollback-procedure.md) §4.1（Neon ブランチ / PITR）。
 
 ---
 
 ## ☁️ 4. Cloudflare 手順
 
-### 4.1 R2 バケット（🚫 人間決裁・課金）
+### 4.1 R2 バケット（任意・🚫 人間決裁・課金）
+
+**Phase 1 の本番公開には不要**。図面内容は Neon (`drawing_contents.content` jsonb 列、migrations/0003)
+へ直接保存する方針に転換済みで、R2 は将来の共有ストレージ用途（大容量添付ファイル等）向けの拡張ポイントとして残しているのみ。
+`CIVILDRAFT_R2_BUCKET` binding が未設定でも `inspectProductionPersistenceReadiness` は ready を返し、Worker は 503 にならない
+（`src/workers/persistence.ts` `PRODUCTION_BINDING_LABELS`）。
+
+必要になった場合のみ:
 
 ```bash
 wrangler r2 bucket create civildraft-drawings   # 名称は運用規約に合わせる
@@ -132,9 +142,9 @@ JWKS は Worker が `<team-domain>/cdn-cgi/access/certs` から自動取得・�
 | --- | --- | --- | --- |
 | 1 | 品質ゲート全 green | `npm run release:audit` | CTO |
 | 2 | CI 必須チェック成功（quality/E2E/audit/SBOM） | GitHub PR checks | CTO |
-| 3 | migration 0001→0002 を dev ブランチで検証 | Neon dev で実適用 | CTO |
+| 3 | migration 0001→0002→0003 を dev ブランチで検証 | Neon dev で実適用 | CTO |
 | 4 | 本番 migration 適用 | Neon main（承認後） | 🚫 人間 |
-| 5 | R2 バケット作成・binding 設定 | `wrangler r2 bucket list` | 🚫 人間 |
+| 5 | R2 バケット作成・binding 設定（**任意**・§4.1） | `wrangler r2 bucket list` | 🚫 人間 |
 | 6 | Access Application・ポリシー設定 | Cloudflare dashboard | 🚫 人間 |
 | 7 | Secret/変数 5 種を登録 | `wrangler secret list` | 🚫 人間 |
 | 8 | `wrangler.jsonc` の `main`/API routing 決定 | 設計判断（#36） | 🚫 人間 |
