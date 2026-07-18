@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'vitest'
+import { describe, expect, it, vi } from 'vitest'
 import { NeonApiStore } from '@/workers/neonApiStore'
 import type { SqlClient } from '@/workers/neonApiStore'
 import type {
