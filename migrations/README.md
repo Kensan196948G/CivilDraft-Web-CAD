@@ -19,7 +19,7 @@ SQL ファイルは**定義のみ**であり、本リポジトリからの自動
 > データ削除に準ずる人間承認事項（CLAUDE.md §8.6、`docs/operations/rollback-procedure.md` §4.1）。
 
 1. **dev ブランチ作成**: Neon で main から dev ブランチを分岐する（`create_branch`）。
-2. **隔離検証**: dev ブランチ上で `0001_initial_schema.sql` → `0002_api_contract_alignment.sql` の順に適用し（`run_sql` / `prepare_database_migration`）、
+2. **隔離検証**: dev ブランチ上で `0001_initial_schema.sql` → `0002_api_contract_alignment.sql` → `0003_persistence_schema_drift_fix.sql` の順に適用し（`run_sql` / `prepare_database_migration`）、
    テーブル・制約・索引が作成されることを確認する（`describe_branch` / `get_database_tables`）。
 3. **実行計画確認（任意）**: 主要クエリを `explain_sql_statement` で確認し、§26.4 索引の妥当性を検証する。
 4. **差分確認**: `compare_database_schema` で main との差分を確認する。

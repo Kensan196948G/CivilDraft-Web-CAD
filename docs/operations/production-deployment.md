@@ -41,7 +41,7 @@ flowchart TB
 | 単位 | 内容 | 現状 |
 | --- | --- | --- |
 | 静的SPA | `dist/` を Static Assets として配信（ブラウザ内CAD） | ✅ デプロイ済み（`ASSETS` binding確認、`civildraft-web-cad.mirai-dx-platform.com` でHTTP 200確認） |
-| Workers API | `src/workers/index.ts`（18経路のP0縦線） | ✅ デプロイ済み（`main` エントリ有効化済み）。共有保存（PUT content/quantities）は migration 0003 本番適用までfail-closed（503、ADR-0014） |
+| Workers API | `src/workers/index.ts`（18経路のP0縦線） | ✅ デプロイ済み（`main` エントリ有効化済み）。書き込み系9ルート（GET以外の全経路）は、(a) migration 0003 本番適用 と (b) persistX配線実装 の両方が完了するまでfail-closed（503、ADR-0014）。GET系読み取りには影響しない |
 
 ---
 
@@ -88,6 +88,11 @@ wrangler secret put CIVILDRAFT_ACCESS_AUD
 
 `migrations/0002_api_contract_alignment.sql` ・ `migrations/0003_persistence_schema_drift_fix.sql` は前方互換（既存列削除なし・`ADD COLUMN IF NOT EXISTS` / `DROP NOT NULL` による制約緩和のみ）。
 0003 は R2 スキップ決定（本セクション・§4.1）に伴うスキーマドリフト（`drawing_contents.content` 列追加、`object_key`/`quantity_items.name`/`quantity` の NOT NULL 緩和）を解消する。2026-07-18 時点で dev ブランチ実地検証済み（DDL 適用・実データ INSERT とも成功）。
+
+> ⚠️ 上記ステップ5「persistContent/persistQuantities 相当の INSERT」は、SQL を直接実行するスキーマレベルの検証であり、
+> Worker コード側の `persistContent`/`persistQuantities`（`src/workers/neonApiStore.ts`）が実際に呼ばれることを確認したものではない。
+> これらの永続化メソッドは本ADR時点で `src/workers/index.ts` のどのハンドラからも呼ばれておらず（配線漏れ、ADR-0014 Decision 5 参照）、
+> 別途 Issue でコード側の配線実装・結合テストが必要。
 
 ### 3.2 本番適用（🚫 人間決裁）
 

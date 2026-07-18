@@ -9,11 +9,11 @@
   "main": "src/workers/index.ts",
   "compatibility_date": "2026-07-15",
 
-  // esbuild 設定 — Vite の @/ エイリアスを Workers ビルドでも解決
-  "build": {
-    "alias": {
-      "@": "./src"
-    }
+  // Module Aliasing — Vite の @/ エイリアスを Workers ビルドでも解決
+  // alias はトップレベルキー（build 配下は command/cwd/watch_dir のみ受理）
+  // 参照: https://developers.cloudflare.com/workers/wrangler/configuration/#module-aliasing
+  "alias": {
+    "@": "./src"
   },
 
   // Static Assets — Worker 経由で SPA を配信

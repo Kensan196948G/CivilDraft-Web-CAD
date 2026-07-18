@@ -253,19 +253,20 @@ function persistenceUnavailableResponse(env: WorkerEnv, correlationId: string): 
   )
 }
 
-function isSharedSaveRoute(match: RouteMatch): boolean {
-  return (
-    match.route.method === 'PUT' &&
-    (match.route.template === '/api/v1/revisions/{revisionId}/content' ||
-      match.route.template === '/api/v1/revisions/{revisionId}/quantities')
-  )
+// Fail closed for every mutating route, not just content/quantities: neonApiStore.ts
+// defines persistProject/persistDrawing/persistRevision/persistWorkflowAction/
+// persistExportJob but index.ts's handlers never call them (state.json 2026-07-18
+// CRITICAL finding), so a GET-allowlist here — rather than a per-route allowlist —
+// ensures any future mutating route defaults to fail-closed until it is wired up.
+function isPersistedWriteRoute(match: RouteMatch): boolean {
+  return match.route.method !== 'GET'
 }
 
-function sharedSaveTemporarilyUnavailableResponse(correlationId: string): Response {
+function persistedWriteTemporarilyUnavailableResponse(correlationId: string): Response {
   return errorResponse(
     503,
     ERROR_CODES.persistenceUnavailable,
-    '共有保存は永続化アダプタ修復中のため一時停止しています。ブラウザ内の自動保存またはローカル保存を使用してください。',
+    '書き込み操作は永続化アダプタ修復中のため一時停止しています。閲覧のみ利用可能です。',
     correlationId,
   )
 }
@@ -1412,8 +1413,8 @@ export async function handleRequest(request: Request, env: WorkerEnv = {}): Prom
   if (!matched) {
     return errorResponse(404, ERROR_CODES.notFound, '該当するエンドポイントがありません', correlationId)
   }
-  if (resolvePersistenceMode(env.CIVILDRAFT_API_MODE) === 'neon-r2' && isSharedSaveRoute(matched)) {
-    return sharedSaveTemporarilyUnavailableResponse(correlationId)
+  if (resolvePersistenceMode(env.CIVILDRAFT_API_MODE) === 'neon-r2' && isPersistedWriteRoute(matched)) {
+    return persistedWriteTemporarilyUnavailableResponse(correlationId)
   }
 
   const ctx: RequestContext = {

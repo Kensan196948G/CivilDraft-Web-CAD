@@ -182,23 +182,50 @@ describe('§25.1 共通ヘッダー検証', () => {
     }
   })
 
-  it('neon-r2 モードの共有保存PUTは一時停止し、成功したように見せない', async () => {
-    for (const path of [
-      '/api/v1/revisions/rev-1/content',
-      '/api/v1/revisions/rev-1/quantities',
-    ]) {
+  it('neon-r2 モードの書き込み系ルートは全て一時停止し、成功したように見せない（persistXがindex.tsから未配線のため）', async () => {
+    const writeRoutes = API_ROUTES.filter((r) => r.method !== 'GET')
+    // §25.2 の18経路中9経路が書き込み系。将来ルートが追加されても、この一覧に
+    // 手を加えずに自動でカバーされることを確認する（GET以外は全数fail-closed）。
+    expect(writeRoutes).toHaveLength(9)
+
+    for (const r of writeRoutes) {
       const res = await handleRequest(
-        authedRequest('PUT', path, { schemaVersion: 1, content: {}, items: [] }),
+        authedRequest(r.method, concretePath(r.template), {
+          schemaVersion: 1,
+          content: {},
+          items: [],
+          action: 'submitReview',
+          format: 'pdf',
+        }),
         {
           CIVILDRAFT_API_MODE: 'neon-r2',
           CIVILDRAFT_NEON_CONNECTION: 'test-neon-connection-placeholder',
         },
       )
-      expect(res.status).toBe(503)
+      expect(res.status, `${r.method} ${r.template}`).toBe(503)
       const body = await json<ApiErrorBody>(res)
       expect(body.error.code).toBe('CD-SYS-002')
-      expect(body.error.message).toContain('共有保存')
+      expect(body.error.message).toContain('書き込み')
       expect(body.error.message).toContain('一時停止')
+    }
+  })
+
+  it('neon-r2 モードでも読み取り系ルートは fail-closed の対象外（binding未接続の503のみ）', async () => {
+    const readRoutes = API_ROUTES.filter((r) => r.method === 'GET')
+    expect(readRoutes).toHaveLength(9)
+
+    for (const r of readRoutes) {
+      const res = await handleRequest(authedRequest('GET', concretePath(r.template)), {
+        CIVILDRAFT_API_MODE: 'neon-r2',
+        CIVILDRAFT_NEON_CONNECTION: 'test-neon-connection-placeholder',
+      })
+      // binding未接続（テストダブル未注入）のため503にはなるが、書き込み用の
+      // メッセージ（'書き込み'/'一時停止'）ではないことを見て、読み取りルートが
+      // 別経路（persistenceUnavailableResponse）で止まっていることを確認する。
+      expect(res.status, `${r.method} ${r.template}`).toBe(503)
+      const body = await json<ApiErrorBody>(res)
+      expect(body.error.code).toBe('CD-SYS-002')
+      expect(body.error.message).not.toContain('書き込み操作は永続化アダプタ修復中')
     }
   })
 })

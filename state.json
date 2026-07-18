@@ -315,6 +315,7 @@
   ],
   "deploy": {
     "ready": true,
+    "ready_scope": "Worker本体（SPA配信+API層+認証層）は本番デプロイ済み・稼働中を意味する。共有保存API（PUT content/quantities）等のフル機能稼働は blocked_by_human_decision の解消が前提で、ready=true と両立する別軸の状態。",
     "blocked_by_human_decision": [
       "Cloudflare Access Secret（ACCESS_TEAM_DOMAIN/ACCESS_AUD）本番設定の確認（bindings一覧未確認・秘密情報のため人間確認が必要。未設定確定ではないが、確認は自動実行しない）",
       "migration 0003の本番Neon main適用（PR#65マージ後・人間承認）",
