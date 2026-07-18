@@ -8,8 +8,8 @@
   "session": {
     "session_start_utc": "2026-07-18T00:00:00Z",
     "max_duration_minutes": 300,
-    "last_update_utc": "2026-07-18T15:05:00Z",
-    "note": "本番デプロイ完了: civildraft-web-cad.mirai-dx-platform.com（SPA HTTP 200 / API GET認証なしでHTTP 401 CD-AUTH-001、fail-closedの503ではない＝Worker稼働・認証層も機能）。Worker bindings実測: ASSETS/CIVILDRAFT_API_MODE=neon-r2/CIVILDRAFT_NEON_CONNECTION確認、CIVILDRAFT_ACCESS_TEAM_DOMAIN・ACCESS_AUDはbindings一覧で未確認（要人間確認）。Neon civildraft-production（pg17）に0001+0002適用済み、0003はマージ済みだが本番未適用（人間承認待ち）。R2はADR-0014でスキップ。追記2026-07-18 14:27: silent-failure-hunterのCRITICAL指摘（neonApiStoreのpersistX系メソッド未配線）を受け、fail-closed対象をPUT content/quantitiesの2ルートからGET以外の全9ルート+監査ログへ拡大（isSharedSaveRoute→isPersistedWriteRoute）。CodeRabbit相当レビュー指摘3件（High 1・Medium 2）も同一PR内で是正。恒久対応（persistX配線実装）はIssue #66に切り出し。追記2026-07-18 15:05: PR#65を人間承認（Y）を得てsquashマージ完了（squash commit 4167b098、main branch protection enforce_adminsを一時解除→マージ→即復元。Codex公式レビューはユーザー判断により省略）。main上のマージ後CI（run 29648908263）success確認済み。GitHub Projects #44へIssue #66・PR#65を新規登録・Status反映済み。"
+    "last_update_utc": "2026-07-18T15:15:00Z",
+    "note": "本番デプロイ完了: civildraft-web-cad.mirai-dx-platform.com（SPA HTTP 200 / API GET認証なしでHTTP 401 CD-AUTH-001、fail-closedの503ではない＝Worker稼働・認証層も機能）。Worker bindings実測: ASSETS/CIVILDRAFT_API_MODE=neon-r2/CIVILDRAFT_NEON_CONNECTION確認、CIVILDRAFT_ACCESS_TEAM_DOMAIN・ACCESS_AUDはbindings一覧で未確認（要人間確認）。Neon civildraft-production（pg17）に0001+0002適用済み、0003はマージ済みだが本番未適用（人間承認待ち）。R2はADR-0014でスキップ。追記2026-07-18 14:27: silent-failure-hunterのCRITICAL指摘（neonApiStoreのpersistX系メソッド未配線）を受け、fail-closed対象をPUT content/quantitiesの2ルートからGET以外の全9ルート+監査ログへ拡大（isSharedSaveRoute→isPersistedWriteRoute）。CodeRabbit相当レビュー指摘3件（High 1・Medium 2）も同一PR内で是正。恒久対応（persistX配線実装）はIssue #66に切り出し。追記2026-07-18 15:05: PR#65を人間承認（Y）を得てsquashマージ完了（squash commit 4167b098、main branch protection enforce_adminsを一時解除→マージ→即復元。Codex公式レビューはユーザー判断により省略）。main上のマージ後CI（run 29648908263）success確認済み。GitHub Projects #44へIssue #66・PR#65を新規登録・Status反映済み。追記2026-07-18 15:15: PR#67（state.json/Projects同期、Draft）作成直後、head branch(deploy/production-release)がsquash commit(4167b098)とのコミットグラフ分岐によりmainとCONFLICTING状態になり、CIが一切起動しない事象を検知。git merge origin/main実行→state.jsonコンフリクトをours採用で解消（内容はours側がtheirs側を完全に上位互換、意味的矛盾なし）→push（マージコミット3363292）でsynchronizeイベント発生、CI 4ジョブ全green確認（run 29649368429）。原因と対処をMemory(merge-train-procedure.md)へ追記済み。"
   },
   "goal": "PR#65マージ済み（squash commit 4167b098）。migration 0003本番適用+Issue #66(persistX配線実装)+Access Secret確認+再デプロイでfail-closed暫定措置(isPersistedWriteRoute)を撤去。いずれも人間決裁が必要な境界のため、判断材料の提示までがCTO代行の担当範囲。",
   "phase": "Deploy",
@@ -296,6 +296,11 @@
         "date": "2026-07-18",
         "pattern": "ユーザーがPR mergeをY承認した後でも、実行手段としてbranch protection(enforce_admins)を一時解除するgh apiコマンドは、Auto Modeのセキュリティ分類器により自動実行がブロックされる（'Blocked by classifier'）。これはCLAUDE.md上の許可（PR mergeは通常業務の承認範囲＝§8.4）とは別レイヤーの、ツール実行時点でのガードレール",
         "fix": "無理にワークアラウンドせず、ブロックされた事実と目的をユーザーへそのまま説明し、(a)ユーザー自身が!プレフィックスでコマンドを一つずつ実行する、(b)GitHub Web UIから直接操作する、の2択を提示して選ばせる。今回はユーザーが!実行を選択し、enforce_admins解除→gh pr merge --squash --admin→即復元の3コマンドを個別に!実行してもらい、各ステップ後にCTO側はread-only確認（gh api GET）で結果を検証した。復元コマンドは成否に関わらず必ず実行するようユーザーへ明示すること"
+      },
+      {
+        "date": "2026-07-18",
+        "pattern": "squash mergeされたPR(#65)のhead branch(deploy/production-release)を削除せず継続利用し新規コミットを積んでPR(#67)を作ったところ、mainのsquash commitとhead branch側の旧コミット群がコミットグラフ上で分岐し mergeable:CONFLICTING 状態になった。この状態の間、GitHub Actionsの pull_request イベントに対応するworkflow runが一件も生成されず、gh pr checks では CodeRabbit以外のチェックが一切表示されなかった",
+        "fix": "gh pr view <N> --json mergeable,mergeStateStatus でCONFLICTINGを確認したら、git fetch origin main && git merge origin/main でローカルに取り込みコンフリクトを解消（内容が実質同一/oursが上位互換なら git checkout --ours <file>）→ push。これによりsynchronizeイベントが発火しCIが起動する（今回はコンフリクト解消pushの直後にrunが生成され4ジョブ全green化を確認）。CI未起動を検知したら、まずワークフロー設定やタイミングを疑う前に mergeable 状態を確認するのが最短の切り分け"
       }
     ]
   },
