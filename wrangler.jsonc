@@ -4,7 +4,7 @@
   //
   // 方式: 案A（同一Worker統合）— Worker API + Static Assets を単一Workerで配信
   // 決定: 2026-07-18
-  // URL : civildraft.mirai-dx-platform.com
+  // URL : civildraft-wb-cad.mirai-dx-platform.com
   "name": "civildraft-web-cad",
   "main": "src/workers/index.ts",
   "compatibility_date": "2026-07-15",
