@@ -30,6 +30,16 @@ CivilDraft-Web-CADのアーキテクチャ上の重要判断を記録する。�
 
 全11件はPhase 0 Dynamic Workflow（6観点棚卸し、Run ID `wf_946d1dda-951`）のsynthesis段階が出力した`adr_recommendations`に基づく。詳細な判断根拠は各ADR本文および[継承台帳](../design/phase0/inheritance-ledger.md)・[リスク台帳](../design/phase0/risk-ledger.md)を参照。
 
+## 一覧（Phase 1実装中の追加ADR）
+
+Phase 0棚卸し由来ではなく、Phase 1の実装過程で個別に発生した判断を記録したもの。
+
+| ID | タイトル | 関連 | Status |
+| --- | --- | --- | --- |
+| [0012](./0012-internal-coordinate-baseline.md) | 内部座標基準（長さ単位・軸・角度正方向・許容差）を確定する | Issue #5 | Accepted |
+| [0013](./0013-geometry-id-generation.md) | 図形派生生成のID発番方針（crypto.randomUUID + コンテキスト注入） | ADR-0002, Issue #5 | Accepted |
+| [0014](./0014-neon-direct-content-storage.md) | 図面内容の永続化先をNeon直接格納（`drawing_contents.content`）とし、R2は任意の共有ストレージ拡張点とする | ADR-0006, ADR-0009, Issue #36 | Accepted |
+
 ## 参照
 
 - [Phase 0概要](../design/phase0/README.md)
