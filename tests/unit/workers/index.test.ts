@@ -191,7 +191,7 @@ describe('§25.1 共通ヘッダー検証', () => {
         authedRequest('PUT', path, { schemaVersion: 1, content: {}, items: [] }),
         {
           CIVILDRAFT_API_MODE: 'neon-r2',
-          CIVILDRAFT_NEON_CONNECTION: 'postgres://example.invalid/db',
+          CIVILDRAFT_NEON_CONNECTION: 'test-neon-connection-placeholder',
         },
       )
       expect(res.status).toBe(503)
