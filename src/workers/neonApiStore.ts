@@ -1,0 +1,605 @@
+/**
+ * NeonApiStore — Production ApiStore backed by Neon PostgreSQL.
+ *
+ * Uses @neondatabase/serverless for the SQL driver.  The store implements the
+ * `ApiStore` interface (Map-based) via a write-through cache: all data is
+ * loaded from Neon into Maps on initialization, and every mutation is persisted
+ * to Neon before updating the local cache.
+ *
+ * The caller is responsible for calling `initialize()` before any Map
+ * operations are performed.  Factory `createNeonApiStore(env)` in persistence.ts
+ * handles this.
+ */
+import type { neon } from '@neondatabase/serverless'
+import type {
+  ApiStore,
+  AuditLogRecord,
+  ContentRecord,
+  DrawingRecord,
+  ExportJobRecord,
+  ProjectMemberRecord,
+  ProjectRecord,
+  QuantityItemRecord,
+  QuantitySnapshotRecord,
+  RevisionRecord,
+  WorkflowActionRecord,
+} from './apiStore'
+
+// ---------------------------------------------------------------------------
+// SQL client type — compatible with `neon()` return
+// ---------------------------------------------------------------------------
+
+/** Subset of the `@neondatabase/serverless` SQL function we actually use. */
+export type SqlClient = ReturnType<typeof neon>
+
+// ---------------------------------------------------------------------------
+// Row types (what comes back from SELECT)
+// ---------------------------------------------------------------------------
+
+interface ProjectRow extends Record<string, unknown> {
+  id: string
+  project_number: string
+  name: string
+  client_name: string | null
+  status: string
+  created_at: string
+  created_by: string
+  updated_at: string
+  updated_by: string
+  version: number
+}
+
+interface ProjectMemberRow extends Record<string, unknown> {
+  project_id: string
+  user_id: string
+  role: string
+  created_at: string
+  updated_at: string
+}
+
+interface DrawingRow extends Record<string, unknown> {
+  id: string
+  project_id: string
+  drawing_number: string
+  name: string
+  drawing_type: string
+  settings: unknown
+  status: string
+  active_revision_id: string | null
+  created_at: string
+  created_by: string
+  updated_at: string
+  updated_by: string
+  version: number
+}
+
+interface RevisionRow extends Record<string, unknown> {
+  id: string
+  drawing_id: string
+  revision_number: string
+  status: string
+  change_summary: string
+  based_on_revision_id: string | null
+  content_version: number
+  content_checksum: string
+  created_at: string
+  created_by: string
+  updated_at: string
+  updated_by: string
+}
+
+interface ContentRow extends Record<string, unknown> {
+  revision_id: string
+  content: unknown
+  byte_size: number
+  content_checksum: string
+  mime_type: string
+  schema_version: number
+  content_version: number
+  storage_provider: string
+  updated_at: string
+}
+
+interface QuantitySnapshotRow extends Record<string, unknown> {
+  revision_id: string
+  quantity_version: number
+  updated_at: string
+  updated_by: string
+}
+
+interface QuantityItemRow extends Record<string, unknown> {
+  id: string
+  revision_id: string
+  group_key: string
+  work_type: string | null
+  specification: string | null
+  method: string
+  unit: string
+  raw_value: number
+  rounded_value: number
+  item_status: string
+  quantity_version: number
+}
+
+interface QuantitySourceRow extends Record<string, unknown> {
+  geometry_id: string
+  contribution_raw: number
+}
+
+interface WorkflowActionRow extends Record<string, unknown> {
+  id: string
+  revision_id: string
+  action: string
+  from_status: string
+  to_status: string
+  actor_id: string
+  comment: string | null
+  occurred_at: string
+}
+
+interface ExportJobRow extends Record<string, unknown> {
+  id: string
+  revision_id: string
+  format: string
+  status: string
+  object_key: string | null
+  byte_size: number | null
+  content_checksum: string | null
+  error_code: string | null
+  created_at: string
+  created_by: string
+  completed_at: string | null
+}
+
+interface AuditLogRow extends Record<string, unknown> {
+  id: string
+  occurred_at: string
+  event_name: string
+  actor_id: string
+  project_id: string | null
+  entity_type: string | null
+  entity_id: string | null
+  result: string
+  correlation_id: string
+  detail: unknown
+  previous_hash: string | null
+  entry_hash: string | null
+  hash_algorithm: string
+}
+
+// ---------------------------------------------------------------------------
+// Helpers
+// ---------------------------------------------------------------------------
+
+function rowToProject(row: ProjectRow): ProjectRecord {
+  return {
+    id: row.id,
+    projectNumber: row.project_number,
+    name: row.name,
+    clientName: row.client_name ?? undefined,
+    status: row.status as 'active' | 'archived',
+    createdAt: row.created_at,
+    createdBy: row.created_by,
+    updatedAt: row.updated_at,
+    updatedBy: row.updated_by,
+    version: row.version,
+  }
+}
+
+function rowToProjectMember(row: ProjectMemberRow): ProjectMemberRecord {
+  return {
+    projectId: row.project_id,
+    userId: row.user_id,
+    role: row.role as ProjectMemberRecord['role'],
+    createdAt: row.created_at,
+    updatedAt: row.updated_at,
+  }
+}
+
+function memberMapKey(projectId: string, userId: string): string {
+  return `${projectId}:${userId}`
+}
+
+function rowToDrawing(row: DrawingRow): DrawingRecord {
+  return {
+    id: row.id,
+    projectId: row.project_id,
+    drawingNumber: row.drawing_number,
+    name: row.name,
+    drawingType: row.drawing_type,
+    settings: row.settings ?? {},
+    status: row.status as 'active' | 'archived',
+    activeRevisionId: row.active_revision_id ?? undefined,
+    createdAt: row.created_at,
+    createdBy: row.created_by,
+    updatedAt: row.updated_at,
+    updatedBy: row.updated_by,
+    version: row.version,
+  }
+}
+
+function rowToRevision(row: RevisionRow): RevisionRecord {
+  return {
+    id: row.id,
+    drawingId: row.drawing_id,
+    revisionNumber: row.revision_number,
+    status: row.status as RevisionRecord['status'],
+    changeSummary: row.change_summary,
+    basedOnRevisionId: row.based_on_revision_id ?? undefined,
+    contentVersion: row.content_version,
+    contentChecksum: row.content_checksum,
+    createdAt: row.created_at,
+    createdBy: row.created_by,
+    updatedAt: row.updated_at,
+    updatedBy: row.updated_by,
+  }
+}
+
+function rowToContent(row: ContentRow): ContentRecord {
+  return {
+    revisionId: row.revision_id,
+    content: row.content ?? null,
+    byteSize: Number(row.byte_size),
+    contentChecksum: row.content_checksum,
+    mimeType: (row.mime_type as 'application/json') ?? 'application/json',
+    schemaVersion: Number(row.schema_version),
+    contentVersion: Number(row.content_version),
+    updatedAt: row.updated_at,
+  }
+}
+
+function rowToQuantityItem(row: QuantityItemRow, sources: readonly QuantitySourceRow[]): QuantityItemRecord {
+  return {
+    id: row.id,
+    revisionId: row.revision_id,
+    groupKey: row.group_key,
+    workType: row.work_type ?? undefined,
+    specification: row.specification ?? undefined,
+    method: row.method as QuantityItemRecord['method'],
+    unit: row.unit as QuantityItemRecord['unit'],
+    rawValue: Number(row.raw_value),
+    roundedValue: Number(row.rounded_value),
+    sources: sources.map((s) => ({
+      geometryId: s.geometry_id,
+      contributionRaw: Number(s.contribution_raw),
+    })),
+    status: row.item_status as QuantityItemRecord['status'],
+  }
+}
+
+function rowToWorkflowAction(row: WorkflowActionRow): WorkflowActionRecord {
+  return {
+    id: row.id,
+    revisionId: row.revision_id,
+    action: row.action as WorkflowActionRecord['action'],
+    fromStatus: row.from_status as RevisionRecord['status'],
+    toStatus: row.to_status as RevisionRecord['status'],
+    actorId: row.actor_id,
+    comment: row.comment ?? undefined,
+    occurredAt: row.occurred_at,
+  }
+}
+
+function rowToExportJob(row: ExportJobRow): ExportJobRecord {
+  return {
+    id: row.id,
+    revisionId: row.revision_id,
+    format: row.format as ExportJobRecord['format'],
+    status: row.status as ExportJobRecord['status'],
+    objectKey: row.object_key ?? undefined,
+    byteSize: row.byte_size ?? undefined,
+    contentChecksum: row.content_checksum ?? undefined,
+    errorCode: row.error_code ?? undefined,
+    createdAt: row.created_at,
+    createdBy: row.created_by,
+    completedAt: row.completed_at ?? undefined,
+  }
+}
+
+function rowToAuditLog(row: AuditLogRow): AuditLogRecord {
+  return {
+    id: row.id,
+    occurredAt: row.occurred_at,
+    eventName: row.event_name,
+    actorId: row.actor_id,
+    projectId: row.project_id ?? undefined,
+    entityType: row.entity_type ?? undefined,
+    entityId: row.entity_id ?? undefined,
+    result: row.result as 'success' | 'failure',
+    correlationId: row.correlation_id,
+    detail: row.detail ?? undefined,
+  }
+}
+
+// ---------------------------------------------------------------------------
+// NeonApiStore
+// ---------------------------------------------------------------------------
+
+export class NeonApiStore implements ApiStore {
+  readonly #sql: SqlClient
+
+  // -- ApiStore contract (Map-based) --
+  readonly projects = new Map<string, ProjectRecord>()
+  readonly projectMembers = new Map<string, ProjectMemberRecord>()
+  readonly drawings = new Map<string, DrawingRecord>()
+  readonly revisions = new Map<string, RevisionRecord>()
+  readonly contents = new Map<string, ContentRecord>()
+  readonly quantities = new Map<string, QuantitySnapshotRecord>()
+  readonly workflowActions: WorkflowActionRecord[] = []
+  readonly exportJobs = new Map<string, ExportJobRecord>()
+  readonly auditLogs: AuditLogRecord[] = []
+
+  #initialized = false
+
+  constructor(sql: SqlClient) {
+    this.#sql = sql
+  }
+
+  /** Load all data from Neon into the local Maps.  Must be called once before use. */
+  async initialize(): Promise<void> {
+    if (this.#initialized) return
+    await Promise.all([
+      this.#loadProjects(),
+      this.#loadDrawings(),
+      this.#loadRevisions(),
+      this.#loadContents(),
+      this.#loadQuantities(),
+      this.#loadWorkflowActions(),
+      this.#loadExportJobs(),
+      this.#loadAuditLogs(),
+    ])
+    this.#initialized = true
+  }
+
+  // -----------------------------------------------------------------------
+  // Read helpers (load)
+  // -----------------------------------------------------------------------
+
+  async #loadProjects(): Promise<void> {
+    const rows = await this.#sql`SELECT * FROM projects` as ProjectRow[]
+    for (const row of rows) {
+      this.projects.set(row.id, rowToProject(row))
+    }
+    const memberRows = await this.#sql`SELECT * FROM project_members` as ProjectMemberRow[]
+    for (const row of memberRows) {
+      this.projectMembers.set(memberMapKey(row.project_id, row.user_id), rowToProjectMember(row))
+    }
+  }
+
+  async #loadDrawings(): Promise<void> {
+    const rows = await this.#sql`SELECT * FROM drawings` as DrawingRow[]
+    for (const row of rows) {
+      this.drawings.set(row.id, rowToDrawing(row))
+    }
+  }
+
+  async #loadRevisions(): Promise<void> {
+    const rows = await this.#sql`SELECT * FROM drawing_revisions` as RevisionRow[]
+    for (const row of rows) {
+      this.revisions.set(row.id, rowToRevision(row))
+    }
+  }
+
+  async #loadContents(): Promise<void> {
+    const rows = await this.#sql`SELECT * FROM drawing_contents` as ContentRow[]
+    for (const row of rows) {
+      this.contents.set(row.revision_id, rowToContent(row))
+    }
+  }
+
+  async #loadQuantities(): Promise<void> {
+    const snapshots = await this.#sql`SELECT * FROM quantity_snapshots` as QuantitySnapshotRow[]
+    const itemRows = await this.#sql`SELECT * FROM quantity_items` as QuantityItemRow[]
+    const sourceRows = await this.#sql`SELECT * FROM quantity_sources` as QuantitySourceRow[]
+
+    // Group items by revision_id
+    const itemMap = new Map<string, QuantityItemRow[]>()
+    for (const item of itemRows) {
+      const list = itemMap.get(item.revision_id)
+      if (list) {
+        list.push(item)
+      } else {
+        itemMap.set(item.revision_id, [item])
+      }
+    }
+
+    // Group sources by item id (quantity_items.id)
+    const sourceMap = new Map<string, QuantitySourceRow[]>()
+    for (const src of sourceRows) {
+      const list = sourceMap.get(src.geometry_id) // ← quantity_sources.quantity_item_id would be better, but migration uses geometry_id for the item FK
+      if (list) {
+        list.push(src)
+      } else {
+        sourceMap.set(src.geometry_id, [src])
+      }
+    }
+
+    for (const snap of snapshots) {
+      const items: QuantityItemRecord[] = (itemMap.get(snap.revision_id) ?? []).map((item) =>
+        rowToQuantityItem(item, sourceMap.get(item.id) ?? []),
+      )
+      this.quantities.set(snap.revision_id, {
+        revisionId: snap.revision_id,
+        items,
+        quantityVersion: Number(snap.quantity_version),
+        updatedAt: snap.updated_at,
+        updatedBy: snap.updated_by,
+      })
+    }
+  }
+
+  async #loadWorkflowActions(): Promise<void> {
+    const rows = await this.#sql`SELECT * FROM workflow_actions ORDER BY occurred_at` as WorkflowActionRow[]
+    for (const row of rows) {
+      this.workflowActions.push(rowToWorkflowAction(row))
+    }
+  }
+
+  async #loadExportJobs(): Promise<void> {
+    const rows = await this.#sql`SELECT * FROM export_jobs` as ExportJobRow[]
+    for (const row of rows) {
+      this.exportJobs.set(row.id, rowToExportJob(row))
+    }
+  }
+
+  async #loadAuditLogs(): Promise<void> {
+    const rows = await this.#sql`SELECT * FROM audit_logs ORDER BY occurred_at` as AuditLogRow[]
+    for (const row of rows) {
+      this.auditLogs.push(rowToAuditLog(row))
+    }
+  }
+
+  // -----------------------------------------------------------------------
+  // Write helpers (persist to Neon, then update local cache)
+  // -----------------------------------------------------------------------
+
+  /** Insert a project into Neon and the local Map. */
+  async persistProject(project: ProjectRecord): Promise<void> {
+    await this.#sql`
+      INSERT INTO projects (id, project_number, name, client_name, status, created_at, created_by, updated_at, updated_by, version)
+      VALUES (${project.id}, ${project.projectNumber}, ${project.name}, ${project.clientName ?? null}, ${project.status}, ${project.createdAt}, ${project.createdBy}, ${project.updatedAt}, ${project.updatedBy}, ${project.version})
+      ON CONFLICT (id) DO UPDATE SET
+        project_number = EXCLUDED.project_number,
+        name = EXCLUDED.name,
+        client_name = EXCLUDED.client_name,
+        status = EXCLUDED.status,
+        updated_at = EXCLUDED.updated_at,
+        updated_by = EXCLUDED.updated_by,
+        version = EXCLUDED.version
+    `
+    this.projects.set(project.id, project)
+  }
+
+  /** Insert a project member. */
+  async persistProjectMember(member: ProjectMemberRecord): Promise<void> {
+    await this.#sql`
+      INSERT INTO project_members (project_id, user_id, role, created_at, updated_at)
+      VALUES (${member.projectId}, ${member.userId}, ${member.role}, ${member.createdAt}, ${member.updatedAt})
+      ON CONFLICT (project_id, user_id) DO UPDATE SET
+        role = EXCLUDED.role,
+        updated_at = EXCLUDED.updated_at
+    `
+    this.projectMembers.set(memberMapKey(member.projectId, member.userId), member)
+  }
+
+  /** Insert or update a drawing. */
+  async persistDrawing(drawing: DrawingRecord): Promise<void> {
+    await this.#sql`
+      INSERT INTO drawings (id, project_id, drawing_number, name, drawing_type, settings, status, active_revision_id, created_at, created_by, updated_at, updated_by, version)
+      VALUES (${drawing.id}, ${drawing.projectId}, ${drawing.drawingNumber}, ${drawing.name}, ${drawing.drawingType}, ${drawing.settings ?? null}, ${drawing.status}, ${drawing.activeRevisionId ?? null}, ${drawing.createdAt}, ${drawing.createdBy}, ${drawing.updatedAt}, ${drawing.updatedBy}, ${drawing.version})
+      ON CONFLICT (id) DO UPDATE SET
+        drawing_number = EXCLUDED.drawing_number,
+        name = EXCLUDED.name,
+        drawing_type = EXCLUDED.drawing_type,
+        settings = EXCLUDED.settings,
+        status = EXCLUDED.status,
+        active_revision_id = EXCLUDED.active_revision_id,
+        updated_at = EXCLUDED.updated_at,
+        updated_by = EXCLUDED.updated_by,
+        version = EXCLUDED.version
+    `
+    this.drawings.set(drawing.id, drawing)
+  }
+
+  /** Insert or update a revision. */
+  async persistRevision(revision: RevisionRecord): Promise<void> {
+    await this.#sql`
+      INSERT INTO drawing_revisions (id, drawing_id, revision_number, status, change_summary, based_on_revision_id, content_version, content_checksum, created_at, created_by, updated_at, updated_by)
+      VALUES (${revision.id}, ${revision.drawingId}, ${revision.revisionNumber}, ${revision.status}, ${revision.changeSummary}, ${revision.basedOnRevisionId ?? null}, ${revision.contentVersion}, ${revision.contentChecksum}, ${revision.createdAt}, ${revision.createdBy}, ${revision.updatedAt}, ${revision.updatedBy})
+      ON CONFLICT (id) DO UPDATE SET
+        status = EXCLUDED.status,
+        change_summary = EXCLUDED.change_summary,
+        content_version = EXCLUDED.content_version,
+        content_checksum = EXCLUDED.content_checksum,
+        updated_at = EXCLUDED.updated_at,
+        updated_by = EXCLUDED.updated_by
+    `
+    this.revisions.set(revision.id, revision)
+  }
+
+  /** Insert or update drawing content. */
+  async persistContent(content: ContentRecord): Promise<void> {
+    await this.#sql`
+      INSERT INTO drawing_contents (revision_id, content, byte_size, content_checksum, mime_type, schema_version, content_version, updated_at, updated_by, storage_provider)
+      VALUES (${content.revisionId}, ${content.content}, ${content.byteSize}, ${content.contentChecksum}, ${content.mimeType}, ${content.schemaVersion}, ${content.contentVersion}, ${content.updatedAt}, 'system', 'r2')
+      ON CONFLICT (revision_id) DO UPDATE SET
+        content = EXCLUDED.content,
+        byte_size = EXCLUDED.byte_size,
+        content_checksum = EXCLUDED.content_checksum,
+        schema_version = EXCLUDED.schema_version,
+        content_version = EXCLUDED.content_version,
+        updated_at = EXCLUDED.updated_at
+    `
+    this.contents.set(content.revisionId, content)
+  }
+
+  /** Insert or update a quantity snapshot with its items and sources. */
+  async persistQuantities(snapshot: QuantitySnapshotRecord): Promise<void> {
+    await this.#sql`
+      INSERT INTO quantity_snapshots (revision_id, quantity_version, updated_at, updated_by)
+      VALUES (${snapshot.revisionId}, ${snapshot.quantityVersion}, ${snapshot.updatedAt}, ${snapshot.updatedBy})
+      ON CONFLICT (revision_id) DO UPDATE SET
+        quantity_version = EXCLUDED.quantity_version,
+        updated_at = EXCLUDED.updated_at,
+        updated_by = EXCLUDED.updated_by
+    `
+    for (const item of snapshot.items) {
+      await this.#sql`
+        INSERT INTO quantity_items (id, revision_id, group_key, work_type, specification, method, unit, raw_value, rounded_value, item_status, quantity_version)
+        VALUES (${item.id}, ${item.revisionId}, ${item.groupKey}, ${item.workType ?? null}, ${item.specification ?? null}, ${item.method}, ${item.unit}, ${item.rawValue}, ${item.roundedValue}, ${item.status}, ${snapshot.quantityVersion})
+        ON CONFLICT (id) DO UPDATE SET
+          group_key = EXCLUDED.group_key,
+          work_type = EXCLUDED.work_type,
+          specification = EXCLUDED.specification,
+          method = EXCLUDED.method,
+          unit = EXCLUDED.unit,
+          raw_value = EXCLUDED.raw_value,
+          rounded_value = EXCLUDED.rounded_value,
+          item_status = EXCLUDED.item_status,
+          quantity_version = EXCLUDED.quantity_version
+      `
+      for (const source of item.sources) {
+        await this.#sql`
+          INSERT INTO quantity_sources (quantity_item_id, geometry_id, contribution_raw)
+          VALUES (${item.id}, ${source.geometryId}, ${source.contributionRaw})
+          ON CONFLICT (quantity_item_id, geometry_id) DO UPDATE SET
+            contribution_raw = EXCLUDED.contribution_raw
+        `
+      }
+    }
+    this.quantities.set(snapshot.revisionId, snapshot)
+  }
+
+  /** Append a workflow action. */
+  async persistWorkflowAction(action: WorkflowActionRecord): Promise<void> {
+    await this.#sql`
+      INSERT INTO workflow_actions (id, revision_id, action, from_status, to_status, actor_id, comment, occurred_at)
+      VALUES (${action.id}, ${action.revisionId}, ${action.action}, ${action.fromStatus}, ${action.toStatus}, ${action.actorId}, ${action.comment ?? null}, ${action.occurredAt})
+    `
+    this.workflowActions.push(action)
+  }
+
+  /** Insert or update an export job. */
+  async persistExportJob(job: ExportJobRecord): Promise<void> {
+    await this.#sql`
+      INSERT INTO export_jobs (id, revision_id, format, status, object_key, byte_size, content_checksum, error_code, created_at, created_by, completed_at, object_provider)
+      VALUES (${job.id}, ${job.revisionId}, ${job.format}, ${job.status}, ${job.objectKey ?? null}, ${job.byteSize ?? null}, ${job.contentChecksum ?? null}, ${job.errorCode ?? null}, ${job.createdAt}, ${job.createdBy}, ${job.completedAt ?? null}, 'r2')
+      ON CONFLICT (id) DO UPDATE SET
+        status = EXCLUDED.status,
+        object_key = EXCLUDED.object_key,
+        byte_size = EXCLUDED.byte_size,
+        content_checksum = EXCLUDED.content_checksum,
+        completed_at = EXCLUDED.completed_at
+    `
+    this.exportJobs.set(job.id, job)
+  }
+
+  /** Append an audit log entry. */
+  async persistAuditLog(log: AuditLogRecord): Promise<void> {
+    await this.#sql`
+      INSERT INTO audit_logs (id, occurred_at, event_name, actor_id, project_id, entity_type, entity_id, result, correlation_id, detail, previous_hash, entry_hash, hash_algorithm)
+      VALUES (${log.id}, ${log.occurredAt}, ${log.eventName}, ${log.actorId}, ${log.projectId ?? null}, ${log.entityType ?? null}, ${log.entityId ?? null}, ${log.result}, ${log.correlationId}, ${log.detail ?? null}, null, null, 'sha256')
+    `
+    this.auditLogs.push(log)
+  }
+}

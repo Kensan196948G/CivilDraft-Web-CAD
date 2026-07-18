@@ -3,10 +3,11 @@
   // 正本: docs/operations/release-procedure.md §6.1
   //
   // 現在の本番直前方針:
-  // - dist/ を Static Assets として配信する SPA 構成は維持する。
-  // - Workers API（src/workers/index.ts）はP0契約実装済みだが、本番Neon/R2接続、
-  //   Cloudflare Accessテナント設定、Static Assetsとの統合方式が人間決裁前のため、
-  //   この設定ではまだ main として有効化しない。
+  // - 静的 SPA（dist/）は現在の assets 設定で配信可。
+  // - Workers API（src/workers/index.ts）は P0 契約実装済み。Issue #36 で
+  //   NeonApiStore + R2ContentStore の本番アダプタを実装した。
+  // - API と静的 SPA を同一 Worker で統合するには、以下のコメントアウトされた
+  //   構成（main + assets.binding）を人間決裁後に有効化する。
   // デプロイ・wrangler login・リソース作成は人間決裁事項（本ファイルは構成定義のみ）。
   "name": "civildraft-web-cad",
   "compatibility_date": "2026-07-15",
@@ -23,4 +24,25 @@
   //   "not_found_handling": "single-page-application",
   //   "binding": "ASSETS"
   // }
+
+  // --- R2 バケット binding（人間承認後に作成して有効化）---
+  // "r2_buckets": [
+  //   { "binding": "CIVILDRAFT_R2_BUCKET", "bucket_name": "civildraft-drawings" }
+  // ]
+
+  // --- Neon Hyperdrive binding（人間承認後に作成して有効化）---
+  // "hyperdrive": [
+  //   {
+  //     "binding": "CIVILDRAFT_NEON_CONNECTION_HD",
+  //     "id": "<hyperdrive-configuration-id>"
+  //   }
+  // ]
+  // 接続文字列（Secret）:
+  //   wrangler secret put CIVILDRAFT_NEON_CONNECTION
+  // 変数:
+  //   CIVILDRAFT_API_MODE = "neon-r2"
+  //   CIVILDRAFT_ACCESS_TEAM_DOMAIN = "https://<team>.cloudflareaccess.com"
+  //   CIVILDRAFT_ACCESS_AUD（Secret）
+  //
+  // 詳細: docs/operations/production-deployment.md
 }
