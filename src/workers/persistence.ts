@@ -14,13 +14,18 @@ export interface ProductionPersistenceReadiness {
 export interface NeonApiStoreWithR2 {
   readonly apiStore: ApiStore
   readonly neonStore: NeonApiStore
-  readonly contentStore: R2ContentStore
+  /**
+   * R2 is optional: drawing content is persisted directly to Neon
+   * (`drawing_contents.content`). `contentStore` is only set when an R2
+   * bucket binding is provided (future shared-storage use case).
+   */
+  readonly contentStore: R2ContentStore | undefined
 }
 
-const PRODUCTION_BINDING_LABELS = [
-  'CIVILDRAFT_NEON_CONNECTION',
-  'CIVILDRAFT_R2_BUCKET',
-] as const
+// R2 is intentionally excluded: content persists directly to Neon
+// (`drawing_contents.content`, see migrations/0003), so R2 is optional
+// shared-storage infrastructure, not a readiness requirement.
+const PRODUCTION_BINDING_LABELS = ['CIVILDRAFT_NEON_CONNECTION'] as const
 
 /**
  * Fail closed: only explicit 'memory' / 'neon-r2' are accepted.
@@ -45,18 +50,22 @@ export function inspectProductionPersistenceReadiness(
 }
 
 /**
- * Create a NeonApiStore + R2ContentStore from Worker bindings.
+ * Create a NeonApiStore (+ optional R2ContentStore) from Worker bindings.
  *
  * `sqlFactory` is the `neon()` function from `@neondatabase/serverless`.
  * The returned `apiStore` satisfies the `ApiStore` interface (Map-based).
  * `initialize()` is called automatically so callers can use the Maps
  * synchronously after awaiting this factory.
  *
- * Throws if required bindings are missing (caller should check readiness first).
+ * `CIVILDRAFT_R2_BUCKET` is optional: content persists directly to Neon,
+ * so `contentStore` is only constructed when a bucket binding is supplied.
+ *
+ * Throws if the Neon connection binding is missing (caller should check
+ * readiness first).
  */
 export async function createNeonApiStore(env: {
   readonly CIVILDRAFT_NEON_CONNECTION: string
-  readonly CIVILDRAFT_R2_BUCKET: R2BucketBinding
+  readonly CIVILDRAFT_R2_BUCKET?: R2BucketBinding
   readonly sqlFactory?: (connectionString: string) => SqlClient
 }): Promise<NeonApiStoreWithR2> {
   // Dynamic import so @neondatabase/serverless is only loaded in production paths
@@ -65,7 +74,7 @@ export async function createNeonApiStore(env: {
   const sql = factory(env.CIVILDRAFT_NEON_CONNECTION)
   const neonStore = new NeonApiStore(sql)
   await neonStore.initialize()
-  const contentStore = new R2ContentStore(env.CIVILDRAFT_R2_BUCKET)
+  const contentStore = env.CIVILDRAFT_R2_BUCKET ? new R2ContentStore(env.CIVILDRAFT_R2_BUCKET) : undefined
   return { apiStore: neonStore, neonStore, contentStore }
 }
 

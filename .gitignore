@@ -44,3 +44,7 @@ vite-*.log
 .design-sync/.cache/
 .design-sync/learnings/
 .design-sync/node_modules
+
+# external orchestration tool runtime state (not part of the source tree)
+.omo/
+.opencode/

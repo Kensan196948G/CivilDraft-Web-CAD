@@ -53,4 +53,24 @@ describe('Neon migrations', () => {
     expect(sql).not.toMatch(/\bDELETE\s+FROM\b/i)
     expect(sql).not.toMatch(/\bALTER\s+TABLE\b[\s\S]*\bDROP\s+COLUMN\b/i)
   })
+
+  it('0003 はR2スキップ決定に合わせてdrawing_contents/quantity_itemsのスキーマドリフトを解消する', () => {
+    const sql = readMigration('0003_persistence_schema_drift_fix.sql')
+
+    expect(sql).toMatch(/\bBEGIN;/)
+    expect(sql).toMatch(/\bCOMMIT;/)
+    expect(sql).toContain('ADD COLUMN IF NOT EXISTS content jsonb')
+    expect(sql).toMatch(/ALTER TABLE drawing_contents[\s\S]*ALTER COLUMN object_key DROP NOT NULL/)
+    expect(sql).toMatch(/ALTER TABLE quantity_items[\s\S]*ALTER COLUMN name DROP NOT NULL/)
+    expect(sql).toMatch(/ALTER TABLE quantity_items[\s\S]*ALTER COLUMN quantity DROP NOT NULL/)
+  })
+
+  it('0003 は本番データを壊すDDLを含まない（列削除・テーブル削除・データ削除なし）', () => {
+    const sql = readMigration('0003_persistence_schema_drift_fix.sql')
+
+    expect(sql).not.toMatch(/\bDROP\s+(TABLE|COLUMN|SCHEMA|DATABASE)\b/i)
+    expect(sql).not.toMatch(/\bTRUNCATE\b/i)
+    expect(sql).not.toMatch(/\bDELETE\s+FROM\b/i)
+    expect(sql).not.toMatch(/\bALTER\s+TABLE\b[\s\S]*\bDROP\s+COLUMN\b/i)
+  })
 })

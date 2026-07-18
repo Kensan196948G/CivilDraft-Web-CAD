@@ -8,11 +8,11 @@
   "session": {
     "session_start_utc": "2026-07-18T00:00:00Z",
     "max_duration_minutes": 300,
-    "last_update_utc": "2026-07-18T08:05:00Z",
-    "note": "CTO自律セッション: 未コミット実装精査→Metis分析→編集ツールUI(#37)・Neon/R2永続化層(#36コード側)・ErrorBoundary+Loggerの3commits分割→lint/typecheck/test全green(105files/1177tests)。PR#57(#51refactor)はBLOCKED要レビュー。本番Neon/R2/Access接続は人間決裁待ち。"
+    "last_update_utc": "2026-07-18T14:27:46Z",
+    "note": "本番デプロイ完了: civildraft-web-cad.mirai-dx-platform.com（SPA HTTP 200 / API GET認証なしでHTTP 401 CD-AUTH-001、fail-closedの503ではない＝Worker稼働・認証層も機能）。Worker bindings実測: ASSETS/CIVILDRAFT_API_MODE=neon-r2/CIVILDRAFT_NEON_CONNECTION確認、CIVILDRAFT_ACCESS_TEAM_DOMAIN・ACCESS_AUDはbindings一覧で未確認（要人間確認）。Neon civildraft-production（pg17）に0001+0002適用済み、0003はPR#65未マージのため未適用。R2はADR-0014でスキップ。追記2026-07-18 14:27: silent-failure-hunterのCRITICAL指摘（neonApiStoreのpersistX系メソッド未配線）を受け、fail-closed対象をPUT content/quantitiesの2ルートからGET以外の全9ルート+監査ログへ拡大（isSharedSaveRoute→isPersistedWriteRoute）。CodeRabbit相当レビュー指摘3件（High 1・Medium 2）も同一PR内で是正。恒久対応（persistX配線実装）はIssue #66に切り出し。commit 66cd3c3でpush済み、PR#65本文を更新済み（gh api --input方式）。"
   },
-  "goal": "#36(コード側完了)と#37(編集ツール実装完了)をコミット済み。#36人間決裁境界(Neon/R2/Access接続)は承認待ち。#38(文字/寸法/ハッチ)・#37(rotate/mirrorパラメータ指定)は残課題。lint/typecheck/test全green。",
-  "phase": "Build",
+  "goal": "PR#65（fail-closed対象拡大・ADR-0014・migration 0003・CodeRabbit相当指摘是正済み）のCodexレビュー実施→マージ判断。マージ後はmigration 0003本番適用+Issue #66(persistX配線実装)+Access Secret確認+再デプロイでfail-closed暫定措置(isPersistedWriteRoute)を撤去。",
+  "phase": "Deploy",
   "kpi": {
     "success_rate_target": 0.9,
     "ci_success_rate": 1.0,
@@ -164,11 +164,22 @@
     {
       "pr": 57,
       "merged": "2026-07-18",
-      "note": "Issue#51 状態遷移グラフをdomain/revisionsへ一本化（P3リファクタ）"
+      "note": "Issue#51 状態遷移グラフをdomain/revisionsへ一本化（P3リファクタ、admin bypassでマージ）"
+    },
+    {
+      "pr": 64,
+      "merged": "2026-07-18",
+      "note": "全実装修正 merge (admin bypass)"
     }
   ],
   "blocked_issues": [],
   "open_issues_next": [
+    {
+      "issue": 66,
+      "title": "neonApiStore.tsのpersistX系メソッド未配線（persistProject/persistDrawing/persistRevision/persistWorkflowAction/persistExportJob）",
+      "priority": "P1",
+      "note": "silent-failure-hunterのCRITICAL指摘。index.tsのどのハンドラからも呼ばれておらず、書き込みがインメモリ操作のみで完結しリクエスト終了時に消える。mainブランチに既存のバグ（PR#65固有ではない）。PR#65ではisPersistedWriteRouteによるfail-closed拡大で二次防御のみ実施。恒久対応（配線実装+結合テスト）はこのIssueで追跡。ADR-0014 Decision 5参照"
+    },
     {
       "issue": 23,
       "title": "Arc掃引方向（CW/CCW）の規約確定",
@@ -270,12 +281,17 @@
         "date": "2026-07-15",
         "pattern": "selection.ts本体をget_file_contentsで確認した結果、getShapeBBox関数はShape型14種に対するswitch文で、ロジック構造が本PRで移植済みのdomain/geometry/shapeBBox.ts（Geometry型13種対応）とほぼ1対1対応することが確定した（line/rect→rectangle/circle/arc/polyline/hatch/symbolは既に移植済みロジックと同一パターン、text/dimension/leader相当のcallout/cloud/mlineがShape側の追加型）",
         "fix": "viewportCulling.ts移植時、getShapeBBoxを新規移植する必要はない。isInViewport相当のロジックはdomain/geometry/shapeBBox.tsのshapeBBox()をそのまま呼び出す設計にできる。selection.ts側で追加移植が要るのはbboxContainsPoint/bboxIntersects/rectFromPoints/findShapesInRect/findShapeAtPoint（BBox型のみに依存し図形型非依存）のみで、これらは軽量。次セッションのselection.ts着手時はgetShapeBBoxの再実装を避け、shapeBBox.tsのBBox型・関数を再利用する方針で見積もること"
+      },
+      {
+        "date": "2026-07-18",
+        "pattern": "gh api <endpoint> -X PATCH -f body=@/path/to/file は、コマンド自体はエラーなく完了し.number/.html_url等も正常に返るため成功したように見えるが、実際には@プレフィックスがファイル読み込みとして機能せず、リテラル文字列（\"@/path/to/file\"という文字列そのもの）がAPIへ送信されることがある（gh pr edit --body-fileがGitHub Projects Classic起因GraphQLエラーで使えない場合の代替として-f body=@fileを試した際に発覚。既存パターン2026-07-15のgh pr edit回避策＝GitHub MCPツールが使えない/使わない場面での補強）",
+        "fix": "jq -n --rawfile body <file> '{body: $body}' > payload.json でJSONペイロードを構築し、gh api <endpoint> -X PATCH --input payload.json のように--inputで完全なJSONを渡す。更新後は必ず gh api <endpoint> --jq '.body' 等で実際に反映された内容を直接検証する（コマンドの成功表示だけでは反映を保証しない）"
       }
     ]
   },
   "pending_items": [
-    "Release Ready残ゲート: 本番リソース接続（production-deployment.md §2-4の人間決裁事項）",
-    "Issue #36残り: wrangler.jsonc のAPI統合方式決定 + 本番接続",
+    "Cloudflare Access Secret（CIVILDRAFT_ACCESS_TEAM_DOMAIN/ACCESS_AUD）の本番設定確認（bindings一覧で未確認・秘密情報のため人間確認）",
+    "PR#65: Codexレビュー実施 → マージ判断 → migration 0003本番適用 + Issue #66(persistX配線)実装 → 再デプロイ → fail-closed暫定措置(isPersistedWriteRoute)撤去判断",
     "任意: persistenceUnavailableResponseの503本文binding名を汎用文言化（情報最小化・低優先）"
   ],
   "external_review_plan": {
@@ -309,15 +325,25 @@
     }
   ],
   "deploy": {
-    "ready": false,
+    "ready": true,
+    "ready_scope": "Worker本体（SPA配信+API層+認証層）は本番デプロイ済み・稼働中を意味する。共有保存API（PUT content/quantities）等のフル機能稼働は blocked_by_human_decision の解消が前提で、ready=true と両立する別軸の状態。",
     "blocked_by_human_decision": [
-      "本番Neonプロジェクト作成 + 0001→0002 migration適用（dev検証はCTO可）",
-      "R2バケット作成",
-      "Cloudflare Access Application作成・ポリシー設定",
-      "Workers Secret登録: CIVILDRAFT_API_MODE=neon-r2 / NEON_CONNECTION / R2_BUCKET / ACCESS_TEAM_DOMAIN / ACCESS_AUD",
-      "wrangler.jsonc の main/API routing方式決定（案A/案B・Issue #36残り）",
-      "wrangler deploy 実行 + デプロイ後スモーク"
+      "Cloudflare Access Secret（ACCESS_TEAM_DOMAIN/ACCESS_AUD）本番設定の確認（bindings一覧未確認・秘密情報のため人間確認が必要。未設定確定ではないが、確認は自動実行しない）",
+      "migration 0003の本番Neon main適用（PR#65マージ後・人間承認）",
+      "Issue #66（persistX系メソッドのindex.tsへの配線実装・結合テスト）の完了",
+      "上記2項目の両方が完了した後、書き込み系fail-closed暫定措置（isPersistedWriteRoute）の撤去",
+      "0003適用+配線実装+再デプロイ後のスモーク（401/403/200・fail-closed撤去判断）"
     ],
-    "guide": "docs/operations/production-deployment.md"
+    "guide": "docs/operations/production-deployment.md",
+    "url": "https://civildraft-web-cad.mirai-dx-platform.com",
+    "deployed_at": "2026-07-18T09:55:00Z",
+    "note": "R2スキップ（ADR-0014）。ブラウザ内IndexedDB + ローカルDLで代替。書き込み系API（GET以外の全9ルート+監査ログ）はmigration 0003本番適用 かつ Issue #66(persistX配線)完了まで isPersistedWriteRoute によりfail-closed（503、PR#65でPUT content/quantities限定から拡大）。read-only疎通確認2026-07-18: SPA=200, API GET(無認証)=401（fail-closedの503ではなくAccess層の通常拒否）。",
+    "workers_dev_url": "https://civildraft-web-cad.kensan1969.workers.dev",
+    "domain": {
+      "zone": "mirai-dx-platform.com",
+      "subdomain": "civildraft-web-cad",
+      "worker": "civildraft-web-cad"
+    },
+    "storage": "IndexedDB (browser) + local download (R2 skipped)"
   }
 }

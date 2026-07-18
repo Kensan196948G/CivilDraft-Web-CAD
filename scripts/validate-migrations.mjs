@@ -44,7 +44,10 @@ const DESTRUCTIVE_PATTERNS = [
   /\bDROP\s+(TABLE|SCHEMA|DATABASE|COLUMN|CONSTRAINT)\b/i,
   /\bTRUNCATE\b/i,
   /\bDELETE\s+FROM\b/i,
-  /\bALTER\s+TABLE\b[\s\S]*?\bDROP\b/i,
+  // ALTER TABLE ... DROP COLUMN/CONSTRAINT のみを破壊的として検知する。
+  // ALTER COLUMN ... DROP NOT NULL / DROP DEFAULT はデータを削除しない
+  // 制約緩和であり、destructive DDL ではない（誤検知させない）。
+  /\bALTER\s+TABLE\b[\s\S]*?\bDROP\s+(?:COLUMN|CONSTRAINT)\b/i,
 ]
 
 function stripComments(sql) {

@@ -14,10 +14,10 @@ describe('Workers persistence readiness', () => {
     expect(resolvePersistenceMode('neon_r2')).toBeUndefined()
   })
 
-  it('neon-r2 本番接続に必要なbinding不足を列挙する', () => {
+  it('neon-r2 本番接続に必要なbinding不足を列挙する（R2は対象外）', () => {
     expect(inspectProductionPersistenceReadiness({})).toEqual({
       ready: false,
-      missingBindings: ['CIVILDRAFT_NEON_CONNECTION', 'CIVILDRAFT_R2_BUCKET'],
+      missingBindings: ['CIVILDRAFT_NEON_CONNECTION'],
     })
   })
 
@@ -26,6 +26,14 @@ describe('Workers persistence readiness', () => {
       inspectProductionPersistenceReadiness({
         CIVILDRAFT_NEON_CONNECTION: {},
         CIVILDRAFT_R2_BUCKET: {},
+      }),
+    ).toEqual({ ready: true, missingBindings: [] })
+  })
+
+  it('R2 bindingがなくてもNeon接続さえあればreadyを返す（R2は任意・共有ストレージ用途のみ）', () => {
+    expect(
+      inspectProductionPersistenceReadiness({
+        CIVILDRAFT_NEON_CONNECTION: {},
       }),
     ).toEqual({ ready: true, missingBindings: [] })
   })
