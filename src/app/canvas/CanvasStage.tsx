@@ -160,9 +160,8 @@ export function CanvasStage({ paperSize = 'A3', paperOrientation = 'landscape' }
         lastPointer.current = { x: e.evt.clientX, y: e.evt.clientY }
         return
       }
-      // 作図ツール中はカーソル位置をdraftへ反映（プレビュー用、履歴化しない§7.2）
       const state = storeApi.getState()
-      if (state.activeTool === 'select') return
+      if (state.activeTool === 'select' || state.activeTool === 'hatch') return
       const pointer = e.target.getStage()?.getPointerPosition()
       if (!pointer) return
       const transformer = new CoordinateTransformer({
@@ -193,17 +192,30 @@ export function CanvasStage({ paperSize = 'A3', paperOrientation = 'landscape' }
       })
       const domainPoint = transformer.screenToDomain(pointer)
 
-      // 作図ツール中はクリック=作図点の確定（必要点数到達で自動的に図形確定）
-      if (state.activeTool !== 'select') {
+      if (state.activeEditingTool !== null) {
+        state.executeEditingOperation(domainPoint)
+        return
+      }
+
+      if (state.activeTool !== 'select' && state.activeTool !== 'hatch') {
         state.addDraftPoint(domainPoint)
         return
       }
 
-      // 選択ツール: 空間索引ヒットテスト（§9.3）
       const toleranceMm = transformer.screenLengthToDomain(HIT_TOLERANCE_PX)
       const index = storeApi.getIndex()
       const hits = index.point(domainPoint.x, domainPoint.y, toleranceMm)
       const topmost = index.topmost(hits)
+
+      if (state.activeTool === 'hatch') {
+        if (topmost === null) return
+        const geom = state.geometries.find((g) => g.id === topmost)
+        if (geom !== undefined && (geom.type === 'polyline' && geom.closed || geom.type === 'rectangle' || geom.type === 'circle')) {
+          state.select([topmost])
+        }
+        return
+      }
+
       if (topmost === null) {
         state.clearSelection()
       } else if (e.evt.shiftKey) {

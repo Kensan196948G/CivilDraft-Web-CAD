@@ -168,6 +168,101 @@ describe('EditorStore / LayerSlice・SelectionSlice', () => {
     expect(l2?.locked).toBe(true)
   })
 
+  it('addLayer: 新規レイヤーを作成し、orderは既存最大+1、visible/locked/printableはデフォルト', () => {
+    const store = createEditorStore()
+    const initialCount = store.getState().layers.length
+    const newId = store.getState().addLayer('テストレイヤー')
+    const layers = store.getState().layers
+    expect(layers).toHaveLength(initialCount + 1)
+    const added = layers.find((l) => l.id === newId)
+    expect(added?.name).toBe('テストレイヤー')
+    expect(added?.visible).toBe(true)
+    expect(added?.locked).toBe(false)
+    expect(added?.printable).toBe(true)
+  })
+
+  it('removeLayer: レイヤーを削除し、属する図形は残存レイヤーへ再割当て', () => {
+    const store = createEditorStore()
+    const l1Id = store.getState().addLayer('削除対象')
+    store.getState().setActiveLayer(l1Id)
+    store.getState().activateTool('line')
+    store.getState().addDraftPoint({ x: 0, y: 0 })
+    store.getState().addDraftPoint({ x: 10, y: 10 })
+    expect(store.getState().geometries).toHaveLength(1)
+    expect(store.getState().geometries[0]?.layerId).toBe(l1Id)
+
+    store.getState().removeLayer(l1Id)
+    const layers = store.getState().layers
+    expect(layers.find((l) => l.id === l1Id)).toBeUndefined()
+    // 図形は先頭レイヤーへ再割当て
+    expect(store.getState().geometries[0]?.layerId).toBe(layers[0]?.id)
+    expect(store.getState().activeLayerId).toBe(layers[0]?.id)
+  })
+
+  it('removeLayer: 唯一のレイヤーは削除できない', () => {
+    const store = createEditorStore()
+    expect(store.getState().layers).toHaveLength(1)
+    store.getState().removeLayer('layer-default' as LayerId)
+    expect(store.getState().layers).toHaveLength(1)
+  })
+
+  it('updateLayerName: 指定レイヤーの名前を変更', () => {
+    const store = createEditorStore()
+    store.getState().updateLayerName('layer-default' as LayerId, '新名称')
+    expect(store.getState().layers[0]?.name).toBe('新名称')
+  })
+
+  it('updateLayerLineWidth: 指定レイヤーのデフォルト線幅を変更', () => {
+    const store = createEditorStore()
+    store.getState().updateLayerLineWidth('layer-default' as LayerId, 3)
+    expect(store.getState().layers[0]?.defaultStyle.strokeWidth).toBe(3)
+  })
+
+  it('toggleLayerPrintable: 印刷可否を切り替え', () => {
+    const store = createEditorStore()
+    expect(store.getState().layers[0]?.printable).toBe(true)
+    store.getState().toggleLayerPrintable('layer-default' as LayerId)
+    expect(store.getState().layers[0]?.printable).toBe(false)
+    store.getState().toggleLayerPrintable('layer-default' as LayerId)
+    expect(store.getState().layers[0]?.printable).toBe(true)
+  })
+
+  it('reorderLayer: up/down で order が入れ替わる', () => {
+    const store = createEditorStore()
+    store.getState().addLayer('B')
+    store.getState().addLayer('C')
+    // default(0), B(1), C(2)
+    const layers = [...store.getState().layers].sort((a, b) => a.order - b.order)
+    const bId = layers[1]?.id
+    expect(bId).toBeDefined()
+
+    store.getState().reorderLayer(bId!, 'down')
+    const afterDown = [...store.getState().layers].sort((a, b) => a.order - b.order)
+    // default(0), C(1), B(2) — B moved down
+    expect(afterDown[2]?.id).toBe(bId)
+
+    store.getState().reorderLayer(bId!, 'up')
+    const afterUp = [...store.getState().layers].sort((a, b) => a.order - b.order)
+    expect(afterUp[1]?.id).toBe(bId)
+  })
+
+  it('reorderLayer: 先頭の up や末尾の down は移動しない', () => {
+    const store = createEditorStore()
+    const layers = [...store.getState().layers].sort((a, b) => a.order - b.order)
+    const firstId = layers[0]?.id
+    const lastId = layers[layers.length - 1]?.id
+    expect(firstId).toBeDefined()
+    expect(lastId).toBeDefined()
+
+    store.getState().reorderLayer(firstId!, 'up')
+    const afterUp = [...store.getState().layers].sort((a, b) => a.order - b.order)
+    expect(afterUp[0]?.id).toBe(firstId)
+
+    store.getState().reorderLayer(lastId!, 'down')
+    const afterDown = [...store.getState().layers].sort((a, b) => a.order - b.order)
+    expect(afterDown[afterDown.length - 1]?.id).toBe(lastId)
+  })
+
   it('toggleSelectで選択のオンオフが切り替わる', () => {
     const store = createEditorStore()
     store.getState().toggleSelect(id('a'))

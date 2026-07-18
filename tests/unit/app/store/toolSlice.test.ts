@@ -180,3 +180,74 @@ describe('ToolSlice / レイヤー・ctx 由来の属性、プレビュー', () 
     }
   })
 })
+
+describe('ToolSlice / 寸法ツール', () => {
+  it('dimension: 2クリックで寸法線が確定し、undo で取り消せる', () => {
+    const store = createEditorStore()
+    store.getState().activateTool('dimension')
+    store.getState().addDraftPoint(p(0, 0))
+    expect(store.getState().geometries).toHaveLength(0)
+
+    store.getState().addDraftPoint(p(100, 5))
+    const g = store.getState().geometries[0]
+    expect(g?.type).toBe('dimension')
+    if (g?.type === 'dimension') {
+      expect(g.start).toEqual(p(0, 0))
+      expect(g.end).toEqual(p(100, 5))
+      expect(g.orientation).toBe('horizontal')
+    }
+    expect(store.getState().undoStack).toHaveLength(1)
+
+    store.getState().undo()
+    expect(store.getState().geometries).toHaveLength(0)
+  })
+
+  it('dimension: ゼロ長の点では図形生成されない', () => {
+    const store = createEditorStore()
+    store.getState().activateTool('dimension')
+    store.getState().addDraftPoint(p(10, 10))
+    store.getState().addDraftPoint(p(10, 10))
+    expect(store.getState().geometries).toHaveLength(0)
+  })
+
+  it('dimension: プレビューが作図中に表示される', () => {
+    const store = createEditorStore()
+    store.getState().activateTool('dimension')
+    store.getState().addDraftPoint(p(0, 0))
+    store.getState().updateDraftCursor(p(200, 0))
+    const preview = draftPreviewGeometry(store.getState())
+    expect(preview?.type).toBe('dimension')
+    if (preview?.type === 'dimension') expect(preview.end).toEqual(p(200, 0))
+  })
+})
+
+describe('ToolSlice / 文字ツール', () => {
+  it('text: クリックで anchor 点が draftPoints に溜まるが自動確定しない', () => {
+    const store = createEditorStore()
+    store.getState().activateTool('text')
+    store.getState().addDraftPoint(p(50, 30))
+    expect(store.getState().draftPoints).toHaveLength(1)
+    expect(store.getState().draftPoints[0]).toEqual(p(50, 30))
+    expect(store.getState().geometries).toHaveLength(0)
+    expect(store.getState().undoStack).toHaveLength(0)
+  })
+
+  it('text: 2回目のクリックは無視される（1点のみ保持）', () => {
+    const store = createEditorStore()
+    store.getState().activateTool('text')
+    store.getState().addDraftPoint(p(10, 10))
+    store.getState().addDraftPoint(p(20, 20))
+    expect(store.getState().draftPoints).toHaveLength(1)
+    expect(store.getState().draftPoints[0]).toEqual(p(10, 10))
+  })
+})
+
+describe('ToolSlice / ハッチツール', () => {
+  it('hatch: addDraftPoint は点を溜めない（hatch は選択方式）', () => {
+    const store = createEditorStore()
+    store.getState().activateTool('hatch')
+    store.getState().addDraftPoint(p(50, 50))
+    expect(store.getState().draftPoints).toHaveLength(0)
+    expect(store.getState().geometries).toHaveLength(0)
+  })
+})

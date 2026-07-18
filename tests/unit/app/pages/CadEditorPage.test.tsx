@@ -226,3 +226,92 @@ describe('CadEditorPage cloud save', () => {
     expect(store.getState().geometries.map((g) => g.id)).toEqual(['local-before'])
   })
 })
+
+describe('CadEditorPage ツールボタン', () => {
+  it('文字・寸法・ハッチングのツールボタンが有効に表示される', () => {
+    const cloudApiClient: CloudSaveClient = { saveDraft: vi.fn(), getRevisionContent: vi.fn() }
+    renderPage(createEditorStore(), cloudApiClient)
+
+    expect(screen.getByTitle('文字')).not.toBeDisabled()
+    expect(screen.getByTitle('寸法')).not.toBeDisabled()
+    expect(screen.getByTitle('ハッチング')).not.toBeDisabled()
+  })
+
+  it('文字ツールをクリックすると activeTool が text になる', async () => {
+    const store = createEditorStore()
+    const cloudApiClient: CloudSaveClient = { saveDraft: vi.fn(), getRevisionContent: vi.fn() }
+    renderPage(store, cloudApiClient)
+
+    await userEvent.click(screen.getByTitle('文字'))
+    expect(store.getState().activeTool).toBe('text')
+  })
+
+  it('寸法ツールをクリックすると activeTool が dimension になる', async () => {
+    const store = createEditorStore()
+    const cloudApiClient: CloudSaveClient = { saveDraft: vi.fn(), getRevisionContent: vi.fn() }
+    renderPage(store, cloudApiClient)
+
+    await userEvent.click(screen.getByTitle('寸法'))
+    expect(store.getState().activeTool).toBe('dimension')
+  })
+
+  it('ハッチングツールをクリックすると activeTool が hatch になる', async () => {
+    const store = createEditorStore()
+    const cloudApiClient: CloudSaveClient = { saveDraft: vi.fn(), getRevisionContent: vi.fn() }
+    renderPage(store, cloudApiClient)
+
+    await userEvent.click(screen.getByTitle('ハッチング'))
+    expect(store.getState().activeTool).toBe('hatch')
+  })
+})
+
+describe('CadEditorPage レイヤーパネル', () => {
+  it('レイヤー新規作成ボタンでレイヤーが追加される', async () => {
+    const store = createEditorStore()
+    const cloudApiClient: CloudSaveClient = { saveDraft: vi.fn(), getRevisionContent: vi.fn() }
+    renderPage(store, cloudApiClient)
+
+    expect(store.getState().layers).toHaveLength(1)
+    await userEvent.click(screen.getByRole('button', { name: '+ 新規' }))
+    expect(store.getState().layers).toHaveLength(2)
+    expect(store.getState().layers[1]?.name).toBe('レイヤー2')
+  })
+
+  it('レイヤー表示/非表示ボタンが存在し動作する', async () => {
+    const store = createEditorStore()
+    const cloudApiClient: CloudSaveClient = { saveDraft: vi.fn(), getRevisionContent: vi.fn() }
+    renderPage(store, cloudApiClient)
+
+    const toggleBtn = screen.getByTitle('表示/非表示')
+    expect(toggleBtn).toBeInTheDocument()
+    expect(store.getState().layers[0]?.visible).toBe(true)
+
+    await userEvent.click(toggleBtn)
+    expect(store.getState().layers[0]?.visible).toBe(false)
+  })
+
+  it('線幅セレクターが存在し、変更が反映される', async () => {
+    const store = createEditorStore()
+    const cloudApiClient: CloudSaveClient = { saveDraft: vi.fn(), getRevisionContent: vi.fn() }
+    renderPage(store, cloudApiClient)
+
+    const select = screen.getByTitle('線幅')
+    expect(select).toBeInTheDocument()
+
+    await userEvent.selectOptions(select, '3')
+    expect(store.getState().layers[0]?.defaultStyle.strokeWidth).toBe(3)
+  })
+
+  it('印刷切替ボタンが存在し動作する', async () => {
+    const store = createEditorStore()
+    const cloudApiClient: CloudSaveClient = { saveDraft: vi.fn(), getRevisionContent: vi.fn() }
+    renderPage(store, cloudApiClient)
+
+    const printBtn = screen.getByTitle('印刷: 有効')
+    expect(printBtn).toBeInTheDocument()
+    expect(store.getState().layers[0]?.printable).toBe(true)
+
+    await userEvent.click(printBtn)
+    expect(store.getState().layers[0]?.printable).toBe(false)
+  })
+})
