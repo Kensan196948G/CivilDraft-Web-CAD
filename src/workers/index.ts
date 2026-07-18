@@ -11,7 +11,7 @@
  *   （#36 で実装）。
  */
 
-import { revisionTransitionTarget } from '@/domain/revisions'
+import { revisionTransitionTarget } from '../domain/revisions'
 import { resolveAccessJwtConfig, verifyAccessJwt } from './accessJwt'
 import { createMemoryStore } from './apiStore'
 import { createNeonApiStore, inspectProductionPersistenceReadiness, resolvePersistenceMode } from './persistence'

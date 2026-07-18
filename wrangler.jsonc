@@ -9,6 +9,13 @@
   "main": "src/workers/index.ts",
   "compatibility_date": "2026-07-15",
 
+  // esbuild 設定 — Vite の @/ エイリアスを Workers ビルドでも解決
+  "build": {
+    "alias": {
+      "@": "./src"
+    }
+  },
+
   // Static Assets — Worker 経由で SPA を配信
   "assets": {
     "directory": "./dist",
@@ -16,10 +23,10 @@
     "binding": "ASSETS"
   },
 
-  // R2 バケット — 図面/PDF/添付の Object Storage
-  "r2_buckets": [
-    { "binding": "CIVILDRAFT_R2_BUCKET", "bucket_name": "civildraft-drawings" }
-  ],
+  // R2 バケット — R2有効化後にコメント解除
+  // "r2_buckets": [
+  //   { "binding": "CIVILDRAFT_R2_BUCKET", "bucket_name": "civildraft-drawings" }
+  // ],
 
   // Neon Hyperdrive — DB 接続プーリング（作成後に有効化）
   // "hyperdrive": [
