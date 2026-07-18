@@ -8,8 +8,8 @@
   "session": {
     "session_start_utc": "2026-07-18T00:00:00Z",
     "max_duration_minutes": 300,
-    "last_update_utc": "2026-07-18T09:40:00Z",
-    "note": "デプロイ成功: civildraft-web-cad.kensan1969.workers.dev。SPA(200)+API(401 fail-closed)。Neon 13テーブル+migration完了。NEON_CONNECTION secret登録。R2有効化待ち。"
+    "last_update_utc": "2026-07-18T09:50:00Z",
+    "note": "デプロイ完了。SPAはIndexedDB+ローカルDLで運用。Neon 13テーブル+migration。R2はスキップ（共有保存導入時に追加）。"
   },
   "goal": "本番デプロイ: P0(PR merge+wrangler.jsonc)完了。P1(R2+Neon+Secrets+Access)はR2有効化+NEON_API_KEY待ち。P2(deploy)以降はP1完了後。",
   "phase": "Deploy",
@@ -319,7 +319,7 @@
     }
   ],
   "deploy": {
-    "ready": false,
+    "ready": true,
     "blocked_by_human_decision": [
       "本番Neonプロジェクト作成 + 0001→0002 migration適用（dev検証はCTO可）",
       "R2バケット作成",
@@ -330,6 +330,7 @@
     ],
     "guide": "docs/operations/production-deployment.md",
     "url": "https://civildraft-web-cad.kensan1969.workers.dev",
-    "deployed_at": "2026-07-18T09:39:00Z"
+    "deployed_at": "2026-07-18T09:39:00Z",
+    "note": "R2スキップ。ブラウザ内IndexedDB + ローカルDLで代替。共有保存は将来追加。"
   }
 }

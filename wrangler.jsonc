@@ -23,7 +23,8 @@
     "binding": "ASSETS"
   },
 
-  // R2 バケット — R2有効化後にコメント解除
+  // R2 バケット — 共有保存に必要。現状はブラウザ内IndexedDB + ローカルDLで代替。
+  // 共有機能導入時に有効化:
   // "r2_buckets": [
   //   { "binding": "CIVILDRAFT_R2_BUCKET", "bucket_name": "civildraft-drawings" }
   // ],
