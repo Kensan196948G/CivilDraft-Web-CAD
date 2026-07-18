@@ -329,13 +329,13 @@
       "wrangler deploy 実行 + デプロイ後スモーク"
     ],
     "guide": "docs/operations/production-deployment.md",
-    "url": "https://civildraft-wb-cad.mirai-dx-platform.com",
+    "url": "https://civildraft-web-cad.mirai-dx-platform.com",
     "deployed_at": "2026-07-18T09:55:00Z",
     "note": "R2スキップ。ブラウザ内IndexedDB + ローカルDLで代替。共有保存は将来追加。",
     "workers_dev_url": "https://civildraft-web-cad.kensan1969.workers.dev",
     "domain": {
       "zone": "mirai-dx-platform.com",
-      "subdomain": "civildraft-wb-cad",
+      "subdomain": "civildraft-web-cad",
       "worker": "civildraft-web-cad"
     },
     "storage": "IndexedDB (browser) + local download (R2 skipped)"
