@@ -36,12 +36,12 @@ flowchart TB
     D1 --> DNS1
 ```
 
-本アプリは**2つの独立した公開単位**を持つ:
+本アプリは**2つの独立した公開単位**を持つ。2026-07-18時点で両方とも本番デプロイ済み（read-only照会で確認、詳細は§7）:
 
 | 単位 | 内容 | 現状 |
 | --- | --- | --- |
-| 静的SPA | `dist/` を Static Assets として配信（ブラウザ内CAD） | `wrangler.jsonc` に構成定義済み・未デプロイ |
-| Workers API | `src/workers/index.ts`（18経路のP0縦線） | 実装済み・本番接続待ち（`main` エントリは未有効化） |
+| 静的SPA | `dist/` を Static Assets として配信（ブラウザ内CAD） | ✅ デプロイ済み（`ASSETS` binding確認、`civildraft-web-cad.mirai-dx-platform.com` でHTTP 200確認） |
+| Workers API | `src/workers/index.ts`（18経路のP0縦線） | ✅ デプロイ済み（`main` エントリ有効化済み）。共有保存（PUT content/quantities）は migration 0003 本番適用までfail-closed（503、ADR-0014） |
 
 ---
 
@@ -136,21 +136,21 @@ JWKS は Worker が `<team-domain>/cdn-cgi/access/certs` から自動取得・�
 
 ---
 
-## ✅ 5. デプロイ前チェックリスト
+## ✅ 5. デプロイ前チェックリスト（2026-07-18 read-only照会で状態欄を更新）
 
-| # | 項目 | 確認方法 | 決裁 |
-| --- | --- | --- | --- |
-| 1 | 品質ゲート全 green | `npm run release:audit` | CTO |
-| 2 | CI 必須チェック成功（quality/E2E/audit/SBOM） | GitHub PR checks | CTO |
-| 3 | migration 0001→0002→0003 を dev ブランチで検証 | Neon dev で実適用 | CTO |
-| 4 | 本番 migration 適用 | Neon main（承認後） | 🚫 人間 |
-| 5 | R2 バケット作成・binding 設定（**任意**・§4.1） | `wrangler r2 bucket list` | 🚫 人間 |
-| 6 | Access Application・ポリシー設定 | Cloudflare dashboard | 🚫 人間 |
-| 7 | Secret/変数 5 種を登録 | `wrangler secret list` | 🚫 人間 |
-| 8 | `wrangler.jsonc` の `main`/API routing 決定 | 設計判断（#36） | 🚫 人間 |
-| 9 | `wrangler deploy` | デプロイ実行 | 🚫 人間 |
-| 10 | スモーク（401/403/200 と 503 fail-closed） | 本番エンドポイント確認 | 🚫 人間 |
-| 11 | 公開 DNS/ルート切替 | Cloudflare dashboard | 🚫 人間 |
+| # | 項目 | 確認方法 | 決裁 | 状態 |
+| --- | --- | --- | --- | --- |
+| 1 | 品質ゲート全 green | `npm run release:audit` | CTO | ✅ 完了（105ファイル/1191テストpass） |
+| 2 | CI 必須チェック成功（quality/E2E/audit/SBOM） | GitHub PR checks | CTO | ✅ 完了（PR#65で5チェック全pass） |
+| 3 | migration 0001→0002→0003 を dev ブランチで検証 | Neon dev で実適用 | CTO | ✅ 完了 |
+| 4 | 本番 migration 適用 | Neon main（承認後） | 🚫 人間 | `0001`+`0002` ✅適用済み／`0003` ❌未適用（PR#65マージ後） |
+| 5 | R2 バケット作成・binding 設定（**任意**・§4.1） | `wrangler r2 bucket list` | 🚫 人間 | ➖ 対象外（ADR-0014でNeon直接保存へ転換） |
+| 6 | Access Application・ポリシー設定 | Cloudflare dashboard | 🚫 人間 | ⚠️ 未確認（§7参照。本番API無認証GETはHTTP 401でfail-closedの503ではない） |
+| 7 | Secret/変数を登録 | `wrangler secret list` | 🚫 人間 | `API_MODE`/`NEON_CONNECTION` ✅bindings確認済み／`ACCESS_TEAM_DOMAIN`・`ACCESS_AUD` ⚠️bindings一覧で未確認 |
+| 8 | `wrangler.jsonc` の `main`/API routing 決定 | 設計判断（#36） | 🚫 人間 | ✅ 完了（`ASSETS` binding統合＝案A相当で有効化済み） |
+| 9 | `wrangler deploy` | デプロイ実行 | 🚫 人間 | ✅ 完了 |
+| 10 | スモーク（401/403/200 と 503 fail-closed） | 本番エンドポイント確認 | 🚫 人間 | ⚠️ 部分実施のみ（read-only GET: SPA=200, API無認証=401）。JWT付き200・403・fail-closed 503の確認は未実施 |
+| 11 | 公開 DNS/ルート切替 | Cloudflare dashboard | 🚫 人間 | ✅ 完了（`civildraft-web-cad.mirai-dx-platform.com`、enabled確認済み） |
 
 ---
 
@@ -170,8 +170,9 @@ JWKS は Worker が `<team-domain>/cdn-cgi/access/certs` から自動取得・�
 
 ---
 
-## 📋 7. 残課題（本書時点）
+## 📋 7. 残課題（2026-07-18 read-only照会で更新）
 
-- `wrangler.jsonc` の API 統合方式（案A/案B）は未決定（Issue #36）
-- 本番 Neon/R2/Access は未作成（人間決裁待ち）
-- デプロイ実行そのものは人間が行う（CTO は `deploy.ready=true` 判定材料の提供まで）
+- ✅ 完了: Neon本番プロジェクト `civildraft-production`（pg17）作成・`0001`+`0002`適用、Workers Secret（`CIVILDRAFT_NEON_CONNECTION`/`CIVILDRAFT_API_MODE=neon-r2`）登録、`wrangler.jsonc` の `main` エントリ有効化（`ASSETS` binding統合＝案A相当）、`wrangler deploy` 実行、カスタムドメイン `civildraft-web-cad.mirai-dx-platform.com` 設定
+- ➖ 対象外: R2 バケット作成（ADR-0014 で Neon 直接保存へ方針転換。§4.1 参照）
+- ⚠️ 要人間確認: Cloudflare Access Secret（`CIVILDRAFT_ACCESS_TEAM_DOMAIN` / `CIVILDRAFT_ACCESS_AUD`）— Workers bindings 一覧（read-only 照会）では確認できなかった。ただし本番 API への無認証 GET は HTTP 401（CD-AUTH-001 相当）を返しており、fail-closed の 503 ではない。つまり Worker 自体は稼働し認証チェック層も機能しているが、正規の Access ログインフローが最終的に成功するかは未確認。Secret の登録状況そのものの確認・対応は人間が行う（秘密情報のため）
+- 🚫 人間決裁（未実施）: migration `0003`（`migrations/0003_persistence_schema_drift_fix.sql`）の本番 Neon main 適用。PR#65 マージ後に実施し、適用後は共有保存 API の fail-closed 暫定措置（`isSharedSaveRoute`、ADR-0014）の撤去要否を判断する

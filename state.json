@@ -9,9 +9,9 @@
     "session_start_utc": "2026-07-18T00:00:00Z",
     "max_duration_minutes": 300,
     "last_update_utc": "2026-07-18T09:55:00Z",
-    "note": "本番デプロイ完了: civildraft-wb-cad.mirai-dx-platform.com (HTTPS/200)。Worker + Neon統合。SPAはIndexedDB+ローカルDL。R2スキップ。"
+    "note": "本番デプロイ完了: civildraft-web-cad.mirai-dx-platform.com（SPA HTTP 200 / API GET認証なしでHTTP 401 CD-AUTH-001、fail-closedの503ではない＝Worker稼働・認証層も機能）。Worker bindings実測: ASSETS/CIVILDRAFT_API_MODE=neon-r2/CIVILDRAFT_NEON_CONNECTION確認、CIVILDRAFT_ACCESS_TEAM_DOMAIN・ACCESS_AUDはbindings一覧で未確認（要人間確認）。Neon civildraft-production（pg17）に0001+0002適用済み、0003はPR#65未マージのため未適用。R2はADR-0014でスキップ。"
   },
-  "goal": "本番デプロイ: P0(PR merge+wrangler.jsonc)完了。P1(R2+Neon+Secrets+Access)はR2有効化+NEON_API_KEY待ち。P2(deploy)以降はP1完了後。",
+  "goal": "PR#65（fail-closed化・ADR-0014・migration 0003）のCodexレビュー実施→マージ判断。マージ後はmigration 0003本番適用+Access Secret確認+再デプロイでfail-closed暫定措置を撤去。",
   "phase": "Deploy",
   "kpi": {
     "success_rate_target": 0.9,
@@ -164,12 +164,7 @@
     {
       "pr": 57,
       "merged": "2026-07-18",
-      "note": "Issue#51 状態遷移グラフをdomain/revisionsへ一本化（P3リファクタ）"
-    },
-    {
-      "pr": 57,
-      "merged": "2026-07-18",
-      "note": "#51 refactor merge (admin bypass)"
+      "note": "Issue#51 状態遷移グラフをdomain/revisionsへ一本化（P3リファクタ、admin bypassでマージ）"
     },
     {
       "pr": 64,
@@ -284,8 +279,8 @@
     ]
   },
   "pending_items": [
-    "Release Ready残ゲート: 本番リソース接続（production-deployment.md §2-4の人間決裁事項）",
-    "Issue #36残り: wrangler.jsonc のAPI統合方式決定 + 本番接続",
+    "Cloudflare Access Secret（CIVILDRAFT_ACCESS_TEAM_DOMAIN/ACCESS_AUD）の本番設定確認（bindings一覧で未確認・秘密情報のため人間確認）",
+    "PR#65: Codexレビュー実施 → マージ判断 → migration 0003本番適用 → 再デプロイ → fail-closed暫定措置(isSharedSaveRoute)撤去判断",
     "任意: persistenceUnavailableResponseの503本文binding名を汎用文言化（情報最小化・低優先）"
   ],
   "external_review_plan": {
@@ -321,17 +316,14 @@
   "deploy": {
     "ready": true,
     "blocked_by_human_decision": [
-      "本番Neonプロジェクト作成 + 0001→0002 migration適用（dev検証はCTO可）",
-      "R2バケット作成",
-      "Cloudflare Access Application作成・ポリシー設定",
-      "Workers Secret登録: CIVILDRAFT_API_MODE=neon-r2 / NEON_CONNECTION / R2_BUCKET / ACCESS_TEAM_DOMAIN / ACCESS_AUD",
-      "wrangler.jsonc の main/API routing方式決定（案A/案B・Issue #36残り）",
-      "wrangler deploy 実行 + デプロイ後スモーク"
+      "Cloudflare Access Secret（ACCESS_TEAM_DOMAIN/ACCESS_AUD）本番設定の確認（bindings一覧未確認・秘密情報のため人間確認が必要。未設定確定ではないが、確認は自動実行しない）",
+      "migration 0003の本番Neon main適用（PR#65マージ後・人間承認）",
+      "0003適用+再デプロイ後のスモーク（401/403/200・fail-closed撤去判断）"
     ],
     "guide": "docs/operations/production-deployment.md",
     "url": "https://civildraft-web-cad.mirai-dx-platform.com",
     "deployed_at": "2026-07-18T09:55:00Z",
-    "note": "R2スキップ。ブラウザ内IndexedDB + ローカルDLで代替。共有保存は将来追加。",
+    "note": "R2スキップ（ADR-0014）。ブラウザ内IndexedDB + ローカルDLで代替。共有保存API（PUT content/quantities）はmigration 0003本番適用まで isSharedSaveRoute によりfail-closed（503）。read-only疎通確認2026-07-18: SPA=200, API GET(無認証)=401（fail-closedの503ではなくAccess層の通常拒否）。",
     "workers_dev_url": "https://civildraft-web-cad.kensan1969.workers.dev",
     "domain": {
       "zone": "mirai-dx-platform.com",

@@ -10,7 +10,7 @@
 | リポジトリ | `CivilDraft-Web-CAD` |
 | 既存技術資産 | [`Civil-Draw`](https://github.com/Kensan196948G/Civil-Draw) |
 | 開発基盤 | Claude Code on Linux＋GitHub＋Cloudflare＋Neon |
-| 現在の位置付け | **土木特化Web CADの技術プレビュー**。ブラウザ内CADコアと土木ドメイン部品は拡充中。Workers APIはP0縦線（Project作成/更新→Drawing作成/更新→Revision作成→Content/数量保存→照査/承認→Export作成→Audit検索）を開発用ストアで実装済み。案件メンバー認可、メタデータ/内容/数量更新の楽観ロック、Neon migration 0001/0002/0003もAPI契約として固定済み。Neon本番接続（R2は任意）、Cloudflare Accessテナント設定、共有運用は未製品化 |
+| 現在の位置付け | **土木特化Web CADの技術プレビュー**。ブラウザ内CADコアと土木ドメイン部品は拡充中。Workers APIはP0縦線（Project作成/更新→Drawing作成/更新→Revision作成→Content/数量保存→照査/承認→Export作成→Audit検索）を実装し、2026-07-18に本番Neon接続でデプロイ済み（`civildraft-web-cad.mirai-dx-platform.com`）。案件メンバー認可、メタデータ/内容/数量更新の楽観ロックを実装。Neon migration 0001/0002は本番適用済み、0003（R2任意化・ADR-0014）はPR#65マージ後に適用予定で、共有保存（PUT content/quantities）はそれまでfail-closed（503）。Cloudflare Accessテナント設定は本番Secret登録状況を人間確認中、共有運用は引き続き検証中 |
 
 ---
 
@@ -584,7 +584,9 @@ timeline
 | 2026-07-17 | ✅ VitestをNode/jsdomプロジェクトへ分離し、NAS/Windows環境でも一括テストが完走するよう改善。`npm run test -- --reporter=dot` で96ファイル・1048テストpass |
 | 2026-07-15 | 🖥️ 業務画面7枚を試作: 測点・座標一覧 / 土木部材パレット / 数量集計 / 縦横断管理 / 施工ステップ / 図面比較 / 照査・承認 — サイドバー全ナビが有効化。CAD本体との双方向連動は後続 |
 | 2026-07-15 | 📊 最終: **テスト1030/1030（×2連続STABLE）**・typecheck/lint/build green |
-| 2026-07-18 | 🐘 Neon migration 0003を追加: R2 binding を**任意化**し、図面内容（`drawing_contents.content` jsonb）をNeonへ直接保存する方針へ転換。`object_key`/`quantity_items.name`/`quantity`のNOT NULL制約も緩和。`persistence.ts`の本番readiness判定からR2を除外し、回帰テスト・migrations静的検証を追加更新。dev branch（`br-fancy-frog-aja6lujp`）でDDL適用・`persistContent`/`persistQuantities`相当の実データINSERTともに実地検証済み |
+| 2026-07-18 | 🐘 Neon migration 0003を追加: R2 binding を**任意化**し、図面内容（`drawing_contents.content` jsonb）をNeonへ直接保存する方針へ転換。`object_key`/`quantity_items.name`/`quantity`のNOT NULL制約も緩和。`persistence.ts`の本番readiness判定からR2を除外し、回帰テスト・migrations静的検証を追加更新。dev branch（`br-fancy-frog-aja6lujp`）でDDL適用・`persistContent`/`persistQuantities`相当の実データINSERTともに実地検証済み（ADR-0014、PR #65） |
+| 2026-07-18 | 🚀 **本番デプロイ実行**（人間承認）: `civildraft-web-cad.mirai-dx-platform.com` へWorkers + Neon本番接続で公開。Neon `civildraft-production`（pg17）にmigration 0001/0002適用済み。共有保存（PUT content/quantities）はmigration 0003（PR #65）本番適用までfail-closed（503）。read-only疎通確認: SPA=HTTP 200、API GET（無認証）=HTTP 401（fail-closedの503ではなくAccess層の通常拒否）。Cloudflare Access Secret（TEAM_DOMAIN/AUD）の本番設定はWorker bindings一覧で未確認のため人間確認待ち |
+| 2026-07-18 | 📊 テスト105ファイル・1191テストpass、typecheck/lint/build green |
 
 ### 🛠️ 次に閉じるべき実務ワークフロー
 
@@ -593,8 +595,8 @@ timeline
 | 優先 | 対応 | 完了条件 |
 | --- | --- | --- |
 | P0 | README/設計文書と実装状態の同期 | 実装済み・試作・未配線・未実装が外向け文書で混同されない |
-| P0 | Workers APIの最小縦線 | ✅ Project作成/更新 → Drawing作成/更新 → Revision作成 → Content/数量保存 → 照査/承認 → Export作成 → Audit記録、案件メンバー認可、楽観ロックを開発用ストアで実装。Neon 0001/0002/0003 migrationと永続化モード安全ガードも契約固定済み。次は本番Neonアダプタ接続とAccessテナント設定 |
-| P0 | ブラウザ側共有保存クライアント | ✅ `CivilDraftApiClient` でWorkers P0縦線を呼び出し、CAD編集画面の「共有保存」「共有再読込」からクラウド保存・再読込経路を実行可能。案件詳細の図面行から案件/図面/改訂メタデータを渡す導線も実装。次は案件一覧/検索/複製/アーカイブの実データ化、本番Neonアダプタ接続、複数利用者/権限E2E |
+| P0 | Workers APIの最小縦線 | ✅ Project作成/更新 → Drawing作成/更新 → Revision作成 → Content/数量保存 → 照査/承認 → Export作成 → Audit記録、案件メンバー認可、楽観ロックを実装し、2026-07-18に本番Neon接続でデプロイ済み。Neon 0001/0002は本番適用済み、0003（R2任意化）はPR #65マージ後に適用予定。次はAccess Secret本番設定の人間確認とmigration 0003適用後のfail-closed撤去 |
+| P0 | ブラウザ側共有保存クライアント | ✅ `CivilDraftApiClient` でWorkers P0縦線を呼び出し、CAD編集画面の「共有保存」「共有再読込」からクラウド保存・再読込経路を実行可能。案件詳細の図面行から案件/図面/改訂メタデータを渡す導線も実装。本番デプロイ済みだが共有保存はmigration 0003適用までfail-closed。次は案件一覧/検索/複製/アーカイブの実データ化、複数利用者/権限E2E |
 | P0 | CAD編集UIの基本セット配線 | Trim/Extend/Offset/Fillet/Move/Copy/Rotate/Mirror/Scale/Explode/Joinのうち優先コマンドを画面操作から実行できる |
 | P1 | レイヤー・寸法・印刷の実務化 | 線種/線幅/ロック/印刷尺度/寸法/注記を納品図面として確認できる |
 | P1 | 土木差別化の図面連動 | 数量表・測点・横断・施工ステップから該当図形をハイライト/更新できる |
@@ -615,7 +617,13 @@ timeline
 | [#32](../../pull/32) | サイドメニュー全13項目の100%有効化（残4画面実装+ナビ統合テスト） | ✅ マージ済み |
 | [#34](../../pull/34) | CAD Editor.dc.htmlをCadEditorPageとして実装、Sidebarと統合 | ✅ マージ済み（enforce_admins一時解除で対応） |
 | [#35](../../pull/35) | リリース準備状況の可視化UI + Workers API P0縦線・永続化層（main再統合・コンフリクト19ファイル解消） | ✅ マージ済み（2026-07-17） |
-| [#49](../../pull/49) | 永続化モード未設定時のサイレントフォールバック廃止・fail-closed化（Issue #48） | 🔄 レビュー中 |
+| [#49](../../pull/49) | 永続化モード未設定時のサイレントフォールバック廃止・fail-closed化（Issue #48） | ✅ マージ済み（2026-07-17） |
+| [#54](../../pull/54) | Issue #50 TOCTOU競合修正 | ✅ マージ済み（2026-07-17） |
+| [#55](../../pull/55) | Issue #36 Access JWT二次防御（RS256/iss/aud/exp検証・fail-closed） | ✅ マージ済み（2026-07-17） |
+| [#56](../../pull/56) | 本番デプロイ手順書 `production-deployment.md` 追加 | ✅ マージ済み（2026-07-17） |
+| [#57](../../pull/57) | Issue #51 状態遷移グラフをdomain/revisionsへ一本化（P3リファクタ） | ✅ マージ済み（2026-07-18・admin bypass） |
+| [#64](../../pull/64) | 外部評価（2026-07-18）精査結果反映（state.jsonのみ・Issue #58-#63起票） | ✅ マージ済み（2026-07-18・admin bypass） |
+| [#65](../../pull/65) | 共有保存fail-closed化・ADR-0014（R2任意化）・Neon migration 0003 | 🔄 レビュー中（Codexレビュー待ち） |
 
 > マージ済みPRは人間の明示承認（選択式Y判断）を得てマージ済み。レビュー承認1件必須はPR作成者の自己承認不可のため、マージ実行時は enforce_admins を一時解除し完了後に即復元した。
 
@@ -644,6 +652,23 @@ timeline
 4. Minimap/ContextMenu/スナップガイド表示/独自形式保存は必要時に別Issue起票
 
 🚫 **本セッションでは main直push・PRマージ・本番デプロイを一切実行していません**（人間の明示承認待ちの状態を維持）。
+
+### 🔁 セッション終了時サマリー（2026-07-18・本番デプロイ + fail-closed化）
+
+📊 **このセッション区間までの主な成果**
+
+- 🚀 **本番デプロイ実行**（人間承認）: `civildraft-web-cad.mirai-dx-platform.com` へCloudflare Workers + Neon本番接続で公開。SPA・API疎通をread-only照会/curlで実測確認
+- 🐘 Neon本番プロジェクト `civildraft-production`（pg17）にmigration 0001/0002を適用
+- 🛡️ Issue #36 Access JWT二次防御（RS256/iss/aud/exp検証・fail-closed、PR #55）、Issue #50 TOCTOU競合修正（PR #54）をマージ
+- 🟡 **ADR-0014策定**: R2 bindingを任意化し、図面内容（`drawing_contents.content` jsonb）をNeonへ直接保存する方針へ転換。migration 0003・共有保存（PUT content/quantities）のfail-closed化を実装し、Neon dev branchで実地検証（PR #65、レビュー中）
+- 📊 テスト105ファイル・1191テストpass、typecheck/lint/build green
+- 🔍 Cloudflare/Neonへのread-only照会で本番実態を確認: Worker bindings（`ASSETS`/`CIVILDRAFT_API_MODE`/`CIVILDRAFT_NEON_CONNECTION`）、本番APIへの無認証GETはHTTP 401（fail-closedの503ではなくAccess層の通常拒否）
+
+📋 **残課題（次セッション/人間判断）**
+
+1. 🚫 **人間確認待ち**: Cloudflare Access Secret（`CIVILDRAFT_ACCESS_TEAM_DOMAIN`/`CIVILDRAFT_ACCESS_AUD`）の本番設定状況。Worker bindings一覧では確認できず、未設定と断定はできないが確認もできていない
+2. 🔍 **Codexレビュー待ち**: PR #65は`disable-model-invocation`によりモデルからの起動が不可。ユーザーによる`/codex:review --base main --background`の手動起動が必要
+3. 🐘 **migration 0003本番適用待ち**: PR #65マージ後に本番適用し、共有保存のfail-closed暫定措置を撤去
 
 ---
 
@@ -695,7 +720,7 @@ flowchart LR
 
 `main`ブランチはPR必須・レビュー承認1件必須・quality/securityの成功必須（`strict`のためブランチ最新化も要求）・force push禁止・削除禁止で保護されています。e2e/complianceは必須チェック未設定のため、PRマージ前に人間が個別にgreenを確認する運用でカバーしています。
 
-> 2026-07-17時点のローカル検証では、`npm run test -- --reporter=dot` が96ファイル・1048テストpassで完走しています。NAS/Windows環境ではjsdomテストの起動コストが大きいため、Vitestは `node`（domain/shared/workers/cloud client）と `jsdom`（app/infrastructure/integration）に分離しています。
+> 2026-07-18時点のローカル検証では、`npm run test -- --reporter=dot` が105ファイル・1191テストpassで完走しています。NAS/Windows環境ではjsdomテストの起動コストが大きいため、Vitestは `node`（domain/shared/workers/cloud client）と `jsdom`（app/infrastructure/integration）に分離しています。
 
 ---
 
