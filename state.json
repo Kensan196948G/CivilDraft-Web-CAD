@@ -6,13 +6,13 @@
     "phase_mode": "development"
   },
   "session": {
-    "session_start_utc": "2026-07-15T04:16:26Z",
+    "session_start_utc": "2026-07-18T00:00:00Z",
     "max_duration_minutes": 300,
-    "last_update_utc": "2026-07-17T13:50:35Z",
-    "note": "CTOループ継続でPR#35/#49/#54/#55/#56を人間承認マージ。#48/#50/#52/#53解決、#36 JWT二次防御実装(敵対レビューでMedium発見即修正)、本番デプロイ手順書整備。open PR=0。"
+    "last_update_utc": "2026-07-18T00:00:00Z",
+    "note": "外部評価精査・対応計画策定。PR#57(#51)レビュー→マージ。新規Issue #58-#63起票（現場説明モード/図面健全性チェック/JWW-SXF-DWG移行アシスタント/監査ログ本番接続/サンプルデータ除去/大規模性能CI閾値）。open PR=0。"
   },
-  "goal": "Release Ready間近: コード側の残セキュリティ/品質課題を解消しPR#35/#49/#54/#55/#56を全マージ。残ゲートは本番Neon/R2接続・Accessテナント設定・Secret登録・wrangler deploy（すべて人間決裁）。デプロイ手順書は整備済み。",
-  "phase": "Release",
+  "goal": "P1実装フェーズ: #36(本番バックエンド接続・コード側)と#37(CAD編集UI配線)を並行着手。#36は人間決裁境界まで進め、#37は#23/#25を事前解決してから着手。#38(文字/寸法/ハッチ)と#40(レイヤー管理)も並行可。",
+  "phase": "Build",
   "kpi": {
     "success_rate_target": 0.9,
     "ci_success_rate": 1.0,
@@ -160,6 +160,11 @@
       "pr": 56,
       "merged": "2026-07-17",
       "note": "本番デプロイ手順書 production-deployment.md"
+    },
+    {
+      "pr": 57,
+      "merged": "2026-07-18",
+      "note": "Issue#51 状態遷移グラフをdomain/revisionsへ一本化（P3リファクタ）"
     }
   ],
   "blocked_issues": [],
@@ -271,9 +276,32 @@
   "pending_items": [
     "Release Ready残ゲート: 本番リソース接続（production-deployment.md §2-4の人間決裁事項）",
     "Issue #36残り: wrangler.jsonc のAPI統合方式決定 + 本番接続",
-    "Issue #51: workflowTargetStatusとdomain/revisionsの遷移ロジック一本化（P3・コード品質）",
     "任意: persistenceUnavailableResponseの503本文binding名を汎用文言化（情報最小化・低優先）"
   ],
+  "external_review_plan": {
+    "date": "2026-07-18",
+    "summary": "外部評価精査完了。評価は概ね正確（弱み#12のみ事実誤認）。対応計画を策定し新規Issue #58-#63を起票。",
+    "next_actions": [
+      "P1: #36 本番バックエンド接続（コード側・人間決裁境界まで）",
+      "P1: #37 CAD編集UI配線（#23/#25事前解決後）",
+      "P1: #38 文字・寸法・ハッチングUI実装",
+      "P2: #40 レイヤー管理実務化",
+      "P2: #39 プロパティパレット拡張",
+      "P2: #41 ブロック/部品定義拡張",
+      "P2: #42 数量表⇔CAD双方向連動",
+      "P2: #43 ファイル互換方針確定",
+      "P2: #45 Playwright E2E・性能回帰テスト",
+      "P2: #44 測量座標系フォーマット拡張",
+      "P2: #61 監査ログ本番接続",
+      "P2: #62 サンプルデータ除去",
+      "P2: #63 大規模図面性能CI閾値",
+      "P3: #46 土木施工図テンプレート",
+      "P3: #47 コマンドパレット",
+      "P3: #58 現場説明モード",
+      "P3: #59 図面健全性チェック",
+      "P3: #60 JWW/SXF/DWG移行アシスタント"
+    ]
+  },
   "infra_changes": [
     {
       "date": "2026-07-17",
