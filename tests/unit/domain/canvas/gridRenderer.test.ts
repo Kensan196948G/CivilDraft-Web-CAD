@@ -1,5 +1,10 @@
 import { describe, expect, it } from 'vitest'
-import { computeGridLines, type GridConfig, type GridLine } from '@/domain/canvas/gridRenderer'
+import {
+  computeGridLines,
+  resolveAdaptiveGridInterval,
+  type GridConfig,
+  type GridLine,
+} from '@/domain/canvas/gridRenderer'
 
 function cfg(over: Partial<GridConfig>): GridConfig {
   return { width: 100, height: 100, gridSize: 10, zoom: 1, panX: 0, panY: 0, ...over }
@@ -58,5 +63,53 @@ describe('computeGridLines', () => {
     const v = verticals(computeGridLines(cfg({ panX: 25 })))
     expect(v.map(xOf)).toEqual([5, 15, 25, 35, 45, 55, 65, 75, 85, 95])
     expect(v.map(xOf)).toContain(25)
+  })
+})
+
+describe('resolveAdaptiveGridInterval', () => {
+  it('初期表示（基準1000mm・zoom=1）で画面間隔100pxの間隔を返す（グリッド既定表示の根拠）', () => {
+    // 1000mm*1=1000px は広すぎ → 100mm（100px）へ細分化。20〜200pxの範囲内。
+    expect(resolveAdaptiveGridInterval(1000, 1)).toBe(100)
+  })
+
+  it('縮小時は10倍単位で粗くする（zoom=0.01 → 10000mm=100px間隔）', () => {
+    expect(resolveAdaptiveGridInterval(1000, 0.01)).toBe(10000)
+  })
+
+  it('拡大時は10倍単位で細かくする（zoom=50 → 1mm=50px間隔）', () => {
+    expect(resolveAdaptiveGridInterval(1000, 50)).toBe(1)
+  })
+
+  it('どの zoom でも画面間隔が [minSpacingPx, minSpacingPx*10) に収まる', () => {
+    // clampZoom の範囲（0.001〜50）を対数スイープで検査する。
+    for (let e = -3; e <= Math.log10(50); e += 0.25) {
+      const zoom = 10 ** e
+      const interval = resolveAdaptiveGridInterval(1000, zoom)
+      const spacingPx = interval * zoom
+      expect(spacingPx, `zoom=${zoom}`).toBeGreaterThanOrEqual(20)
+      expect(spacingPx, `zoom=${zoom}`).toBeLessThan(200)
+    }
+  })
+
+  it('選ばれた間隔は computeGridLines の LOD 閾値（minor≥4px・major≥8px）を常に満たす', () => {
+    for (const zoom of [0.001, 0.01, 0.1, 1, 10, 50]) {
+      const interval = resolveAdaptiveGridInterval(1000, zoom)
+      const lines = computeGridLines(cfg({ width: 400, height: 400, gridSize: interval, zoom, majorInterval: interval * 5 }))
+      expect(lines.some((l) => l.kind === 'minor'), `zoom=${zoom}`).toBe(true)
+      expect(lines.some((l) => l.kind === 'major'), `zoom=${zoom}`).toBe(true)
+    }
+  })
+
+  it('10進スケーリングにより目盛り値がきりの良い値を保つ', () => {
+    expect(resolveAdaptiveGridInterval(1000, 0.05)).toBe(1000) // 50px間隔
+    expect(resolveAdaptiveGridInterval(1000, 0.3)).toBe(100) // 30px間隔
+  })
+
+  it('不正入力（非有限・0以下）は基準値をそのまま返す', () => {
+    expect(resolveAdaptiveGridInterval(0, 1)).toBe(0)
+    expect(resolveAdaptiveGridInterval(-5, 1)).toBe(-5)
+    expect(resolveAdaptiveGridInterval(Number.NaN, 1)).toBeNaN()
+    expect(resolveAdaptiveGridInterval(1000, 0)).toBe(1000)
+    expect(resolveAdaptiveGridInterval(1000, Number.POSITIVE_INFINITY)).toBe(1000)
   })
 })

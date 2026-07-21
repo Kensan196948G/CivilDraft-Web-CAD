@@ -42,6 +42,42 @@ export interface GridLine {
   readonly orientation: 'vertical' | 'horizontal'
 }
 
+/**
+ * zoom に応じたアダプティブグリッド間隔（world単位=mm）を返す。
+ *
+ * 背景（#70想定・v0.1.0リリース後のUXフィードバック）: 固定間隔グリッドは
+ * 初期表示（zoom=1・基準1000mm）で画面上の線間隔が 1000px になり、キャンバスに
+ * 1〜2本しか描かれず「グリッド非表示」に見えていた。CAD の一般的な挙動に合わせ、
+ * 基準間隔を 10 倍単位（…×0.1, ×1, ×10…）で増減し、画面上の間隔が常に
+ * [minSpacingPx, minSpacingPx*10) に収まる間隔を選ぶ。
+ *
+ * - 既定 minSpacingPx=20: 間隔は常に 20〜200px → どの zoom でも視認可能で、
+ *   computeGridLines の LOD 閾値（minor≥4px・major≥8px）を構成的に満たす。
+ * - 10 進スケーリングのため、目盛り値は 1/10/100/1000mm 等のきりの良い値を保つ
+ *   （基準が 1000mm なら候補は …, 10, 100, 1000, 10000, … mm）。
+ * - 不正入力（非有限・0以下）は基準値をそのまま返す（呼び出し側の既存ガードに委譲）。
+ */
+export function resolveAdaptiveGridInterval(
+  baseUnitMm: number,
+  zoom: number,
+  minSpacingPx = 20,
+): number {
+  if (!Number.isFinite(baseUnitMm) || baseUnitMm <= 0) return baseUnitMm
+  if (!Number.isFinite(zoom) || zoom <= 0) return baseUnitMm
+  if (!Number.isFinite(minSpacingPx) || minSpacingPx <= 0) return baseUnitMm
+
+  let interval = baseUnitMm
+  // 画面間隔が広すぎる（拡大時）→ 1/10 ずつ細分化
+  while (interval * zoom >= minSpacingPx * 10) {
+    interval /= 10
+  }
+  // 画面間隔が狭すぎる（縮小時）→ 10 倍ずつ粗く
+  while (interval * zoom < minSpacingPx) {
+    interval *= 10
+  }
+  return interval
+}
+
 /** グリッド線（minor→majorの順）を計算して返す。実描画・配色はレンダリング層が担う。 */
 export function computeGridLines(config: GridConfig): readonly GridLine[] {
   const { width, height, gridSize, zoom, panX, panY } = config
