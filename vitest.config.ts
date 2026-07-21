@@ -16,6 +16,8 @@ export default mergeConfig(
               'tests/unit/domain/**/*.test.ts',
               'tests/unit/shared/**/*.test.ts',
               'tests/unit/workers/**/*.test.ts',
+              // Neon 実接続の結合テスト（CIVILDRAFT_TEST_NEON_CONNECTION 未設定時は skip）
+              'tests/integration/workers/**/*.test.ts',
             ],
           },
         },
@@ -31,6 +33,7 @@ export default mergeConfig(
               'tests/unit/infrastructure/**/*.test.ts',
               'tests/integration/**/*.test.ts',
             ],
+            exclude: ['tests/integration/workers/**'],
           },
         },
       ],

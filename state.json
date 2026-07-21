@@ -8,10 +8,10 @@
   "session": {
     "session_start_utc": "2026-07-18T00:00:00Z",
     "max_duration_minutes": 300,
-    "last_update_utc": "2026-07-18T14:27:46Z",
-    "note": "本番デプロイ完了: civildraft-web-cad.mirai-dx-platform.com（SPA HTTP 200 / API GET認証なしでHTTP 401 CD-AUTH-001、fail-closedの503ではない＝Worker稼働・認証層も機能）。Worker bindings実測: ASSETS/CIVILDRAFT_API_MODE=neon-r2/CIVILDRAFT_NEON_CONNECTION確認、CIVILDRAFT_ACCESS_TEAM_DOMAIN・ACCESS_AUDはbindings一覧で未確認（要人間確認）。Neon civildraft-production（pg17）に0001+0002適用済み、0003はPR#65未マージのため未適用。R2はADR-0014でスキップ。追記2026-07-18 14:27: silent-failure-hunterのCRITICAL指摘（neonApiStoreのpersistX系メソッド未配線）を受け、fail-closed対象をPUT content/quantitiesの2ルートからGET以外の全9ルート+監査ログへ拡大（isSharedSaveRoute→isPersistedWriteRoute）。CodeRabbit相当レビュー指摘3件（High 1・Medium 2）も同一PR内で是正。恒久対応（persistX配線実装）はIssue #66に切り出し。commit 66cd3c3でpush済み、PR#65本文を更新済み（gh api --input方式）。"
+    "last_update_utc": "2026-07-21T09:55:00Z",
+    "note": "本番デプロイ完了: civildraft-web-cad.mirai-dx-platform.com（SPA HTTP 200 / API GET認証なしでHTTP 401 CD-AUTH-001、fail-closedの503ではない＝Worker稼働・認証層も機能）。Worker bindings実測: ASSETS/CIVILDRAFT_API_MODE=neon-r2/CIVILDRAFT_NEON_CONNECTION確認、CIVILDRAFT_ACCESS_TEAM_DOMAIN・ACCESS_AUDはbindings一覧で未確認（要人間確認）。Neon civildraft-production（pg17）に0001+0002適用済み、0003はマージ済みだが本番未適用（人間承認待ち）。R2はADR-0014でスキップ。追記2026-07-18 14:27: silent-failure-hunterのCRITICAL指摘（neonApiStoreのpersistX系メソッド未配線）を受け、fail-closed対象をPUT content/quantitiesの2ルートからGET以外の全9ルート+監査ログへ拡大（isSharedSaveRoute→isPersistedWriteRoute）。CodeRabbit相当レビュー指摘3件（High 1・Medium 2）も同一PR内で是正。恒久対応（persistX配線実装）はIssue #66に切り出し。追記2026-07-18 15:05: PR#65を人間承認（Y）を得てsquashマージ完了（squash commit 4167b098、main branch protection enforce_adminsを一時解除→マージ→即復元。Codex公式レビューはユーザー判断により省略）。main上のマージ後CI（run 29648908263）success確認済み。GitHub Projects #44へIssue #66・PR#65を新規登録・Status反映済み。追記2026-07-18 15:15: PR#67（state.json/Projects同期、Draft）作成直後、head branch(deploy/production-release)がsquash commit(4167b098)とのコミットグラフ分岐によりmainとCONFLICTING状態になり、CIが一切起動しない事象を検知。git merge origin/main実行→state.jsonコンフリクトをours採用で解消（内容はours側がtheirs側を完全に上位互換、意味的矛盾なし）→push（マージコミット3363292）でsynchronizeイベント発生、CI 4ジョブ全green確認（run 29649368429）。原因と対処をMemory(merge-train-procedure.md)へ追記済み。追記2026-07-21: Issue #66恒久対応をPR#67スコープへ実装（persistX配線9ハンドラ+監査ログflush+fail-closed撤去）。配線検証で既存バグ4件を確定・修正（ID型ドリフトuuid vs接頭辞文字列→migration 0004/ADR-0015、driver数値・時刻型正規化漏れ、quantity sources復元バグ、jsonbトップレベル配列直列化）。Neon検証ブランチverify-pr67-migrations-0003-0004（mainから分岐）で0003→0004適用成功+実接続roundtrip結合テスト2件pass。wrangler secret list（名前のみread-only照会）でACCESS_TEAM_DOMAIN/ACCESS_AUD未登録を確定→未登録の間neon-r2 APIは認証構成fail-closed(401/503)のためゲート撤去後もデータ経路は開かない。残存制約（トランザクション境界なし）はIssue #68起票。"
   },
-  "goal": "PR#65（fail-closed対象拡大・ADR-0014・migration 0003・CodeRabbit相当指摘是正済み）のCodexレビュー実施→マージ判断。マージ後はmigration 0003本番適用+Issue #66(persistX配線実装)+Access Secret確認+再デプロイでfail-closed暫定措置(isPersistedWriteRoute)を撤去。",
+  "goal": "PR#67（persistX配線+migration 0003/0004+fail-closed撤去）をマージ可能状態にし、マージ判定Y/Nを提示。Y後: merge→本番Neon mainへ0003→0004適用→wrangler deploy→スモーク（SPA200/API無認証401/JWT有りAccess未構成503=期待値）→tag/Release→Issue #66クローズ。Access Secret登録とAccess Application設定は引き続き人間実施事項（別トラック）。",
   "phase": "Deploy",
   "kpi": {
     "success_rate_target": 0.9,
@@ -170,6 +170,11 @@
       "pr": 64,
       "merged": "2026-07-18",
       "note": "全実装修正 merge (admin bypass)"
+    },
+    {
+      "pr": 65,
+      "merged": "2026-07-18",
+      "note": "共有保存fail-closed化(isPersistedWriteRoute拡大)+ADR-0014(Neon直接格納・R2任意化)+migration 0003+CodeRabbit相当指摘3件是正。squash commit 4167b098。Codex公式レビューは省略（ユーザー判断）、CodeRabbit(GitHub App)・silent-failure-hunter対応済み・CI 5ジョブ全green・テスト1192件全passを根拠"
     }
   ],
   "blocked_issues": [],
@@ -286,12 +291,22 @@
         "date": "2026-07-18",
         "pattern": "gh api <endpoint> -X PATCH -f body=@/path/to/file は、コマンド自体はエラーなく完了し.number/.html_url等も正常に返るため成功したように見えるが、実際には@プレフィックスがファイル読み込みとして機能せず、リテラル文字列（\"@/path/to/file\"という文字列そのもの）がAPIへ送信されることがある（gh pr edit --body-fileがGitHub Projects Classic起因GraphQLエラーで使えない場合の代替として-f body=@fileを試した際に発覚。既存パターン2026-07-15のgh pr edit回避策＝GitHub MCPツールが使えない/使わない場面での補強）",
         "fix": "jq -n --rawfile body <file> '{body: $body}' > payload.json でJSONペイロードを構築し、gh api <endpoint> -X PATCH --input payload.json のように--inputで完全なJSONを渡す。更新後は必ず gh api <endpoint> --jq '.body' 等で実際に反映された内容を直接検証する（コマンドの成功表示だけでは反映を保証しない）"
+      },
+      {
+        "date": "2026-07-18",
+        "pattern": "ユーザーがPR mergeをY承認した後でも、実行手段としてbranch protection(enforce_admins)を一時解除するgh apiコマンドは、Auto Modeのセキュリティ分類器により自動実行がブロックされる（'Blocked by classifier'）。これはCLAUDE.md上の許可（PR mergeは通常業務の承認範囲＝§8.4）とは別レイヤーの、ツール実行時点でのガードレール",
+        "fix": "無理にワークアラウンドせず、ブロックされた事実と目的をユーザーへそのまま説明し、(a)ユーザー自身が!プレフィックスでコマンドを一つずつ実行する、(b)GitHub Web UIから直接操作する、の2択を提示して選ばせる。今回はユーザーが!実行を選択し、enforce_admins解除→gh pr merge --squash --admin→即復元の3コマンドを個別に!実行してもらい、各ステップ後にCTO側はread-only確認（gh api GET）で結果を検証した。復元コマンドは成否に関わらず必ず実行するようユーザーへ明示すること"
+      },
+      {
+        "date": "2026-07-18",
+        "pattern": "squash mergeされたPR(#65)のhead branch(deploy/production-release)を削除せず継続利用し新規コミットを積んでPR(#67)を作ったところ、mainのsquash commitとhead branch側の旧コミット群がコミットグラフ上で分岐し mergeable:CONFLICTING 状態になった。この状態の間、GitHub Actionsの pull_request イベントに対応するworkflow runが一件も生成されず、gh pr checks では CodeRabbit以外のチェックが一切表示されなかった",
+        "fix": "gh pr view <N> --json mergeable,mergeStateStatus でCONFLICTINGを確認したら、git fetch origin main && git merge origin/main でローカルに取り込みコンフリクトを解消（内容が実質同一/oursが上位互換なら git checkout --ours <file>）→ push。これによりsynchronizeイベントが発火しCIが起動する（今回はコンフリクト解消pushの直後にrunが生成され4ジョブ全green化を確認）。CI未起動を検知したら、まずワークフロー設定やタイミングを疑う前に mergeable 状態を確認するのが最短の切り分け"
       }
     ]
   },
   "pending_items": [
     "Cloudflare Access Secret（CIVILDRAFT_ACCESS_TEAM_DOMAIN/ACCESS_AUD）の本番設定確認（bindings一覧で未確認・秘密情報のため人間確認）",
-    "PR#65: Codexレビュー実施 → マージ判断 → migration 0003本番適用 + Issue #66(persistX配線)実装 → 再デプロイ → fail-closed暫定措置(isPersistedWriteRoute)撤去判断",
+    "PR#65マージ済み。次: migration 0003本番適用 + Issue #66(persistX配線)実装 → 再デプロイ → fail-closed暫定措置(isPersistedWriteRoute)撤去判断",
     "任意: persistenceUnavailableResponseの503本文binding名を汎用文言化（情報最小化・低優先）"
   ],
   "external_review_plan": {
@@ -328,11 +343,9 @@
     "ready": true,
     "ready_scope": "Worker本体（SPA配信+API層+認証層）は本番デプロイ済み・稼働中を意味する。共有保存API（PUT content/quantities）等のフル機能稼働は blocked_by_human_decision の解消が前提で、ready=true と両立する別軸の状態。",
     "blocked_by_human_decision": [
-      "Cloudflare Access Secret（ACCESS_TEAM_DOMAIN/ACCESS_AUD）本番設定の確認（bindings一覧未確認・秘密情報のため人間確認が必要。未設定確定ではないが、確認は自動実行しない）",
-      "migration 0003の本番Neon main適用（PR#65マージ後・人間承認）",
-      "Issue #66（persistX系メソッドのindex.tsへの配線実装・結合テスト）の完了",
-      "上記2項目の両方が完了した後、書き込み系fail-closed暫定措置（isPersistedWriteRoute）の撤去",
-      "0003適用+配線実装+再デプロイ後のスモーク（401/403/200・fail-closed撤去判断）"
+      "PR#67マージ判定Y（Yの承認範囲: merge→本番Neon mainへmigration 0003→0004適用→wrangler deploy→スモーク→tag/Release。検証ブランチで適用済み・roundtrip結合テストpass）",
+      "Cloudflare Access Secret（ACCESS_TEAM_DOMAIN/ACCESS_AUD）の登録（2026-07-21 wrangler secret listで未登録確定。未登録の間neon-r2 APIは認証構成fail-closed=JWT無し401/JWT有り503でデータ経路は開かない。登録はwrangler secret put 2件・人間実施）",
+      "Cloudflare Access Applicationの設定（§4.2。Secret登録とセットでフル機能有効化）"
     ],
     "guide": "docs/operations/production-deployment.md",
     "url": "https://civildraft-web-cad.mirai-dx-platform.com",

@@ -9,7 +9,8 @@ SQL ファイルは**定義のみ**であり、本リポジトリからの自動
 | --- | --- | --- |
 | `0001_initial_schema.sql` | 初期スキーマ（projects / work_sections / project_members / drawings / drawing_revisions / drawing_contents / quantity_items / quantity_sources / workflow_actions / export_jobs / master_items / audit_logs、索引一式） | 詳細設計仕様書 §25・§26・§29 |
 | `0002_api_contract_alignment.sql` | Workers API P0契約に合わせた前方互換拡張（quantity_snapshots、quantityVersion、Exportメタ、R2メタ、監査ハッシュチェーン列、索引追加） | `src/workers/index.ts`・ADR-0009 |
-| `0003_persistence_schema_drift_fix.sql` | R2スキップ決定（Neon直接格納への切替）に合わせたスキーマ追随。`drawing_contents.content` 列追加、`object_key` の NOT NULL 緩和、`quantity_items.name`/`quantity` の NOT NULL 緩和 | `src/workers/neonApiStore.ts`・ADR（R2スキップ→Neon直接格納） |
+| `0003_persistence_schema_drift_fix.sql` | R2スキップ決定（Neon直接格納への切替）に合わせたスキーマ追随。`drawing_contents.content` 列追加、`object_key` の NOT NULL 緩和、`quantity_items.name`/`quantity` の NOT NULL 緩和 | `src/workers/neonApiStore.ts`・ADR-0014 |
+| `0004_id_type_alignment.sql` | アプリ生成の接頭辞付きID（`project_<uuid>`等）に合わせ、ID列を `uuid`→`text` へ整合（FKは同一トランザクション内で再作成、`audit_logs.project_id` のFKのみ監査記録保護のため撤去、変換列の `gen_random_uuid()` DEFAULT 撤去） | `src/workers/index.ts` `createId()`・ADR-0015 |
 
 命名規約: `NNNN_説明.sql`（4桁連番・前方互換で追記）。適用済み番号は巻き戻さない。
 
@@ -19,8 +20,9 @@ SQL ファイルは**定義のみ**であり、本リポジトリからの自動
 > データ削除に準ずる人間承認事項（CLAUDE.md §8.6、`docs/operations/rollback-procedure.md` §4.1）。
 
 1. **dev ブランチ作成**: Neon で main から dev ブランチを分岐する（`create_branch`）。
-2. **隔離検証**: dev ブランチ上で `0001_initial_schema.sql` → `0002_api_contract_alignment.sql` → `0003_persistence_schema_drift_fix.sql` の順に適用し（`run_sql` / `prepare_database_migration`）、
+2. **隔離検証**: dev ブランチ上で `0001` → `0002` → `0003` → `0004` の順に適用し（`run_sql` / `prepare_database_migration` / `psql -v ON_ERROR_STOP=1`）、
    テーブル・制約・索引が作成されることを確認する（`describe_branch` / `get_database_tables`）。
+   既適用環境（本番 main は `0001`+`0002` 適用済み）では未適用分のみを番号順に適用する。
 3. **実行計画確認（任意）**: 主要クエリを `explain_sql_statement` で確認し、§26.4 索引の妥当性を検証する。
 4. **差分確認**: `compare_database_schema` で main との差分を確認する。
 5. **人間承認 → 本番適用**: 上記が問題なければ、**人間が** main ブランチへ適用する
@@ -39,6 +41,8 @@ npm run migrations:check
 
 - `BEGIN` / `COMMIT` のトランザクション境界
 - 破壊的DDL（`DROP` / `TRUNCATE` / `DELETE FROM` 等）が含まれないこと
+- `DROP CONSTRAINT` は明示 waiver コメント付きファイルに限り、DROP した制約が
+  同一ファイル内で再作成される（または not-recreated として列挙される）ことを機械検証
 - 期待テーブル、外部キー参照先、必須索引がSQL内で整合していること
 - 監査ログの相関ID、図面内容のChecksum列が存在すること
 
