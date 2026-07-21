@@ -42,9 +42,16 @@ const WHEEL_ZOOM_FACTOR = 1.1
 /** クリック選択の許容ピクセル（§9.3: screen px をドメイン距離へ換算して判定）。 */
 const HIT_TOLERANCE_PX = 8
 
-/** グリッド線色（minor/major）。 */
-const GRID_MINOR_COLOR = '#e2e8f0'
-const GRID_MAJOR_COLOR = '#cbd5e1'
+/**
+ * グリッド線色。旧値（minor #e2e8f0 / major #cbd5e1）はライトテーマの
+ * キャンバス背景 --canvas-wrap: #dde3ec とほぼ同色で、描画されても視認
+ * できなかった（本番UXフィードバックで発覚）。Konva は CSS 変数を参照
+ * できないため、明暗両テーマの背景（#dde3ec / #12161f）と用紙（白）の
+ * いずれにも視認できる中間グレー（slate-500）1色＋不透明度の階調で表現する。
+ */
+const GRID_LINE_COLOR = '#64748b'
+const GRID_MINOR_OPACITY = 0.35
+const GRID_MAJOR_OPACITY = 0.7
 /** 選択BBox枠の色。 */
 const SELECTION_BBOX_COLOR = '#3b82f6'
 
@@ -297,8 +304,9 @@ export function CanvasStage({ paperSize = 'A3', paperOrientation = 'landscape' }
             <Line
               key={`grid-${i}`}
               points={[...line.points]}
-              stroke={line.kind === 'major' ? GRID_MAJOR_COLOR : GRID_MINOR_COLOR}
-              strokeWidth={line.kind === 'major' ? 1 : 0.5}
+              stroke={GRID_LINE_COLOR}
+              opacity={line.kind === 'major' ? GRID_MAJOR_OPACITY : GRID_MINOR_OPACITY}
+              strokeWidth={1}
               listening={false}
             />
           ))}
