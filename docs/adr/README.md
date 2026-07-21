@@ -39,6 +39,7 @@ Phase 0棚卸し由来ではなく、Phase 1の実装過程で個別に発生し
 | [0012](./0012-internal-coordinate-baseline.md) | 内部座標基準（長さ単位・軸・角度正方向・許容差）を確定する | Issue #5 | Accepted |
 | [0013](./0013-geometry-id-generation.md) | 図形派生生成のID発番方針（crypto.randomUUID + コンテキスト注入） | ADR-0002, Issue #5 | Accepted |
 | [0014](./0014-neon-direct-content-storage.md) | 図面内容の永続化先をNeon直接格納（`drawing_contents.content`）とし、R2は任意の共有ストレージ拡張点とする | ADR-0006, ADR-0009, Issue #36 | Accepted |
+| [0015](./0015-id-text-alignment.md) | エンティティIDはアプリ生成の接頭辞付き文字列を正とし、DBのID列はtext型へ整合する | ADR-0002, ADR-0014, Issue #66 | Accepted |
 
 ## 参照
 

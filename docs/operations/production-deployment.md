@@ -80,25 +80,27 @@ wrangler secret put CIVILDRAFT_ACCESS_AUD
 
 ```
 1. Neon dev ブランチを作成（create_branch）
-2. 0001_initial_schema.sql → 0002_api_contract_alignment.sql → 0003_persistence_schema_drift_fix.sql の順に適用
+2. 0001 → 0002 → 0003 → 0004 の順に適用（既適用環境では未適用分のみ番号順）
 3. npm run migrations:check の静的検証と実適用の整合を確認
 4. explain/describe で索引・FK・監査ハッシュチェーン列を確認
-5. persistContent/persistQuantities 相当の INSERT を実データで試行し、NOT NULL 制約違反がないことを確認
+5. roundtrip 結合テストを実行し、Worker コード（NeonApiStore.persistX）経由の
+   書き込み → 別インスタンス reload の完全一致を確認:
+   CIVILDRAFT_TEST_NEON_CONNECTION=$(neonctl cs <verify-branch> ...) \
+     npx vitest run tests/integration/workers/
 ```
 
-`migrations/0002_api_contract_alignment.sql` ・ `migrations/0003_persistence_schema_drift_fix.sql` は前方互換（既存列削除なし・`ADD COLUMN IF NOT EXISTS` / `DROP NOT NULL` による制約緩和のみ）。
-0003 は R2 スキップ決定（本セクション・§4.1）に伴うスキーマドリフト（`drawing_contents.content` 列追加、`object_key`/`quantity_items.name`/`quantity` の NOT NULL 緩和）を解消する。2026-07-18 時点で dev ブランチ実地検証済み（DDL 適用・実データ INSERT とも成功）。
+`0002`〜`0004` は前方互換（既存列・テーブル・行の削除なし）。0003 は R2 スキップ（§4.1・ADR-0014）に伴う列ドリフト解消、0004 はアプリ生成の接頭辞付きIDに合わせた `uuid`→`text` 型整合（ADR-0015。FKは同一トランザクション内で再作成、`audit_logs.project_id` FKのみ監査記録保護のため撤去）。
 
-> ⚠️ 上記ステップ5「persistContent/persistQuantities 相当の INSERT」は、SQL を直接実行するスキーマレベルの検証であり、
-> Worker コード側の `persistContent`/`persistQuantities`（`src/workers/neonApiStore.ts`）が実際に呼ばれることを確認したものではない。
-> これらの永続化メソッドは本ADR時点で `src/workers/index.ts` のどのハンドラからも呼ばれておらず（配線漏れ、ADR-0014 Decision 5 参照）、
-> 別途 Issue でコード側の配線実装・結合テストが必要。
+2026-07-21 検証実績: 検証ブランチ `verify-pr67-migrations-0003-0004`（main から分岐 = 本番と同一の適用前状態）で
+`0003`→`0004` を `psql -v ON_ERROR_STOP=1` により適用成功、roundtrip 結合テスト 2 件 pass
+（persistX 配線済みコード経由・sources/jsonb/数値型正規化を含む全項目一致）。
 
-### 3.2 本番適用（🚫 人間決裁）
+### 3.2 本番適用（🚫 人間決裁 / PR マージ `Y` の承認範囲で実施）
 
-- Neon **本番（main）ブランチ**への適用は自動実行禁止（データ影響・CLAUDE.md §8.6）。
-- 手順: dev ブランチで検証済みの `0001`→`0002`→`0003` を、人間が承認して本番へ適用 → `CIVILDRAFT_NEON_CONNECTION` を Secret 登録。
-- 切り戻しは [`rollback-procedure.md`](./rollback-procedure.md) §4.1（Neon ブランチ / PITR）。
+- Neon **本番（main）ブランチ**への適用は、対象・影響・rollback を明記した PR のマージ承認（`Y`）の範囲でのみ実施する（CLAUDE.md §16）。
+- 手順: 検証ブランチで適用済みの `0003`→`0004` を、承認後に本番 main へ番号順に適用（`psql -v ON_ERROR_STOP=1` または `run_sql_transaction`）。
+- 適用後に Worker を再デプロイする（**順序厳守**: migration → deploy。逆順は新コードが旧スキーマへ書き込み失敗する）。
+- 切り戻しは [`rollback-procedure.md`](./rollback-procedure.md) §4.1（Neon ブランチ / PITR）。0004 の逆変換条件は migration ヘッダ参照（アプリ書き込み発生前のみ）。
 
 ---
 
@@ -147,11 +149,11 @@ JWKS は Worker が `<team-domain>/cdn-cgi/access/certs` から自動取得・�
 | --- | --- | --- | --- | --- |
 | 1 | 品質ゲート全 green | `npm run release:audit` | CTO | ✅ 完了（105ファイル/1191テストpass） |
 | 2 | CI 必須チェック成功（quality/E2E/audit/SBOM） | GitHub PR checks | CTO | ✅ 完了（PR#65で5チェック全pass） |
-| 3 | migration 0001→0002→0003 を dev ブランチで検証 | Neon dev で実適用 | CTO | ✅ 完了 |
-| 4 | 本番 migration 適用 | Neon main（承認後） | 🚫 人間 | `0001`+`0002` ✅適用済み／`0003` ❌未適用（PR#65マージ後） |
+| 3 | migration 0001→0004 を検証ブランチで検証 | Neon 検証ブランチで実適用 + roundtrip 結合テスト | CTO | ✅ 完了（2026-07-21、`verify-pr67-migrations-0003-0004`） |
+| 4 | 本番 migration 適用（`0003`→`0004`） | Neon main（PR マージ `Y` 承認後） | 🚫 人間承認（`Y`） | `0001`+`0002` ✅適用済み／`0003`・`0004` ❌未適用（本PRの承認範囲） |
 | 5 | R2 バケット作成・binding 設定（**任意**・§4.1） | `wrangler r2 bucket list` | 🚫 人間 | ➖ 対象外（ADR-0014でNeon直接保存へ転換） |
 | 6 | Access Application・ポリシー設定 | Cloudflare dashboard | 🚫 人間 | ⚠️ 未確認（§7参照。本番API無認証GETはHTTP 401でfail-closedの503ではない） |
-| 7 | Secret/変数を登録 | `wrangler secret list` | 🚫 人間 | `API_MODE`/`NEON_CONNECTION` ✅bindings確認済み／`ACCESS_TEAM_DOMAIN`・`ACCESS_AUD` ⚠️bindings一覧で未確認 |
+| 7 | Secret/変数を登録 | `wrangler secret list` | 🚫 人間 | `API_MODE`(vars)/`NEON_CONNECTION`(secret) ✅確認済み／`ACCESS_TEAM_DOMAIN`・`ACCESS_AUD` ❌**未登録確定**（2026-07-21 `wrangler secret list` で名前一覧照会。登録は人間実施） |
 | 8 | `wrangler.jsonc` の `main`/API routing 決定 | 設計判断（#36） | 🚫 人間 | ✅ 完了（`ASSETS` binding統合＝案A相当で有効化済み） |
 | 9 | `wrangler deploy` | デプロイ実行 | 🚫 人間 | ✅ 完了 |
 | 10 | スモーク（401/403/200 と 503 fail-closed） | 本番エンドポイント確認 | 🚫 人間 | ⚠️ 部分実施のみ（read-only GET: SPA=200, API無認証=401）。JWT付き200・403・fail-closed 503の確認は未実施 |
@@ -175,9 +177,10 @@ JWKS は Worker が `<team-domain>/cdn-cgi/access/certs` から自動取得・�
 
 ---
 
-## 📋 7. 残課題（2026-07-18 read-only照会で更新）
+## 📋 7. 残課題（2026-07-21 更新）
 
 - ✅ 完了: Neon本番プロジェクト `civildraft-production`（pg17）作成・`0001`+`0002`適用、Workers Secret（`CIVILDRAFT_NEON_CONNECTION`/`CIVILDRAFT_API_MODE=neon-r2`）登録、`wrangler.jsonc` の `main` エントリ有効化（`ASSETS` binding統合＝案A相当）、`wrangler deploy` 実行、カスタムドメイン `civildraft-web-cad.mirai-dx-platform.com` 設定
+- ✅ 完了（2026-07-21）: Issue #66 persistX 配線・監査ログ永続化・fail-closed 暫定措置（`isPersistedWriteRoute`）撤去、migration `0003`→`0004` の検証ブランチ実地検証、roundtrip 結合テスト整備
 - ➖ 対象外: R2 バケット作成（ADR-0014 で Neon 直接保存へ方針転換。§4.1 参照）
-- ⚠️ 要人間確認: Cloudflare Access Secret（`CIVILDRAFT_ACCESS_TEAM_DOMAIN` / `CIVILDRAFT_ACCESS_AUD`）— Workers bindings 一覧（read-only 照会）では確認できなかった。ただし本番 API への無認証 GET は HTTP 401（CD-AUTH-001 相当）を返しており、fail-closed の 503 ではない。つまり Worker 自体は稼働し認証チェック層も機能しているが、正規の Access ログインフローが最終的に成功するかは未確認。Secret の登録状況そのものの確認・対応は人間が行う（秘密情報のため）
+- ❌ 未登録確定（🚫 人間実施）: Cloudflare Access Secret（`CIVILDRAFT_ACCESS_TEAM_DOMAIN` / `CIVILDRAFT_ACCESS_AUD`）— 2026-07-21 の `wrangler secret list`（名前一覧のみの read-only 照会）で `CIVILDRAFT_NEON_CONNECTION` のみ登録を確認。**未登録の間、neon-r2 モードの API は認証構成 fail-closed（JWT ヘッダなし=401 / JWT ありでも Access 検証未構成=503）で全面停止しており、書き込み系の一時停止ゲート撤去後もデータ経路は開かない**。Access Application 設定（§4.2）と Secret 登録（`wrangler secret put` 2 件）を人間が実施した時点でフル機能が有効化される。
 - 🚫 人間決裁（未実施）: migration `0003`（`migrations/0003_persistence_schema_drift_fix.sql`）の本番 Neon main 適用。PR#65 マージ後に実施し、適用後は共有保存 API の fail-closed 暫定措置（`isSharedSaveRoute`、ADR-0014）の撤去要否を判断する
