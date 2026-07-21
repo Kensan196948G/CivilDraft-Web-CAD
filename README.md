@@ -10,7 +10,7 @@
 | リポジトリ | `CivilDraft-Web-CAD` |
 | 既存技術資産 | [`Civil-Draw`](https://github.com/Kensan196948G/Civil-Draw) |
 | 開発基盤 | Claude Code on Linux＋GitHub＋Cloudflare＋Neon |
-| 現在の位置付け | **土木特化Web CADの技術プレビュー**。ブラウザ内CADコアと土木ドメイン部品は拡充中。Workers APIはP0縦線（Project作成/更新→Drawing作成/更新→Revision作成→Content/数量保存→照査/承認→Export作成→Audit検索）を実装し、2026-07-18に本番Neon接続でデプロイ済み（`civildraft-web-cad.mirai-dx-platform.com`）。案件メンバー認可、メタデータ/内容/数量更新の楽観ロックを実装。Neon migration 0001/0002は本番適用済み、0003（R2任意化・ADR-0014）はPR#65マージ後に適用予定で、共有保存（PUT content/quantities）はそれまでfail-closed（503）。Cloudflare Accessテナント設定は本番Secret登録状況を人間確認中、共有運用は引き続き検証中 |
+| 現在の位置付け | **土木特化Web CADの技術プレビュー（v0.1.0）**。ブラウザ内CADコアと土木ドメイン部品は拡充中。Workers APIはP0縦線（Project作成/更新→Drawing作成/更新→Revision作成→Content/数量保存→照査/承認→Export作成→Audit検索）を実装し、本番稼働中（`civildraft-web-cad.mirai-dx-platform.com`）。2026-07-21のv0.1.0でpersistX全9ハンドラのNeon永続化配線・監査ログ永続化が本番反映され、Neon migration 0001〜0004適用済み（0003=Neon直接格納・ADR-0014、0004=ID列text整合・ADR-0015）、書き込み系fail-closed暫定措置は撤去済み。Cloudflare Access Application設定とAccess Secret登録（人間実施）が完了するまでAPIは認証構成fail-closed（401/503）で安全に停止 |
 
 ---
 
@@ -586,6 +586,7 @@ timeline
 | 2026-07-15 | 📊 最終: **テスト1030/1030（×2連続STABLE）**・typecheck/lint/build green |
 | 2026-07-18 | 🐘 Neon migration 0003を追加: R2 binding を**任意化**し、図面内容（`drawing_contents.content` jsonb）をNeonへ直接保存する方針へ転換。`object_key`/`quantity_items.name`/`quantity`のNOT NULL制約も緩和。`persistence.ts`の本番readiness判定からR2を除外し、回帰テスト・migrations静的検証を追加更新。dev branch（`br-fancy-frog-aja6lujp`）でDDL適用・`persistContent`/`persistQuantities`相当の実データINSERTともに実地検証済み（ADR-0014、PR #65） |
 | 2026-07-18 | 🚀 **本番デプロイ実行**（人間承認）: `civildraft-web-cad.mirai-dx-platform.com` へWorkers + Neon本番接続で公開。Neon `civildraft-production`（pg17）にmigration 0001/0002適用済み。共有保存（PUT content/quantities）はmigration 0003（PR #65）本番適用までfail-closed（503）。read-only疎通確認: SPA=HTTP 200、API GET（無認証）=HTTP 401（fail-closedの503ではなくAccess層の通常拒否）。Cloudflare Access Secret（TEAM_DOMAIN/AUD）の本番設定はWorker bindings一覧で未確認のため人間確認待ち |
+| 2026-07-21 | 🎉 **v0.1.0 リリース**（PR #67・人間承認Y）: Issue #66恒久対応としてpersistX全9ハンドラをNeon永続化へ配線、監査ログ永続化（flush失敗は500 fail-visible）、fail-closed暫定措置撤去。配線検証で発覚した既存バグ4件（ID型ドリフト uuid vs 接頭辞文字列→migration 0004/ADR-0015、bigint文字列化による楽観ロック不整合、quantity sources復元、jsonb配列直列化）を修正。migration 0003→0004を本番Neon mainへ適用（実データ0件・前方互換）、Worker再デプロイ（Version 269aebbe）。スモーク: SPA=200/API無認証=401/API JWT有り=503（Access未構成fail-closed・期待値）。`wrangler secret list`（名前照会）でAccess Secret未登録を確定→登録（人間実施）までAPIは認証層で安全に停止。Neon実接続roundtripテスト・DROP CONSTRAINT waiver付きmigration validator追加。残: Access設定（人間）・#68トランザクション化 |
 | 2026-07-18 | 📊 テスト105ファイル・1191テストpass、typecheck/lint/build green |
 
 ### 🛠️ 次に閉じるべき実務ワークフロー
@@ -595,8 +596,8 @@ timeline
 | 優先 | 対応 | 完了条件 |
 | --- | --- | --- |
 | P0 | README/設計文書と実装状態の同期 | 実装済み・試作・未配線・未実装が外向け文書で混同されない |
-| P0 | Workers APIの最小縦線 | ✅ Project作成/更新 → Drawing作成/更新 → Revision作成 → Content/数量保存 → 照査/承認 → Export作成 → Audit記録、案件メンバー認可、楽観ロックを実装し、2026-07-18に本番Neon接続でデプロイ済み。Neon 0001/0002は本番適用済み、0003（R2任意化）はPR #65マージ後に適用予定。次はAccess Secret本番設定の人間確認とmigration 0003適用後のfail-closed撤去 |
-| P0 | ブラウザ側共有保存クライアント | ✅ `CivilDraftApiClient` でWorkers P0縦線を呼び出し、CAD編集画面の「共有保存」「共有再読込」からクラウド保存・再読込経路を実行可能。案件詳細の図面行から案件/図面/改訂メタデータを渡す導線も実装。本番デプロイ済みだが共有保存はmigration 0003適用までfail-closed。次は案件一覧/検索/複製/アーカイブの実データ化、複数利用者/権限E2E |
+| P0 | Workers APIの最小縦線 | ✅ Project作成/更新 → Drawing作成/更新 → Revision作成 → Content/数量保存 → 照査/承認 → Export作成 → Audit記録、案件メンバー認可、楽観ロックを実装・本番稼働中。v0.1.0（2026-07-21）でpersistX全9ハンドラをNeon永続化へ配線し、migration 0001〜0004本番適用・fail-closed撤去済み（Neon実接続roundtrip検証pass）。次はAccess Application設定+Access Secret登録（人間実施）によるフル機能有効化 |
+| P0 | ブラウザ側共有保存クライアント | ✅ `CivilDraftApiClient` でWorkers P0縦線を呼び出し、CAD編集画面の「共有保存」「共有再読込」からクラウド保存・再読込経路を実行可能。案件詳細の図面行から案件/図面/改訂メタデータを渡す導線も実装。サーバ側永続化はv0.1.0で有効化済み（Access Secret登録後にエンドツーエンド開通）。次は案件一覧/検索/複製/アーカイブの実データ化、複数利用者/権限E2E |
 | P0 | CAD編集UIの基本セット配線 | Trim/Extend/Offset/Fillet/Move/Copy/Rotate/Mirror/Scale/Explode/Joinのうち優先コマンドを画面操作から実行できる |
 | P1 | レイヤー・寸法・印刷の実務化 | 線種/線幅/ロック/印刷尺度/寸法/注記を納品図面として確認できる |
 | P1 | 土木差別化の図面連動 | 数量表・測点・横断・施工ステップから該当図形をハイライト/更新できる |
@@ -623,7 +624,8 @@ timeline
 | [#56](../../pull/56) | 本番デプロイ手順書 `production-deployment.md` 追加 | ✅ マージ済み（2026-07-17） |
 | [#57](../../pull/57) | Issue #51 状態遷移グラフをdomain/revisionsへ一本化（P3リファクタ） | ✅ マージ済み（2026-07-18・admin bypass） |
 | [#64](../../pull/64) | 外部評価（2026-07-18）精査結果反映（state.jsonのみ・Issue #58-#63起票） | ✅ マージ済み（2026-07-18・admin bypass） |
-| [#65](../../pull/65) | 共有保存fail-closed化・ADR-0014（R2任意化）・Neon migration 0003 | 🔄 レビュー中（Codexレビュー待ち） |
+| [#65](../../pull/65) | 共有保存fail-closed化・ADR-0014（R2任意化）・Neon migration 0003 | ✅ マージ済み（2026-07-18・人間承認Y） |
+| [#67](../../pull/67) | **v0.1.0**: persistX配線・監査ログ永続化・migration 0004（ID text整合・ADR-0015）・fail-closed撤去（Issue #66恒久対応） | ✅ マージ済み（2026-07-21・人間承認Y）→ migration 0003/0004本番適用・本番デプロイ・[Release v0.1.0](../../releases/tag/v0.1.0) |
 
 > マージ済みPRは人間の明示承認（選択式Y判断）を得てマージ済み。レビュー承認1件必須はPR作成者の自己承認不可のため、マージ実行時は enforce_admins を一時解除し完了後に即復元した。
 
