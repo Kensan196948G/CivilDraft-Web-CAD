@@ -153,6 +153,22 @@ export interface ApiStore {
   readonly workflowActions: WorkflowActionRecord[]
   readonly exportJobs: Map<string, ExportJobRecord>
   readonly auditLogs: AuditLogRecord[]
+
+  // -- 任意の永続化フック（#66） --
+  // NeonApiStore のような永続化バックエンド付き実装は、これらのフックで
+  // 「バックエンドへ書き込み → 成功後にローカル Map/配列を更新」を行う。
+  // フックを持たない store（memory/dev）ではハンドラが Map を直接更新する。
+  // 契約: フックが reject した場合、ローカルキャッシュは変更しないこと
+  // （呼び出し側はエラーを 500 として伝播し、書き込み成功を偽装しない）。
+  persistProject?(project: ProjectRecord): Promise<void>
+  persistProjectMember?(member: ProjectMemberRecord): Promise<void>
+  persistDrawing?(drawing: DrawingRecord): Promise<void>
+  persistRevision?(revision: RevisionRecord): Promise<void>
+  persistContent?(content: ContentRecord): Promise<void>
+  persistQuantities?(snapshot: QuantitySnapshotRecord): Promise<void>
+  persistWorkflowAction?(action: WorkflowActionRecord): Promise<void>
+  persistExportJob?(job: ExportJobRecord): Promise<void>
+  persistAuditLog?(log: AuditLogRecord): Promise<void>
 }
 
 export function createMemoryStore(): ApiStore {

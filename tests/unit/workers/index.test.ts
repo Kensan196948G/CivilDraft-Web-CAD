@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'vitest'
+import { describe, expect, it, vi } from 'vitest'
 import worker, {
   API_ROUTES,
   createMemoryStore,
@@ -182,15 +182,15 @@ describe('§25.1 共通ヘッダー検証', () => {
     }
   })
 
-  it('neon-r2 モードの書き込み系ルートは全て一時停止し、成功したように見せない（persistXがindex.tsから未配線のため）', async () => {
-    const writeRoutes = API_ROUTES.filter((r) => r.method !== 'GET')
-    // §25.2 の18経路中9経路が書き込み系。将来ルートが追加されても、この一覧に
-    // 手を加えずに自動でカバーされることを確認する（GET以外は全数fail-closed）。
-    expect(writeRoutes).toHaveLength(9)
+  it('neon-r2 モードで全ルート（読み書き）が接続不能時に 503 fail-closed（#66 配線後も無言フォールバックしない）', async () => {
+    // #66 で書き込み系の一時停止ゲート（isPersistedWriteRoute）は撤去済み。
+    // 撤去後も「アダプタ未接続で成功を偽装しない」性質は維持されることを、
+    // 18 経路全数で確認する（『一時停止』応答が残っていないことも見る）。
+    expect(API_ROUTES).toHaveLength(18)
 
-    for (const r of writeRoutes) {
+    for (const r of API_ROUTES) {
       const res = await handleRequest(
-        authedRequest(r.method, concretePath(r.template), {
+        authedRequest(r.method, concretePath(r.template), r.method === 'GET' ? undefined : {
           schemaVersion: 1,
           content: {},
           items: [],
@@ -205,27 +205,7 @@ describe('§25.1 共通ヘッダー検証', () => {
       expect(res.status, `${r.method} ${r.template}`).toBe(503)
       const body = await json<ApiErrorBody>(res)
       expect(body.error.code).toBe('CD-SYS-002')
-      expect(body.error.message).toContain('書き込み')
-      expect(body.error.message).toContain('一時停止')
-    }
-  })
-
-  it('neon-r2 モードでも読み取り系ルートは fail-closed の対象外（binding未接続の503のみ）', async () => {
-    const readRoutes = API_ROUTES.filter((r) => r.method === 'GET')
-    expect(readRoutes).toHaveLength(9)
-
-    for (const r of readRoutes) {
-      const res = await handleRequest(authedRequest('GET', concretePath(r.template)), {
-        CIVILDRAFT_API_MODE: 'neon-r2',
-        CIVILDRAFT_NEON_CONNECTION: 'test-neon-connection-placeholder',
-      })
-      // binding未接続（テストダブル未注入）のため503にはなるが、書き込み用の
-      // メッセージ（'書き込み'/'一時停止'）ではないことを見て、読み取りルートが
-      // 別経路（persistenceUnavailableResponse）で止まっていることを確認する。
-      expect(res.status, `${r.method} ${r.template}`).toBe(503)
-      const body = await json<ApiErrorBody>(res)
-      expect(body.error.code).toBe('CD-SYS-002')
-      expect(body.error.message).not.toContain('書き込み操作は永続化アダプタ修復中')
+      expect(body.error.message).not.toContain('一時停止')
     }
   })
 })
@@ -978,5 +958,198 @@ describe('default export (module worker)', () => {
     )
     expect(res.status).toBe(201)
     expect(env.CIVILDRAFT_DEV_STORE?.projects.size).toBe(1)
+  })
+})
+
+// ---------------------------------------------------------------------------
+// #66 persistX 配線: 永続化フック付き store で全書き込みハンドラがフックを
+// 経由すること（Map 直接更新へ迂回しないこと）を検証する。
+// ---------------------------------------------------------------------------
+describe('#66 永続化フック配線（persistX wiring）', () => {
+  type HookedStore = ReturnType<typeof createHookedStore>
+
+  /**
+   * NeonApiStore と同じ契約（永続化成功 → キャッシュ更新）を持つテストダブル。
+   * 各フックは vi.fn で呼び出しを記録しつつ、成功時に Map/配列を更新する。
+   */
+  function createHookedStore() {
+    const base = createMemoryStore()
+    const store = Object.assign(base, {
+      persistProject: vi.fn(async (p: (typeof base.projects extends Map<string, infer V> ? V : never)) => {
+        base.projects.set(p.id, p)
+      }),
+      persistProjectMember: vi.fn(async (m: { projectId: string; userId: string }) => {
+        base.projectMembers.set(`${m.projectId}:${m.userId}`, m as never)
+      }),
+      persistDrawing: vi.fn(async (d: { id: string }) => {
+        base.drawings.set(d.id, d as never)
+      }),
+      persistRevision: vi.fn(async (r: { id: string }) => {
+        base.revisions.set(r.id, r as never)
+      }),
+      persistContent: vi.fn(async (c: { revisionId: string }) => {
+        base.contents.set(c.revisionId, c as never)
+      }),
+      persistQuantities: vi.fn(async (s: { revisionId: string }) => {
+        base.quantities.set(s.revisionId, s as never)
+      }),
+      persistWorkflowAction: vi.fn(async (a: unknown) => {
+        base.workflowActions.push(a as never)
+      }),
+      persistExportJob: vi.fn(async (j: { id: string }) => {
+        base.exportJobs.set(j.id, j as never)
+      }),
+      persistAuditLog: vi.fn(async (l: unknown) => {
+        base.auditLogs.push(l as never)
+      }),
+    })
+    return store
+  }
+
+  function hookedEnv(store: HookedStore): WorkerEnv {
+    return { CIVILDRAFT_API_MODE: 'memory', CIVILDRAFT_DEV_STORE: store }
+  }
+
+  it('P0縦線の全書き込みが対応する persistX フックを経由する', async () => {
+    const store = createHookedStore()
+    const env = hookedEnv(store)
+
+    // Project 作成: persistProject + persistProjectMember（manager 自動付与）
+    const projectRes = await handleRequest(
+      authedRequest('POST', '/api/v1/projects', { projectNumber: 'P-66', name: '配線検証案件' }),
+      env,
+    )
+    expect(projectRes.status).toBe(201)
+    expect(store.persistProject).toHaveBeenCalledTimes(1)
+    expect(store.persistProjectMember).toHaveBeenCalledTimes(1)
+    const projectId = (await json<ProjectBody>(projectRes)).project.id
+
+    // Project 更新: persistProject 2 回目
+    const patchRes = await handleRequest(
+      authedRequest('PATCH', `/api/v1/projects/${projectId}`, { expectedVersion: 1, name: '改名' }),
+      env,
+    )
+    expect(patchRes.status).toBe(200)
+    expect(store.persistProject).toHaveBeenCalledTimes(2)
+
+    // Drawing 作成: persistDrawing
+    const drawingRes = await handleRequest(
+      authedRequest('POST', `/api/v1/projects/${projectId}/drawings`, {
+        drawingNumber: 'DWG-66',
+        name: '平面図',
+      }),
+      env,
+    )
+    expect(drawingRes.status).toBe(201)
+    expect(store.persistDrawing).toHaveBeenCalledTimes(1)
+    const drawingId = (await json<DrawingBody>(drawingRes)).drawing.id
+
+    // Revision 作成: persistRevision + persistDrawing（activeRevisionId 更新）
+    const revisionRes = await handleRequest(
+      authedRequest('POST', `/api/v1/drawings/${drawingId}/revisions`, {
+        revisionNumber: 'A',
+        changeSummary: '初版',
+      }),
+      env,
+    )
+    expect(revisionRes.status).toBe(201)
+    expect(store.persistRevision).toHaveBeenCalledTimes(1)
+    expect(store.persistDrawing).toHaveBeenCalledTimes(2)
+    const revisionId = (await json<RevisionBody>(revisionRes)).revision.id
+
+    // Content 保存: persistContent + persistRevision（checksum/contentVersion 反映）
+    const contentRes = await handleRequest(
+      authedRequest('PUT', `/api/v1/revisions/${revisionId}/content`, {
+        schemaVersion: 1,
+        content: { geometries: [{ kind: 'line' }] },
+      }),
+      env,
+    )
+    expect(contentRes.status).toBe(200)
+    expect(store.persistContent).toHaveBeenCalledTimes(1)
+    expect(store.persistRevision).toHaveBeenCalledTimes(2)
+
+    // 数量保存: persistQuantities + persistRevision
+    const quantitiesRes = await handleRequest(
+      authedRequest('PUT', `/api/v1/revisions/${revisionId}/quantities`, { items: [] }),
+      env,
+    )
+    expect(quantitiesRes.status).toBe(200)
+    expect(store.persistQuantities).toHaveBeenCalledTimes(1)
+    expect(store.persistRevision).toHaveBeenCalledTimes(3)
+
+    // Workflow: persistWorkflowAction + persistRevision
+    const workflowRes = await handleRequest(
+      authedRequest('POST', `/api/v1/revisions/${revisionId}/workflow-actions`, {
+        action: 'submitReview',
+        mandatoryChecksPassed: true,
+      }),
+      env,
+    )
+    expect(workflowRes.status).toBe(200)
+    expect(store.persistWorkflowAction).toHaveBeenCalledTimes(1)
+    expect(store.persistRevision).toHaveBeenCalledTimes(4)
+
+    // Export: persistExportJob
+    const exportRes = await handleRequest(
+      authedRequest('POST', `/api/v1/revisions/${revisionId}/exports`, { format: 'pdf' }),
+      env,
+    )
+    expect(exportRes.status).toBe(201)
+    expect(store.persistExportJob).toHaveBeenCalledTimes(1)
+
+    // 監査ログ: 各成功イベントが persistAuditLog 経由で flush されている
+    expect(store.persistAuditLog).toHaveBeenCalled()
+    const auditEvents = store.auditLogs.map((l) => l.eventName)
+    expect(auditEvents).toContain('project.created')
+    expect(auditEvents).toContain('revision.content.updated')
+    expect(auditEvents).toContain('export.created')
+  })
+
+  it('persistX フックの失敗は 500 CD-SYS-003 になり、成功を偽装しない', async () => {
+    const store = createHookedStore()
+    store.persistProject.mockRejectedValueOnce(new Error('neon write failed'))
+    const res = await handleRequest(
+      authedRequest('POST', '/api/v1/projects', { projectNumber: 'P-ERR', name: '失敗案件' }),
+      hookedEnv(store),
+    )
+    expect(res.status).toBe(500)
+    expect((await json<ApiErrorBody>(res)).error.code).toBe('CD-SYS-003')
+    // 契約: 永続化失敗時にローカルキャッシュを更新しない
+    expect(store.projects.size).toBe(0)
+  })
+
+  it('監査ログ flush の失敗は成功応答を 500 で置き換える（fail-visible / ADR-0009）', async () => {
+    const store = createHookedStore()
+    store.persistAuditLog.mockRejectedValue(new Error('audit insert failed'))
+    const res = await handleRequest(
+      authedRequest('POST', '/api/v1/projects', { projectNumber: 'P-AUD', name: '監査失敗案件' }),
+      hookedEnv(store),
+    )
+    expect(res.status).toBe(500)
+    const body = await json<ApiErrorBody>(res)
+    expect(body.error.code).toBe('CD-SYS-003')
+    expect(body.error.message).toContain('監査ログ')
+    // 本体の書き込み自体は完了している（部分永続化はログで突合する運用）
+    expect(store.projects.size).toBe(1)
+  })
+
+  it('認可拒否の監査ログも persistAuditLog 経由で永続化される', async () => {
+    const store = createHookedStore()
+    const env = hookedEnv(store)
+    const created = await handleRequest(
+      authedRequest('POST', '/api/v1/projects', { projectNumber: 'P-DENY', name: '拒否検証' }),
+      env,
+    )
+    const projectId = (await json<ProjectBody>(created)).project.id
+    store.persistAuditLog.mockClear()
+
+    const denied = await handleRequest(
+      authedRequestAs('outsider@example.test', 'GET', `/api/v1/projects/${projectId}`),
+      env,
+    )
+    expect(denied.status).toBe(403)
+    expect(store.persistAuditLog).toHaveBeenCalledTimes(1)
+    expect(store.auditLogs.at(-1)?.eventName).toBe('authorization.view.denied')
   })
 })

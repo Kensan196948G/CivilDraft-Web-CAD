@@ -23,6 +23,7 @@ import type {
   DrawingRecord,
   ExportFormat,
   ExportJobRecord,
+  ProjectMemberRecord,
   ProjectRecord,
   ProjectRole,
   QuantityItemRecord,
@@ -93,6 +94,12 @@ interface RequestContext {
   readonly actorId: string
   readonly correlationId: string
   readonly url: URL
+  /**
+   * 永続化フック付き store（NeonApiStore）でリクエスト中に発生した監査ログ。
+   * ハンドラ完了後に flushPendingAuditLogs が一括で Neon へ書き込む（#66）。
+   * フックを持たない store では使用しない（appendAudit が直接 push する）。
+   */
+  readonly pendingAudits: AuditLogRecord[]
 }
 
 interface CreateProjectBody {
@@ -249,24 +256,6 @@ function persistenceUnavailableResponse(env: WorkerEnv, correlationId: string): 
     readiness.ready
       ? 'Neon永続化アダプタは未接続です'
       : `Neon永続化に必要なbindingが未設定です: ${readiness.missingBindings.join(', ')}`,
-    correlationId,
-  )
-}
-
-// Fail closed for every mutating route, not just content/quantities: neonApiStore.ts
-// defines persistProject/persistDrawing/persistRevision/persistWorkflowAction/
-// persistExportJob but index.ts's handlers never call them (state.json 2026-07-18
-// CRITICAL finding), so a GET-allowlist here — rather than a per-route allowlist —
-// ensures any future mutating route defaults to fail-closed until it is wired up.
-function isPersistedWriteRoute(match: RouteMatch): boolean {
-  return match.route.method !== 'GET'
-}
-
-function persistedWriteTemporarilyUnavailableResponse(correlationId: string): Response {
-  return errorResponse(
-    503,
-    ERROR_CODES.persistenceUnavailable,
-    '書き込み操作は永続化アダプタ修復中のため一時停止しています。閲覧のみ利用可能です。',
     correlationId,
   )
 }
@@ -438,8 +427,122 @@ function appendAudit(
     correlationId: ctx.correlationId,
     ...input,
   }
-  store.auditLogs.push(audit)
+  if (store.persistAuditLog) {
+    // 認可拒否など同期パスからも呼ばれるため、ここでは await しない。
+    // リクエスト末尾の flushPendingAuditLogs が SQL 書き込みとキャッシュ反映
+    // （persistAuditLog 内で push）をまとめて行う。
+    ctx.pendingAudits.push(audit)
+  } else {
+    store.auditLogs.push(audit)
+  }
   return audit
+}
+
+/**
+ * リクエスト中に蓄積した監査ログを永続化する（#66 / ADR-0009 fail-visible）。
+ * 監査証跡の欠落を無言で許さないため、flush 失敗時は本来の応答を 500 で
+ * 置き換える。本体の変更が既に永続化済みの可能性は correlationId 付きで
+ * ログへ残し、運用が突合できるようにする。
+ */
+async function flushPendingAuditLogs(
+  store: ApiStore,
+  ctx: RequestContext,
+): Promise<Response | undefined> {
+  if (!store.persistAuditLog || ctx.pendingAudits.length === 0) {
+    return undefined
+  }
+  try {
+    for (const audit of ctx.pendingAudits) {
+      await store.persistAuditLog(audit)
+    }
+    return undefined
+  } catch (err) {
+    console.error(
+      `[CivilDraft API] audit log persistence failed (correlationId=${ctx.correlationId})`,
+      err,
+    )
+    return errorResponse(
+      500,
+      ERROR_CODES.internal,
+      '監査ログの永続化に失敗しました',
+      ctx.correlationId,
+    )
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Persistence commit helpers（#66）
+// Map 更新（インメモリ）と Neon 永続化（persistX フック）の単一の入口。
+// フックを持つ store では「SQL 書き込み → 成功後にキャッシュ更新」を
+// persistX 側が保証する。フックを持たない store（memory/dev）は従来どおり
+// Map/配列を同期更新する（この場合 await は即時解決で、検証→書き込みの
+// 同期性は保たれる）。フックの reject は handleRequest の catch で 500 になる。
+// 既知の制約: 複数レコードを書くハンドラでは書き込み間にトランザクション
+// 境界がなく、途中失敗で部分永続化が起こり得る（追跡 Issue 参照）。
+// ---------------------------------------------------------------------------
+
+async function commitProject(store: ApiStore, project: ProjectRecord): Promise<void> {
+  if (store.persistProject) {
+    await store.persistProject(project)
+  } else {
+    store.projects.set(project.id, project)
+  }
+}
+
+async function commitProjectMember(store: ApiStore, member: ProjectMemberRecord): Promise<void> {
+  if (store.persistProjectMember) {
+    await store.persistProjectMember(member)
+  } else {
+    store.projectMembers.set(memberKey(member.projectId, member.userId), member)
+  }
+}
+
+async function commitDrawing(store: ApiStore, drawing: DrawingRecord): Promise<void> {
+  if (store.persistDrawing) {
+    await store.persistDrawing(drawing)
+  } else {
+    store.drawings.set(drawing.id, drawing)
+  }
+}
+
+async function commitRevision(store: ApiStore, revision: RevisionRecord): Promise<void> {
+  if (store.persistRevision) {
+    await store.persistRevision(revision)
+  } else {
+    store.revisions.set(revision.id, revision)
+  }
+}
+
+async function commitContent(store: ApiStore, content: ContentRecord): Promise<void> {
+  if (store.persistContent) {
+    await store.persistContent(content)
+  } else {
+    store.contents.set(content.revisionId, content)
+  }
+}
+
+async function commitQuantities(store: ApiStore, snapshot: QuantitySnapshotRecord): Promise<void> {
+  if (store.persistQuantities) {
+    await store.persistQuantities(snapshot)
+  } else {
+    store.quantities.set(snapshot.revisionId, snapshot)
+  }
+}
+
+async function commitWorkflowAction(store: ApiStore, action: WorkflowActionRecord): Promise<void> {
+  if (store.persistWorkflowAction) {
+    await store.persistWorkflowAction(action)
+  } else {
+    store.workflowActions.push(action)
+  }
+}
+
+async function commitExportJob(store: ApiStore, job: ExportJobRecord): Promise<void> {
+  if (store.persistExportJob) {
+    await store.persistExportJob(job)
+  } else {
+    store.exportJobs.set(job.id, job)
+  }
 }
 
 function memberKey(projectId: string, userId: string): string {
@@ -668,8 +771,9 @@ async function createProject(
     updatedBy: ctx.actorId,
     version: 1,
   }
-  store.projects.set(project.id, project)
-  store.projectMembers.set(memberKey(project.id, ctx.actorId), {
+  // FK 制約（project_members.project_id → projects.id）のため project を先に永続化する。
+  await commitProject(store, project)
+  await commitProjectMember(store, {
     projectId: project.id,
     userId: ctx.actorId,
     role: 'manager',
@@ -707,12 +811,12 @@ function getProject(store: ApiStore, ctx: RequestContext, projectId: string): Re
   return jsonResponse(200, { project }, ctx.correlationId)
 }
 
-function updateProject(
+async function updateProject(
   store: ApiStore,
   ctx: RequestContext,
   projectId: string,
   body: UpdateProjectBody,
-): Response {
+): Promise<Response> {
   const project = store.projects.get(projectId)
   if (!project) {
     return errorResponse(404, ERROR_CODES.notFound, '案件が見つかりません', ctx.correlationId)
@@ -764,7 +868,7 @@ function updateProject(
     updatedBy: ctx.actorId,
     version: project.version + 1,
   }
-  store.projects.set(projectId, updatedProject)
+  await commitProject(store, updatedProject)
   appendAudit(store, ctx, {
     eventName: 'project.updated',
     projectId,
@@ -817,7 +921,7 @@ async function createDrawing(
     updatedBy: ctx.actorId,
     version: 1,
   }
-  store.drawings.set(drawing.id, drawing)
+  await commitDrawing(store, drawing)
   appendAudit(store, ctx, {
     eventName: 'drawing.created',
     projectId,
@@ -849,12 +953,12 @@ function getDrawing(store: ApiStore, ctx: RequestContext, drawingId: string): Re
   return jsonResponse(200, { drawing }, ctx.correlationId)
 }
 
-function updateDrawing(
+async function updateDrawing(
   store: ApiStore,
   ctx: RequestContext,
   drawingId: string,
   body: UpdateDrawingBody,
-): Response {
+): Promise<Response> {
   const drawing = store.drawings.get(drawingId)
   if (!drawing) {
     return errorResponse(404, ERROR_CODES.notFound, '図面が見つかりません', ctx.correlationId)
@@ -907,7 +1011,7 @@ function updateDrawing(
     updatedBy: ctx.actorId,
     version: drawing.version + 1,
   }
-  store.drawings.set(drawingId, updatedDrawing)
+  await commitDrawing(store, updatedDrawing)
   appendAudit(store, ctx, {
     eventName: 'drawing.updated',
     projectId: drawing.projectId,
@@ -960,8 +1064,9 @@ async function createRevision(
     updatedAt: createdAt,
     updatedBy: ctx.actorId,
   }
-  store.revisions.set(revision.id, revision)
-  store.drawings.set(drawing.id, { ...drawing, activeRevisionId: revision.id })
+  // FK 制約（drawings.active_revision_id → drawing_revisions.id）のため revision を先に永続化する。
+  await commitRevision(store, revision)
+  await commitDrawing(store, { ...drawing, activeRevisionId: revision.id })
   appendAudit(store, ctx, {
     eventName: 'revision.created',
     projectId: drawing.projectId,
@@ -1065,8 +1170,8 @@ async function putRevisionContent(
     contentVersion: (previous?.contentVersion ?? 0) + 1,
     updatedAt: nowIso(),
   }
-  store.contents.set(revisionId, content)
-  store.revisions.set(revisionId, {
+  await commitContent(store, content)
+  await commitRevision(store, {
     ...latestRevision,
     contentChecksum: checksum,
     contentVersion: content.contentVersion,
@@ -1164,8 +1269,8 @@ async function putRevisionQuantities(
     updatedAt,
     updatedBy: ctx.actorId,
   }
-  store.quantities.set(revisionId, snapshot)
-  store.revisions.set(revisionId, {
+  await commitQuantities(store, snapshot)
+  await commitRevision(store, {
     ...revision,
     updatedAt,
     updatedBy: ctx.actorId,
@@ -1252,14 +1357,14 @@ async function postWorkflowAction(
     comment: optionalString(body.comment) ?? optionalString(body.returnReason) ?? optionalString(body.obsoleteReason),
     occurredAt,
   }
-  store.workflowActions.push(workflowAction)
+  await commitWorkflowAction(store, workflowAction)
   const updatedRevision: RevisionRecord = {
     ...revision,
     status: nextStatus,
     updatedAt: occurredAt,
     updatedBy: ctx.actorId,
   }
-  store.revisions.set(revisionId, updatedRevision)
+  await commitRevision(store, updatedRevision)
   appendAudit(store, ctx, {
     eventName: `workflow.${action}`,
     projectId: drawing.projectId,
@@ -1309,7 +1414,7 @@ async function createExportJob(
     createdBy: ctx.actorId,
     completedAt: createdAt,
   }
-  store.exportJobs.set(exportJob.id, exportJob)
+  await commitExportJob(store, exportJob)
   appendAudit(store, ctx, {
     eventName: 'export.created',
     projectId: drawing.projectId,
@@ -1413,14 +1518,12 @@ export async function handleRequest(request: Request, env: WorkerEnv = {}): Prom
   if (!matched) {
     return errorResponse(404, ERROR_CODES.notFound, '該当するエンドポイントがありません', correlationId)
   }
-  if (resolvePersistenceMode(env.CIVILDRAFT_API_MODE) === 'neon-r2' && isPersistedWriteRoute(matched)) {
-    return persistedWriteTemporarilyUnavailableResponse(correlationId)
-  }
 
   const ctx: RequestContext = {
     actorId: request.headers.get(ACCESS_USER_HEADER) ?? 'unknown-access-user',
     correlationId,
     url,
+    pendingAudits: [],
   }
   const store = await resolveStore(env)
   if (!store) {
@@ -1440,100 +1543,117 @@ export async function handleRequest(request: Request, env: WorkerEnv = {}): Prom
     )
   }
 
+  let response: Response
   try {
-    switch (`${matched.route.method} ${matched.route.template}`) {
-      case 'GET /api/v1/projects':
-        return listProjects(store, ctx)
-      case 'POST /api/v1/projects':
-        return await createProject(store, ctx, await readJsonObject(request))
-      case 'GET /api/v1/projects/{projectId}':
-        return getProject(store, ctx, requireParam(matched.params, 'projectId'))
-      case 'PATCH /api/v1/projects/{projectId}':
-        return updateProject(
-          store,
-          ctx,
-          requireParam(matched.params, 'projectId'),
-          await readJsonObject(request),
-        )
-      case 'GET /api/v1/projects/{projectId}/drawings':
-        return listDrawings(store, ctx, requireParam(matched.params, 'projectId'))
-      case 'POST /api/v1/projects/{projectId}/drawings':
-        return await createDrawing(
-          store,
-          ctx,
-          requireParam(matched.params, 'projectId'),
-          await readJsonObject(request),
-        )
-      case 'GET /api/v1/drawings/{drawingId}':
-        return getDrawing(store, ctx, requireParam(matched.params, 'drawingId'))
-      case 'PATCH /api/v1/drawings/{drawingId}':
-        return updateDrawing(
-          store,
-          ctx,
-          requireParam(matched.params, 'drawingId'),
-          await readJsonObject(request),
-        )
-      case 'POST /api/v1/drawings/{drawingId}/revisions':
-        return await createRevision(
-          store,
-          ctx,
-          requireParam(matched.params, 'drawingId'),
-          await readJsonObject(request),
-        )
-      case 'GET /api/v1/revisions/{revisionId}':
-        return getRevision(store, ctx, requireParam(matched.params, 'revisionId'))
-      case 'GET /api/v1/revisions/{revisionId}/content':
-        return getRevisionContent(store, ctx, requireParam(matched.params, 'revisionId'))
-      case 'PUT /api/v1/revisions/{revisionId}/content':
-        return await putRevisionContent(
-          store,
-          ctx,
-          requireParam(matched.params, 'revisionId'),
-          await readJsonObject(request),
-        )
-      case 'GET /api/v1/revisions/{revisionId}/quantities':
-        return getRevisionQuantities(store, ctx, requireParam(matched.params, 'revisionId'))
-      case 'PUT /api/v1/revisions/{revisionId}/quantities':
-        return await putRevisionQuantities(
-          store,
-          ctx,
-          requireParam(matched.params, 'revisionId'),
-          await readJsonObject(request),
-        )
-      case 'POST /api/v1/revisions/{revisionId}/workflow-actions':
-        return await postWorkflowAction(
-          store,
-          ctx,
-          requireParam(matched.params, 'revisionId'),
-          await readJsonObject(request),
-        )
-      case 'POST /api/v1/revisions/{revisionId}/exports':
-        return await createExportJob(
-          store,
-          ctx,
-          requireParam(matched.params, 'revisionId'),
-          await readJsonObject(request),
-        )
-      case 'GET /api/v1/exports/{exportId}':
-        return getExportJob(store, ctx, requireParam(matched.params, 'exportId'))
-      case 'GET /api/v1/audit-logs':
-        return listAuditLogs(store, ctx)
-      default:
-        return errorResponse(
-          501,
-          ERROR_CODES.notImplemented,
-          `${matched.route.method} ${matched.route.template}（${matched.route.summary}）は未実装です`,
-          correlationId,
-        )
-    }
+    response = await dispatchApiRoute(store, ctx, matched, request)
   } catch (err) {
     if (err instanceof ValidationError) {
-      return errorResponse(400, ERROR_CODES.invalidRequest, err.message, correlationId)
+      response = errorResponse(400, ERROR_CODES.invalidRequest, err.message, correlationId)
+    } else {
+      // 既知のバリデーション以外（実装バグ等）は詳細をクライアントへ漏らさず、
+      // 監査・調査のためログにだけ残す（§CD-SYS-003）。
+      console.error(`[CivilDraft API] unhandled error (correlationId=${correlationId})`, err)
+      response = errorResponse(500, ERROR_CODES.internal, '内部エラーが発生しました', correlationId)
     }
-    // 既知のバリデーション以外（実装バグ等）は詳細をクライアントへ漏らさず、
-    // 監査・調査のためログにだけ残す（§CD-SYS-003）。
-    console.error(`[CivilDraft API] unhandled error (correlationId=${correlationId})`, err)
-    return errorResponse(500, ERROR_CODES.internal, '内部エラーが発生しました', correlationId)
+  }
+  // 成功・失敗いずれの経路でも、蓄積した監査ログ（認可拒否を含む）を
+  // 応答確定前に永続化する。flush 失敗時は監査証跡を欠いたまま成功を
+  // 返さない（fail-visible）。
+  const auditFlushFailure = await flushPendingAuditLogs(store, ctx)
+  return auditFlushFailure ?? response
+}
+
+async function dispatchApiRoute(
+  store: ApiStore,
+  ctx: RequestContext,
+  matched: RouteMatch,
+  request: Request,
+): Promise<Response> {
+  const { correlationId } = ctx
+  switch (`${matched.route.method} ${matched.route.template}`) {
+    case 'GET /api/v1/projects':
+      return listProjects(store, ctx)
+    case 'POST /api/v1/projects':
+      return await createProject(store, ctx, await readJsonObject(request))
+    case 'GET /api/v1/projects/{projectId}':
+      return getProject(store, ctx, requireParam(matched.params, 'projectId'))
+    case 'PATCH /api/v1/projects/{projectId}':
+      return await updateProject(
+        store,
+        ctx,
+        requireParam(matched.params, 'projectId'),
+        await readJsonObject(request),
+      )
+    case 'GET /api/v1/projects/{projectId}/drawings':
+      return listDrawings(store, ctx, requireParam(matched.params, 'projectId'))
+    case 'POST /api/v1/projects/{projectId}/drawings':
+      return await createDrawing(
+        store,
+        ctx,
+        requireParam(matched.params, 'projectId'),
+        await readJsonObject(request),
+      )
+    case 'GET /api/v1/drawings/{drawingId}':
+      return getDrawing(store, ctx, requireParam(matched.params, 'drawingId'))
+    case 'PATCH /api/v1/drawings/{drawingId}':
+      return await updateDrawing(
+        store,
+        ctx,
+        requireParam(matched.params, 'drawingId'),
+        await readJsonObject(request),
+      )
+    case 'POST /api/v1/drawings/{drawingId}/revisions':
+      return await createRevision(
+        store,
+        ctx,
+        requireParam(matched.params, 'drawingId'),
+        await readJsonObject(request),
+      )
+    case 'GET /api/v1/revisions/{revisionId}':
+      return getRevision(store, ctx, requireParam(matched.params, 'revisionId'))
+    case 'GET /api/v1/revisions/{revisionId}/content':
+      return getRevisionContent(store, ctx, requireParam(matched.params, 'revisionId'))
+    case 'PUT /api/v1/revisions/{revisionId}/content':
+      return await putRevisionContent(
+        store,
+        ctx,
+        requireParam(matched.params, 'revisionId'),
+        await readJsonObject(request),
+      )
+    case 'GET /api/v1/revisions/{revisionId}/quantities':
+      return getRevisionQuantities(store, ctx, requireParam(matched.params, 'revisionId'))
+    case 'PUT /api/v1/revisions/{revisionId}/quantities':
+      return await putRevisionQuantities(
+        store,
+        ctx,
+        requireParam(matched.params, 'revisionId'),
+        await readJsonObject(request),
+      )
+    case 'POST /api/v1/revisions/{revisionId}/workflow-actions':
+      return await postWorkflowAction(
+        store,
+        ctx,
+        requireParam(matched.params, 'revisionId'),
+        await readJsonObject(request),
+      )
+    case 'POST /api/v1/revisions/{revisionId}/exports':
+      return await createExportJob(
+        store,
+        ctx,
+        requireParam(matched.params, 'revisionId'),
+        await readJsonObject(request),
+      )
+    case 'GET /api/v1/exports/{exportId}':
+      return getExportJob(store, ctx, requireParam(matched.params, 'exportId'))
+    case 'GET /api/v1/audit-logs':
+      return listAuditLogs(store, ctx)
+    default:
+      return errorResponse(
+        501,
+        ERROR_CODES.notImplemented,
+        `${matched.route.method} ${matched.route.template}（${matched.route.summary}）は未実装です`,
+        correlationId,
+      )
   }
 }
 

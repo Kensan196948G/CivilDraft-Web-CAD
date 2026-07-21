@@ -119,8 +119,10 @@ describe('CivilDraftApiClient', () => {
     expect(result.ok).toBe(false)
     if (result.ok) return
     expect(result.error.code).toBe('CLOUD_API_HTTP')
-    // neon-r2 モードの書き込み系ルートは isPersistedWriteRoute の fail-closed（ADR-0014）が
-    // binding 未接続チェックより先に発火するため、'永続化アダプタ' 文言の503で返る。
-    expect(result.error.message).toContain('永続化アダプタ')
+    // #66 で isPersistedWriteRoute の一時停止ゲートは撤去済み。neon-r2 モードで
+    // binding 未設定の場合は readiness 検査（persistence.ts）の 503 が返る。
+    // Workers 側のエラーメッセージがそのまま ValidationIssue へ透過することを確認する。
+    expect(result.error.message).toContain('CIVILDRAFT_NEON_CONNECTION')
+    expect(result.error.message).toContain('binding')
   })
 })

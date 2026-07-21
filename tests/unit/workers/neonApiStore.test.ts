@@ -121,8 +121,10 @@ function quantityItemRow(id = 'qty-1'): Record<string, unknown> {
   }
 }
 
-function quantitySourceRow(geometryId = 'g-1'): Record<string, unknown> {
-  return { geometry_id: geometryId, contribution_raw: 12.345 }
+function quantitySourceRow(geometryId = 'g-1', quantityItemId = 'qty-1'): Record<string, unknown> {
+  // quantity_sources の実列構成（0001/0002）: quantity_item_id が親 item への FK。
+  // contribution_raw は numeric のため driver は文字列で返し得る。
+  return { quantity_item_id: quantityItemId, geometry_id: geometryId, contribution_raw: '12.345' }
 }
 
 function workflowActionRow(id = 'wf-1'): Record<string, unknown> {
@@ -298,6 +300,38 @@ describe('NeonApiStore', () => {
     expect(snapshot?.quantityVersion).toBe(1)
     expect(snapshot?.items).toHaveLength(1)
     expect(snapshot?.items[0]?.groupKey).toBe('earthwork')
+    // #66 回帰: sources は quantity_item_id（親 item の FK）で復元される。
+    // 旧実装は geometry_id でグループ化して item.id で引いており常に空だった。
+    expect(snapshot?.items[0]?.sources).toEqual([{ geometryId: 'g-1', contributionRaw: 12.345 }])
+  })
+
+  it('driver が bigint を文字列・timestamptz を Date で返しても API 契約（number / ISO 文字列）へ正規化する（#66 回帰）', async () => {
+    // @neondatabase/serverless は pg-types 既定で int8/numeric を文字列、
+    // timestamptz を Date で返す。旧実装は projects.version 等を素通しし、
+    // 楽観ロック比較（expectedVersion !== project.version）が常に不一致になっていた。
+    const sql = makeSqlClient({
+      'FROM projects': [
+        { ...projectRow(), version: '3', created_at: new Date('2026-07-18T00:00:00.000Z') },
+      ],
+      'FROM project_members': [memberRow()],
+      'FROM drawings': [],
+      'FROM drawing_revisions': [{ ...revisionRow(), content_version: '7' }],
+      'FROM drawing_contents': [],
+      'FROM quantity_snapshots': [],
+      'FROM quantity_items': [],
+      'FROM quantity_sources': [],
+      'FROM workflow_actions': [],
+      'FROM export_jobs': [],
+      'FROM audit_logs': [],
+    })
+
+    const store = new NeonApiStore(sql)
+    await store.initialize()
+
+    const project = store.projects.get('proj-1')
+    expect(project?.version).toBe(3)
+    expect(project?.createdAt).toBe('2026-07-18T00:00:00.000Z')
+    expect(store.revisions.get('rev-1')?.contentVersion).toBe(7)
   })
 
   it('initialize loads workflow actions from Neon', async () => {

@@ -36,25 +36,32 @@ export type SqlClient = ReturnType<typeof neon>
 // Row types (what comes back from SELECT)
 // ---------------------------------------------------------------------------
 
+// 注意（#66）: @neondatabase/serverless は pg-types 既定に従い、
+// bigint/numeric を文字列、timestamptz を Date で返し得る。ここでは
+// 実際に返り得る型を正直に宣言し、rowToX 側で toNumber()/toIsoString()
+// により API 契約（number / ISO 8601 文字列）へ正規化する。
+type NumericLike = number | string
+type TimestampLike = string | Date
+
 interface ProjectRow extends Record<string, unknown> {
   id: string
   project_number: string
   name: string
   client_name: string | null
   status: string
-  created_at: string
+  created_at: TimestampLike
   created_by: string
-  updated_at: string
+  updated_at: TimestampLike
   updated_by: string
-  version: number
+  version: NumericLike
 }
 
 interface ProjectMemberRow extends Record<string, unknown> {
   project_id: string
   user_id: string
   role: string
-  created_at: string
-  updated_at: string
+  created_at: TimestampLike
+  updated_at: TimestampLike
 }
 
 interface DrawingRow extends Record<string, unknown> {
@@ -66,11 +73,11 @@ interface DrawingRow extends Record<string, unknown> {
   settings: unknown
   status: string
   active_revision_id: string | null
-  created_at: string
+  created_at: TimestampLike
   created_by: string
-  updated_at: string
+  updated_at: TimestampLike
   updated_by: string
-  version: number
+  version: NumericLike
 }
 
 interface RevisionRow extends Record<string, unknown> {
@@ -80,30 +87,30 @@ interface RevisionRow extends Record<string, unknown> {
   status: string
   change_summary: string
   based_on_revision_id: string | null
-  content_version: number
+  content_version: NumericLike
   content_checksum: string
-  created_at: string
+  created_at: TimestampLike
   created_by: string
-  updated_at: string
+  updated_at: TimestampLike
   updated_by: string
 }
 
 interface ContentRow extends Record<string, unknown> {
   revision_id: string
   content: unknown
-  byte_size: number
+  byte_size: NumericLike
   content_checksum: string
   mime_type: string
-  schema_version: number
-  content_version: number
+  schema_version: NumericLike
+  content_version: NumericLike
   storage_provider: string
-  updated_at: string
+  updated_at: TimestampLike
 }
 
 interface QuantitySnapshotRow extends Record<string, unknown> {
   revision_id: string
-  quantity_version: number
-  updated_at: string
+  quantity_version: NumericLike
+  updated_at: TimestampLike
   updated_by: string
 }
 
@@ -115,15 +122,16 @@ interface QuantityItemRow extends Record<string, unknown> {
   specification: string | null
   method: string
   unit: string
-  raw_value: number
-  rounded_value: number
+  raw_value: NumericLike
+  rounded_value: NumericLike
   item_status: string
-  quantity_version: number
+  quantity_version: NumericLike
 }
 
 interface QuantitySourceRow extends Record<string, unknown> {
+  quantity_item_id: string
   geometry_id: string
-  contribution_raw: number
+  contribution_raw: NumericLike
 }
 
 interface WorkflowActionRow extends Record<string, unknown> {
@@ -134,7 +142,7 @@ interface WorkflowActionRow extends Record<string, unknown> {
   to_status: string
   actor_id: string
   comment: string | null
-  occurred_at: string
+  occurred_at: TimestampLike
 }
 
 interface ExportJobRow extends Record<string, unknown> {
@@ -143,17 +151,17 @@ interface ExportJobRow extends Record<string, unknown> {
   format: string
   status: string
   object_key: string | null
-  byte_size: number | null
+  byte_size: NumericLike | null
   content_checksum: string | null
   error_code: string | null
-  created_at: string
+  created_at: TimestampLike
   created_by: string
-  completed_at: string | null
+  completed_at: TimestampLike | null
 }
 
 interface AuditLogRow extends Record<string, unknown> {
   id: string
-  occurred_at: string
+  occurred_at: TimestampLike
   event_name: string
   actor_id: string
   project_id: string | null
@@ -171,6 +179,23 @@ interface AuditLogRow extends Record<string, unknown> {
 // Helpers
 // ---------------------------------------------------------------------------
 
+/** bigint/numeric 列は driver が文字列で返すため number へ正規化する。 */
+function toNumber(value: NumericLike): number {
+  return typeof value === 'number' ? value : Number(value)
+}
+
+/**
+ * timestamptz 列を ISO 8601 文字列へ正規化する。driver 設定によって
+ * Date / ISO 文字列 / Postgres 形式文字列のいずれでも返り得るため、
+ * API 契約（ISO 文字列）へ一本化する。解釈不能な値はそのまま返す
+ * （失われるより残る方が調査可能）。
+ */
+function toIsoString(value: TimestampLike): string {
+  if (value instanceof Date) return value.toISOString()
+  const parsed = new Date(value)
+  return Number.isNaN(parsed.getTime()) ? value : parsed.toISOString()
+}
+
 function rowToProject(row: ProjectRow): ProjectRecord {
   return {
     id: row.id,
@@ -178,11 +203,11 @@ function rowToProject(row: ProjectRow): ProjectRecord {
     name: row.name,
     clientName: row.client_name ?? undefined,
     status: row.status as 'active' | 'archived',
-    createdAt: row.created_at,
+    createdAt: toIsoString(row.created_at),
     createdBy: row.created_by,
-    updatedAt: row.updated_at,
+    updatedAt: toIsoString(row.updated_at),
     updatedBy: row.updated_by,
-    version: row.version,
+    version: toNumber(row.version),
   }
 }
 
@@ -191,8 +216,8 @@ function rowToProjectMember(row: ProjectMemberRow): ProjectMemberRecord {
     projectId: row.project_id,
     userId: row.user_id,
     role: row.role as ProjectMemberRecord['role'],
-    createdAt: row.created_at,
-    updatedAt: row.updated_at,
+    createdAt: toIsoString(row.created_at),
+    updatedAt: toIsoString(row.updated_at),
   }
 }
 
@@ -210,11 +235,11 @@ function rowToDrawing(row: DrawingRow): DrawingRecord {
     settings: row.settings ?? {},
     status: row.status as 'active' | 'archived',
     activeRevisionId: row.active_revision_id ?? undefined,
-    createdAt: row.created_at,
+    createdAt: toIsoString(row.created_at),
     createdBy: row.created_by,
-    updatedAt: row.updated_at,
+    updatedAt: toIsoString(row.updated_at),
     updatedBy: row.updated_by,
-    version: row.version,
+    version: toNumber(row.version),
   }
 }
 
@@ -226,11 +251,11 @@ function rowToRevision(row: RevisionRow): RevisionRecord {
     status: row.status as RevisionRecord['status'],
     changeSummary: row.change_summary,
     basedOnRevisionId: row.based_on_revision_id ?? undefined,
-    contentVersion: row.content_version,
+    contentVersion: toNumber(row.content_version),
     contentChecksum: row.content_checksum,
-    createdAt: row.created_at,
+    createdAt: toIsoString(row.created_at),
     createdBy: row.created_by,
-    updatedAt: row.updated_at,
+    updatedAt: toIsoString(row.updated_at),
     updatedBy: row.updated_by,
   }
 }
@@ -239,12 +264,12 @@ function rowToContent(row: ContentRow): ContentRecord {
   return {
     revisionId: row.revision_id,
     content: row.content ?? null,
-    byteSize: Number(row.byte_size),
+    byteSize: toNumber(row.byte_size),
     contentChecksum: row.content_checksum,
     mimeType: (row.mime_type as 'application/json') ?? 'application/json',
-    schemaVersion: Number(row.schema_version),
-    contentVersion: Number(row.content_version),
-    updatedAt: row.updated_at,
+    schemaVersion: toNumber(row.schema_version),
+    contentVersion: toNumber(row.content_version),
+    updatedAt: toIsoString(row.updated_at),
   }
 }
 
@@ -257,11 +282,11 @@ function rowToQuantityItem(row: QuantityItemRow, sources: readonly QuantitySourc
     specification: row.specification ?? undefined,
     method: row.method as QuantityItemRecord['method'],
     unit: row.unit as QuantityItemRecord['unit'],
-    rawValue: Number(row.raw_value),
-    roundedValue: Number(row.rounded_value),
+    rawValue: toNumber(row.raw_value),
+    roundedValue: toNumber(row.rounded_value),
     sources: sources.map((s) => ({
       geometryId: s.geometry_id,
-      contributionRaw: Number(s.contribution_raw),
+      contributionRaw: toNumber(s.contribution_raw),
     })),
     status: row.item_status as QuantityItemRecord['status'],
   }
@@ -276,7 +301,7 @@ function rowToWorkflowAction(row: WorkflowActionRow): WorkflowActionRecord {
     toStatus: row.to_status as RevisionRecord['status'],
     actorId: row.actor_id,
     comment: row.comment ?? undefined,
-    occurredAt: row.occurred_at,
+    occurredAt: toIsoString(row.occurred_at),
   }
 }
 
@@ -287,19 +312,19 @@ function rowToExportJob(row: ExportJobRow): ExportJobRecord {
     format: row.format as ExportJobRecord['format'],
     status: row.status as ExportJobRecord['status'],
     objectKey: row.object_key ?? undefined,
-    byteSize: row.byte_size ?? undefined,
+    byteSize: row.byte_size === null ? undefined : toNumber(row.byte_size),
     contentChecksum: row.content_checksum ?? undefined,
     errorCode: row.error_code ?? undefined,
-    createdAt: row.created_at,
+    createdAt: toIsoString(row.created_at),
     createdBy: row.created_by,
-    completedAt: row.completed_at ?? undefined,
+    completedAt: row.completed_at === null ? undefined : toIsoString(row.completed_at),
   }
 }
 
 function rowToAuditLog(row: AuditLogRow): AuditLogRecord {
   return {
     id: row.id,
-    occurredAt: row.occurred_at,
+    occurredAt: toIsoString(row.occurred_at),
     eventName: row.event_name,
     actorId: row.actor_id,
     projectId: row.project_id ?? undefined,
@@ -403,14 +428,16 @@ export class NeonApiStore implements ApiStore {
       }
     }
 
-    // Group sources by item id (quantity_items.id)
+    // Group sources by owning item (quantity_sources.quantity_item_id).
+    // 旧実装は geometry_id でグループ化して item.id で引いており、reload 時に
+    // sources が常に空になる自己矛盾があった（#66 roundtrip 検証で確定）。
     const sourceMap = new Map<string, QuantitySourceRow[]>()
     for (const src of sourceRows) {
-      const list = sourceMap.get(src.geometry_id) // ← quantity_sources.quantity_item_id would be better, but migration uses geometry_id for the item FK
+      const list = sourceMap.get(src.quantity_item_id)
       if (list) {
         list.push(src)
       } else {
-        sourceMap.set(src.geometry_id, [src])
+        sourceMap.set(src.quantity_item_id, [src])
       }
     }
 
@@ -421,8 +448,8 @@ export class NeonApiStore implements ApiStore {
       this.quantities.set(snap.revision_id, {
         revisionId: snap.revision_id,
         items,
-        quantityVersion: Number(snap.quantity_version),
-        updatedAt: snap.updated_at,
+        quantityVersion: toNumber(snap.quantity_version),
+        updatedAt: toIsoString(snap.updated_at),
         updatedBy: snap.updated_by,
       })
     }
@@ -484,9 +511,12 @@ export class NeonApiStore implements ApiStore {
 
   /** Insert or update a drawing. */
   async persistDrawing(drawing: DrawingRecord): Promise<void> {
+    // settings は任意の JSON（配列やプリミティブを含む）を受けるため、
+    // 明示的に JSON 文字列化して ::jsonb へキャストする（pg 系ドライバは
+    // トップレベル配列を Postgres 配列リテラルとして直列化してしまうため）。
     await this.#sql`
       INSERT INTO drawings (id, project_id, drawing_number, name, drawing_type, settings, status, active_revision_id, created_at, created_by, updated_at, updated_by, version)
-      VALUES (${drawing.id}, ${drawing.projectId}, ${drawing.drawingNumber}, ${drawing.name}, ${drawing.drawingType}, ${drawing.settings ?? null}, ${drawing.status}, ${drawing.activeRevisionId ?? null}, ${drawing.createdAt}, ${drawing.createdBy}, ${drawing.updatedAt}, ${drawing.updatedBy}, ${drawing.version})
+      VALUES (${drawing.id}, ${drawing.projectId}, ${drawing.drawingNumber}, ${drawing.name}, ${drawing.drawingType}, ${JSON.stringify(drawing.settings ?? {})}::jsonb, ${drawing.status}, ${drawing.activeRevisionId ?? null}, ${drawing.createdAt}, ${drawing.createdBy}, ${drawing.updatedAt}, ${drawing.updatedBy}, ${drawing.version})
       ON CONFLICT (id) DO UPDATE SET
         drawing_number = EXCLUDED.drawing_number,
         name = EXCLUDED.name,
@@ -519,9 +549,12 @@ export class NeonApiStore implements ApiStore {
 
   /** Insert or update drawing content. */
   async persistContent(content: ContentRecord): Promise<void> {
+    // content は図面 JSON 本体（配列・プリミティブ含む任意 JSON）のため、
+    // JSON.stringify + ::jsonb キャストで直列化を確定させる。
+    // storage_provider は ADR-0014（R2 スキップ・Neon 直接格納）に合わせ 'neon'。
     await this.#sql`
       INSERT INTO drawing_contents (revision_id, content, byte_size, content_checksum, mime_type, schema_version, content_version, updated_at, updated_by, storage_provider)
-      VALUES (${content.revisionId}, ${content.content}, ${content.byteSize}, ${content.contentChecksum}, ${content.mimeType}, ${content.schemaVersion}, ${content.contentVersion}, ${content.updatedAt}, 'system', 'r2')
+      VALUES (${content.revisionId}, ${JSON.stringify(content.content ?? null)}::jsonb, ${content.byteSize}, ${content.contentChecksum}, ${content.mimeType}, ${content.schemaVersion}, ${content.contentVersion}, ${content.updatedAt}, 'system', 'neon')
       ON CONFLICT (revision_id) DO UPDATE SET
         content = EXCLUDED.content,
         byte_size = EXCLUDED.byte_size,
@@ -596,9 +629,12 @@ export class NeonApiStore implements ApiStore {
 
   /** Append an audit log entry. */
   async persistAuditLog(log: AuditLogRecord): Promise<void> {
+    // detail は任意 JSON（配列を含む）のため JSON.stringify + ::jsonb で確定させる。
+    // 未指定は SQL NULL（jsonb 'null' ではなく列 NULL）として格納する。
+    const detailJson = log.detail === undefined ? null : JSON.stringify(log.detail)
     await this.#sql`
       INSERT INTO audit_logs (id, occurred_at, event_name, actor_id, project_id, entity_type, entity_id, result, correlation_id, detail, previous_hash, entry_hash, hash_algorithm)
-      VALUES (${log.id}, ${log.occurredAt}, ${log.eventName}, ${log.actorId}, ${log.projectId ?? null}, ${log.entityType ?? null}, ${log.entityId ?? null}, ${log.result}, ${log.correlationId}, ${log.detail ?? null}, null, null, 'sha256')
+      VALUES (${log.id}, ${log.occurredAt}, ${log.eventName}, ${log.actorId}, ${log.projectId ?? null}, ${log.entityType ?? null}, ${log.entityId ?? null}, ${log.result}, ${log.correlationId}, ${detailJson}::jsonb, null, null, 'sha256')
     `
     this.auditLogs.push(log)
   }
