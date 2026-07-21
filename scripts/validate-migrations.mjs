@@ -41,14 +41,64 @@ const REQUIRED_INDEXES = [
 ]
 
 const DESTRUCTIVE_PATTERNS = [
-  /\bDROP\s+(TABLE|SCHEMA|DATABASE|COLUMN|CONSTRAINT)\b/i,
+  /\bDROP\s+(TABLE|SCHEMA|DATABASE|COLUMN)\b/i,
   /\bTRUNCATE\b/i,
   /\bDELETE\s+FROM\b/i,
-  // ALTER TABLE ... DROP COLUMN/CONSTRAINT のみを破壊的として検知する。
+  // ALTER TABLE ... DROP COLUMN のみを破壊的として検知する。
   // ALTER COLUMN ... DROP NOT NULL / DROP DEFAULT はデータを削除しない
   // 制約緩和であり、destructive DDL ではない（誤検知させない）。
-  /\bALTER\s+TABLE\b[\s\S]*?\bDROP\s+(?:COLUMN|CONSTRAINT)\b/i,
+  /\bALTER\s+TABLE\b[\s\S]*?\bDROP\s+COLUMN\b/i,
 ]
+
+// DROP CONSTRAINT は通常拒否するが、「列型変換のために FK を同一トランザク
+// ション内で DROP → 同名再作成する」正当な用途がある（0004 の uuid→text）。
+// ファイル内に明示 waiver コメントがある場合のみ、DROP した各制約が
+//   (a) 同一ファイル内で ADD CONSTRAINT により再作成されている、または
+//   (b) waiver の not-recreated リストに理由付きで列挙されている
+// ことを機械検証して許可する。waiver 書式（1 行・ファイル内コメント）:
+//   -- validate-migrations: allow drop-constraint (not-recreated: name_a, name_b)
+const CONSTRAINT_DROP_PATTERN = /\bDROP\s+CONSTRAINT\s+(?:IF\s+EXISTS\s+)?([a-z_][a-z0-9_]*)/gi
+const ADD_CONSTRAINT_PATTERN = /\bADD\s+CONSTRAINT\s+([a-z_][a-z0-9_]*)/gi
+
+function parseConstraintWaiver(rawSql) {
+  const match = rawSql.match(
+    /^--\s*validate-migrations:\s*allow\s+drop-constraint(?:\s*\(([^)]*)\))?\s*$/im,
+  )
+  if (!match) return undefined
+  const notRecreated = new Set()
+  const listMatch = (match[1] ?? '').match(/not-recreated:\s*([a-z0-9_,\s]+)/i)
+  if (listMatch) {
+    for (const name of listMatch[1].split(',')) {
+      const trimmed = name.trim().toLowerCase()
+      if (trimmed) notRecreated.add(trimmed)
+    }
+  }
+  return { notRecreated }
+}
+
+function validateConstraintDrops(file, rawSql, stripped, failures) {
+  const dropped = [...stripped.matchAll(CONSTRAINT_DROP_PATTERN)].map((m) => m[1].toLowerCase())
+  if (dropped.length === 0) return
+  const waiver = parseConstraintWaiver(rawSql)
+  if (!waiver) {
+    failures.push(
+      `${file}: DROP CONSTRAINT detected without waiver comment ` +
+        `(-- validate-migrations: allow drop-constraint ...)`,
+    )
+    return
+  }
+  const readded = new Set(
+    [...stripped.matchAll(ADD_CONSTRAINT_PATTERN)].map((m) => m[1].toLowerCase()),
+  )
+  for (const name of dropped) {
+    assert(
+      readded.has(name) || waiver.notRecreated.has(name),
+      `${file}: dropped constraint ${name} is neither re-created in the same file ` +
+        `nor listed as not-recreated in the waiver comment`,
+      failures,
+    )
+  }
+}
 
 function stripComments(sql) {
   return sql
@@ -89,6 +139,8 @@ function validateSqlFile(file, sql, known) {
   for (const pattern of DESTRUCTIVE_PATTERNS) {
     assert(!pattern.test(stripped), `${file}: destructive SQL pattern detected: ${pattern}`, failures)
   }
+
+  validateConstraintDrops(file, sql, stripped, failures)
 
   validateBalancedParentheses(stripped, file, failures)
 
