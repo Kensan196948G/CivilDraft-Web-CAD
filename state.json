@@ -11,8 +11,8 @@
     "last_update_utc": "2026-07-21T09:55:00Z",
     "note": "本番デプロイ完了: civildraft-web-cad.mirai-dx-platform.com（SPA HTTP 200 / API GET認証なしでHTTP 401 CD-AUTH-001、fail-closedの503ではない＝Worker稼働・認証層も機能）。Worker bindings実測: ASSETS/CIVILDRAFT_API_MODE=neon-r2/CIVILDRAFT_NEON_CONNECTION確認、CIVILDRAFT_ACCESS_TEAM_DOMAIN・ACCESS_AUDはbindings一覧で未確認（要人間確認）。Neon civildraft-production（pg17）に0001+0002適用済み、0003はマージ済みだが本番未適用（人間承認待ち）。R2はADR-0014でスキップ。追記2026-07-18 14:27: silent-failure-hunterのCRITICAL指摘（neonApiStoreのpersistX系メソッド未配線）を受け、fail-closed対象をPUT content/quantitiesの2ルートからGET以外の全9ルート+監査ログへ拡大（isSharedSaveRoute→isPersistedWriteRoute）。CodeRabbit相当レビュー指摘3件（High 1・Medium 2）も同一PR内で是正。恒久対応（persistX配線実装）はIssue #66に切り出し。追記2026-07-18 15:05: PR#65を人間承認（Y）を得てsquashマージ完了（squash commit 4167b098、main branch protection enforce_adminsを一時解除→マージ→即復元。Codex公式レビューはユーザー判断により省略）。main上のマージ後CI（run 29648908263）success確認済み。GitHub Projects #44へIssue #66・PR#65を新規登録・Status反映済み。追記2026-07-18 15:15: PR#67（state.json/Projects同期、Draft）作成直後、head branch(deploy/production-release)がsquash commit(4167b098)とのコミットグラフ分岐によりmainとCONFLICTING状態になり、CIが一切起動しない事象を検知。git merge origin/main実行→state.jsonコンフリクトをours採用で解消（内容はours側がtheirs側を完全に上位互換、意味的矛盾なし）→push（マージコミット3363292）でsynchronizeイベント発生、CI 4ジョブ全green確認（run 29649368429）。原因と対処をMemory(merge-train-procedure.md)へ追記済み。追記2026-07-21: Issue #66恒久対応をPR#67スコープへ実装（persistX配線9ハンドラ+監査ログflush+fail-closed撤去）。配線検証で既存バグ4件を確定・修正（ID型ドリフトuuid vs接頭辞文字列→migration 0004/ADR-0015、driver数値・時刻型正規化漏れ、quantity sources復元バグ、jsonbトップレベル配列直列化）。Neon検証ブランチverify-pr67-migrations-0003-0004（mainから分岐）で0003→0004適用成功+実接続roundtrip結合テスト2件pass。wrangler secret list（名前のみread-only照会）でACCESS_TEAM_DOMAIN/ACCESS_AUD未登録を確定→未登録の間neon-r2 APIは認証構成fail-closed(401/503)のためゲート撤去後もデータ経路は開かない。残存制約（トランザクション境界なし）はIssue #68起票。"
   },
-  "goal": "PR#67（persistX配線+migration 0003/0004+fail-closed撤去）をマージ可能状態にし、マージ判定Y/Nを提示。Y後: merge→本番Neon mainへ0003→0004適用→wrangler deploy→スモーク（SPA200/API無認証401/JWT有りAccess未構成503=期待値）→tag/Release→Issue #66クローズ。Access Secret登録とAccess Application設定は引き続き人間実施事項（別トラック）。",
-  "phase": "Deploy",
+  "goal": "✅達成（2026-07-21）: PR#67人間承認Y→squashマージ(d923992)→main CI success→migration 0003/0004本番Neon main適用（Neon MCP経由・スキーマ検証一致）→wrangler deploy（Version 269aebbe、ユーザー実行=classifierブロックのため!コマンド）→スモーク全5項目期待値一致→Release v0.1.0作成→Issue #66クローズ。次Goal候補: Access Application設定+Access Secret登録（人間）後のフル機能E2E、Issue #68トランザクション化。",
+  "phase": "Maintenance",
   "kpi": {
     "success_rate_target": 0.9,
     "ci_success_rate": 1.0,
@@ -343,14 +343,18 @@
     "ready": true,
     "ready_scope": "Worker本体（SPA配信+API層+認証層）は本番デプロイ済み・稼働中を意味する。共有保存API（PUT content/quantities）等のフル機能稼働は blocked_by_human_decision の解消が前提で、ready=true と両立する別軸の状態。",
     "blocked_by_human_decision": [
-      "PR#67マージ判定Y（Yの承認範囲: merge→本番Neon mainへmigration 0003→0004適用→wrangler deploy→スモーク→tag/Release。検証ブランチで適用済み・roundtrip結合テストpass）",
-      "Cloudflare Access Secret（ACCESS_TEAM_DOMAIN/ACCESS_AUD）の登録（2026-07-21 wrangler secret listで未登録確定。未登録の間neon-r2 APIは認証構成fail-closed=JWT無し401/JWT有り503でデータ経路は開かない。登録はwrangler secret put 2件・人間実施）",
-      "Cloudflare Access Applicationの設定（§4.2。Secret登録とセットでフル機能有効化）"
+      "Cloudflare Access Secret（ACCESS_TEAM_DOMAIN/ACCESS_AUD）の登録（wrangler secret put 2件・人間実施。未登録の間neon-r2 APIは認証構成fail-closed=JWT無し401/JWT有り503でデータ経路は開かない）",
+      "Cloudflare Access Applicationの設定（production-deployment.md §4.2。Secret登録とセットでフル機能有効化）",
+      "Neon検証ブランチ2本（dev-migration-0003-verify / verify-pr67-migrations-0003-0004）の削除判断（データ削除に準ずる人間判断）"
     ],
     "guide": "docs/operations/production-deployment.md",
     "url": "https://civildraft-web-cad.mirai-dx-platform.com",
-    "deployed_at": "2026-07-18T09:55:00Z",
-    "note": "R2スキップ（ADR-0014）。ブラウザ内IndexedDB + ローカルDLで代替。書き込み系API（GET以外の全9ルート+監査ログ）はmigration 0003本番適用 かつ Issue #66(persistX配線)完了まで isPersistedWriteRoute によりfail-closed（503、PR#65でPUT content/quantities限定から拡大）。read-only疎通確認2026-07-18: SPA=200, API GET(無認証)=401（fail-closedの503ではなくAccess層の通常拒否）。",
+    "deployed_at": "2026-07-21T10:05:00Z",
+    "version": "v0.1.0",
+    "worker_version_id": "269aebbe-c6d4-4a62-ba96-271d0b0da19f",
+    "release_url": "https://github.com/Kensan196948G/CivilDraft-Web-CAD/releases/tag/v0.1.0",
+    "migrations_applied_production": ["0001", "0002", "0003", "0004"],
+    "note": "v0.1.0（2026-07-21）: persistX配線・監査ログ永続化が本番反映、isPersistedWriteRouteゲート撤去済み。migration 0003/0004本番適用済み（適用前後とも実データ0件・前方互換）。スモーク2026-07-21: SPA=200, API無認証=401 CD-AUTH-001, API JWT有り=503 CD-SYS-002（Access検証未構成のfail-closed=期待値。旧『一時停止』503の消滅を確認）。Workers Observabilityエラーログ0件（デプロイ後1時間枠）。R2スキップ（ADR-0014）は継続、ローカルはIndexedDB+DL。Access Application+Secret登録（人間）完了時点でフル機能開通（追加デプロイ不要）。",
     "workers_dev_url": "https://civildraft-web-cad.kensan1969.workers.dev",
     "domain": {
       "zone": "mirai-dx-platform.com",
