@@ -21,7 +21,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { Layer, Line, Rect, Stage } from 'react-konva'
 import type Konva from 'konva'
 import { CoordinateTransformer } from '@/domain/canvas/coordinateTransformer'
-import { computeGridLines } from '@/domain/canvas/gridRenderer'
+import { computeGridLines, resolveAdaptiveGridInterval } from '@/domain/canvas/gridRenderer'
 import type { PaperOrientation, PaperSize } from '@/domain/canvas/paperSize'
 import { filterGeometriesByStep } from '@/domain/construction-steps'
 import { shapeBBox } from '@/domain/geometry/shapeBBox'
@@ -251,15 +251,18 @@ export function CanvasStage({ paperSize = 'A3', paperOrientation = 'landscape' }
   }
 
   const selectedSet = new Set(selectedIds)
+  // gridUnitMm は基準間隔。zoom に応じて 10 倍単位で自動調整し、画面上の
+  // 線間隔を常に 20〜200px に保つ（初期表示 zoom=1 でもグリッドが見える）。
+  const effectiveGridMm = resolveAdaptiveGridInterval(gridUnitMm, zoom)
   const gridLines = gridVisible
     ? computeGridLines({
         width: size.width,
         height: size.height,
-        gridSize: gridUnitMm,
+        gridSize: effectiveGridMm,
         zoom,
         panX,
         panY,
-        majorInterval: gridUnitMm * 5,
+        majorInterval: effectiveGridMm * 5,
       })
     : []
 
