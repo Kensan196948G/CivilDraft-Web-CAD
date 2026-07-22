@@ -10,7 +10,7 @@
 | リポジトリ | `CivilDraft-Web-CAD` |
 | 既存技術資産 | [`Civil-Draw`](https://github.com/Kensan196948G/Civil-Draw) |
 | 開発基盤 | Claude Code on Linux＋GitHub＋Cloudflare＋Neon |
-| 現在の位置付け | **土木特化Web CADの技術プレビュー（v0.1.0）**。ブラウザ内CADコアと土木ドメイン部品は拡充中。Workers APIはP0縦線（Project作成/更新→Drawing作成/更新→Revision作成→Content/数量保存→照査/承認→Export作成→Audit検索）を実装し、本番稼働中（`civildraft-web-cad.mirai-dx-platform.com`）。2026-07-21のv0.1.0でpersistX全9ハンドラのNeon永続化配線・監査ログ永続化が本番反映され、Neon migration 0001〜0004適用済み（0003=Neon直接格納・ADR-0014、0004=ID列text整合・ADR-0015）、書き込み系fail-closed暫定措置は撤去済み。Cloudflare Access Application設定とAccess Secret登録（人間実施）が完了するまでAPIは認証構成fail-closed（401/503）で安全に停止 |
+| 現在の位置付け | **土木特化Web CADの技術プレビュー（v0.1.1）**。ブラウザ内CADコアと土木ドメイン部品は拡充中。Workers APIはP0縦線（Project作成/更新→Drawing作成/更新→Revision作成→Content/数量保存→照査/承認→Export作成→Audit検索）を実装し、本番稼働中（`civildraft-web-cad.mirai-dx-platform.com`）。2026-07-21のv0.1.0でpersistX全9ハンドラのNeon永続化配線・監査ログ永続化が本番反映され、Neon migration 0001〜0004適用済み（0003=Neon直接格納・ADR-0014、0004=ID列text整合・ADR-0015）、書き込み系fail-closed暫定措置は撤去済み。2026-07-22のv0.1.1（PR #72・Issue #68恒久対応）でpersistX複合書き込み5種を単一トランザクションへ統合し本番反映済み。Issue #73恒久対応（PR #75・quantity_items孤立item解消）はmainマージ済み・次回デプロイ対象。Cloudflare Access Application設定とAccess Secret登録（人間実施）が完了するまでAPIは認証構成fail-closed（401/503）で安全に停止 |
 
 ---
 
@@ -591,8 +591,10 @@ timeline
 | 2026-07-21 | 📚 PR #69: v0.1.0リリース結果をstate.json/READMEへ文書同期 |
 | 2026-07-21 | ✨ PR #70: アダプティブグリッド間隔を導入し、CAD編集画面の初期表示からグリッドを可視化（本番デプロイ済み） |
 | 2026-07-21 | 🎨 PR #71: グリッド線色を背景と同化しない中間グレー+不透明度階調へ変更（本番デプロイ済み、Worker Version `697e6051`） |
-| 2026-07-22 | 🔒 Issue #68恒久対応（PR #72）: persistX複合書き込み5種（project+member、revision+drawing、content+revision、quantities+revision、workflowAction+revision）を`@neondatabase/serverless`の単一トランザクションへ統合し、部分永続化リスクを解消。実装過程で発見した別件2件はスコープ外としてIssue #73（quantity_items削除同期漏れ・P2）・#74（persistExportJobのobject_provider固定・P3）へ分離起票。CI4項目全pass・CodeRabbitレビュー済み（指摘1件はIssue #73で追跡中）、マージ判定待ち |
+| 2026-07-22 | 🔒 Issue #68恒久対応（PR #72）: persistX複合書き込み5種（project+member、revision+drawing、content+revision、quantities+revision、workflowAction+revision）を`@neondatabase/serverless`の単一トランザクションへ統合し、部分永続化リスクを解消。実装過程で発見した別件2件はスコープ外としてIssue #73（quantity_items削除同期漏れ・P2）・#74（persistExportJobのobject_provider固定・P3）へ分離起票。CI4項目全pass・CodeRabbitレビュー済み（指摘1件はIssue #73で追跡中）。**v0.1.1として人間承認Y取得・本番デプロイ済み**（[Release v0.1.1](../../releases/tag/v0.1.1)） |
 | 2026-07-22 | 📊 テスト105ファイル・1209テストpass（Neon実接続が必要な結合テスト1ファイル2件はCI環境上NOT RUN・既存の制約）、typecheck/lint/build green |
+| 2026-07-22 | 🐛 Issue #73恒久対応（PR #75）: PR #72の実装過程で発見した`buildQuantitiesQueries`のDELETE文欠落（quantity_items部分更新PUTでの孤立item残留）を解消。新スナップショットのid集合に含まれない行をrevision_id一致条件で削除、既存UPSERT群と同一トランザクションでアトミック実行。回帰テスト3件追加（正常系・削除境界値・全件削除）。lint/typecheck/build green、テスト105ファイル・**1212**テストpass。人間承認Yでmainへsquash-merge済み・次回デプロイ対象 |
+| 2026-07-22 | 📚 PR #76: state.json実態同期（PR #72マージ・v0.1.1本番デプロイ・Issue #68クローズの反映）。人間承認Yでmainへsquash-merge済み |
 
 ### 🛠️ 次に閉じるべき実務ワークフロー
 
@@ -634,7 +636,9 @@ timeline
 | [#69](../../pull/69) | v0.1.0リリース結果の文書同期（state.json/README） | ✅ マージ済み（2026-07-21） |
 | [#70](../../pull/70) | アダプティブグリッド間隔でCAD編集初期表示からグリッドを可視化 | ✅ マージ済み（2026-07-21・本番デプロイ済み） |
 | [#71](../../pull/71) | グリッド線色を背景と同化しない中間グレー+不透明度階調へ変更 | ✅ マージ済み（2026-07-21・本番デプロイ済み、Worker Version `697e6051`） |
-| [#72](../../pull/72) | Issue #68恒久対応: persistX複数レコード書き込みを単一トランザクション化 | 🟡 CI全pass・CodeRabbitレビュー済み・レビュー可能（マージ判定待ち） |
+| [#72](../../pull/72) | **v0.1.1**: Issue #68恒久対応: persistX複数レコード書き込みを単一トランザクション化 | ✅ マージ済み（2026-07-22・人間承認Y）→ 本番デプロイ済み・[Release v0.1.1](../../releases/tag/v0.1.1) |
+| [#75](../../pull/75) | Issue #73恒久対応: quantity_items部分更新PUTでの孤立item残留を解消（`buildQuantitiesQueries`にDELETE文追加） | ✅ マージ済み（2026-07-22・人間承認Y）→ mainマージ済み・次回デプロイ対象 |
+| [#76](../../pull/76) | state.json実態同期（PR #72マージ・v0.1.1本番デプロイ・Issue #68クローズの反映、コード変更なし） | ✅ マージ済み（2026-07-22・人間承認Y） |
 
 > マージ済みPRは人間の明示承認（選択式Y判断）を得てマージ済み。レビュー承認1件必須はPR作成者の自己承認不可のため、マージ実行時は enforce_admins を一時解除し完了後に即復元した。
 
@@ -731,7 +735,7 @@ flowchart LR
 
 `main`ブランチはPR必須・レビュー承認1件必須・quality/securityの成功必須（`strict`のためブランチ最新化も要求）・force push禁止・削除禁止で保護されています。e2e/complianceは必須チェック未設定のため、PRマージ前に人間が個別にgreenを確認する運用でカバーしています。
 
-> 2026-07-22時点のローカル検証では、`npm run test -- --reporter=dot` が105ファイル・1209テストpass（Neon実接続が必要な結合テスト1ファイル2件はskip）で完走しています。NAS/Windows環境ではjsdomテストの起動コストが大きいため、Vitestは `node`（domain/shared/workers/cloud client）と `jsdom`（app/infrastructure/integration）に分離しています。
+> 2026-07-22時点のローカル検証では、`npm run test -- --reporter=dot` が105ファイル・1212テストpass（Neon実接続が必要な結合テスト1ファイル2件はskip）で完走しています。NAS/Windows環境ではjsdomテストの起動コストが大きいため、Vitestは `node`（domain/shared/workers/cloud client）と `jsdom`（app/infrastructure/integration）に分離しています。
 
 ---
 
@@ -863,6 +867,8 @@ flowchart LR
 | [`docs/adr/0011-dependency-license-hygiene.md`](./docs/adr/0011-dependency-license-hygiene.md) | 依存関係ライセンスはSBOM自動生成とNOTICEファイル維持で衛生管理 |
 | [`docs/adr/0012-internal-coordinate-baseline.md`](./docs/adr/0012-internal-coordinate-baseline.md) | 内部座標基準（mm・X右・Y下、公開APIは度数法） |
 | [`docs/adr/0013-geometry-id-generation.md`](./docs/adr/0013-geometry-id-generation.md) | 図形ID発番（`crypto.randomUUID` + コンテキスト注入） |
+| [`docs/adr/0014-neon-direct-content-storage.md`](./docs/adr/0014-neon-direct-content-storage.md) | 図面内容の永続化先をNeon直接格納とし、R2は任意の共有ストレージ拡張点とする |
+| [`docs/adr/0015-id-text-alignment.md`](./docs/adr/0015-id-text-alignment.md) | エンティティIDはアプリ生成の接頭辞付き文字列を正とし、DBのID列はtext型へ整合する |
 
 ### 運用文書
 
