@@ -3,6 +3,7 @@ import { NeonApiStore } from '@/workers/neonApiStore'
 import type { SqlClient } from '@/workers/neonApiStore'
 import type {
   ProjectRecord,
+  ProjectMemberRecord,
   DrawingRecord,
   RevisionRecord,
   ContentRecord,
@@ -17,8 +18,15 @@ import type {
 // Helpers
 // ---------------------------------------------------------------------------
 
-function makeSqlClient(responses: Readonly<Record<string, readonly Record<string, unknown>[]>>): SqlClient {
-  return ((strings: TemplateStringsArray, ..._values: unknown[]) => {
+// #68: SqlClient = ReturnType<typeof neon> はタグ付きテンプレート関数でありながら
+// .transaction() メソッドも持つハイブリッドオブジェクト。txn`...` 呼び出しは sql`...`
+// と同じ応答解決ロジックを再利用し、.transaction(callback) は callback(txn) を同期的に
+// 呼び出して返された配列（NeonQueryInTransaction[]）を Promise.all で解決する
+// （実ドライバの「単一 HTTP トランザクションとしてバッチ実行」を模倣）。
+function makeSqlClient(
+  responses: Readonly<Record<string, readonly Record<string, unknown>[]>> = {},
+): SqlClient & { transaction: ReturnType<typeof vi.fn> } {
+  const tag = vi.fn((strings: TemplateStringsArray, ..._values: unknown[]) => {
     const sql = strings[0] ?? ''
     let result: readonly Record<string, unknown>[] = []
     for (const [prefix, rows] of Object.entries(responses)) {
@@ -28,7 +36,15 @@ function makeSqlClient(responses: Readonly<Record<string, readonly Record<string
       }
     }
     return Promise.resolve([...result])
-  }) as unknown as SqlClient
+  })
+
+  const transaction = vi.fn((callback: (txn: typeof tag) => unknown[]) => {
+    return Promise.all(callback(tag))
+  })
+
+  return Object.assign(tag, { transaction }) as unknown as SqlClient & {
+    transaction: typeof transaction
+  }
 }
 
 const now = '2026-07-18T00:00:00.000Z'
@@ -557,8 +573,8 @@ describe('NeonApiStore', () => {
     expect(store.contents.get('rev-1')?.contentVersion).toBe(2)
   })
 
-  it('persistQuantities writes a snapshot with items and sources', async () => {
-    const sql = vi.fn().mockResolvedValue([]) as unknown as SqlClient
+  it('persistQuantities writes a snapshot with items and sources in a single transaction (#68)', async () => {
+    const sql = makeSqlClient()
     const store = new NeonApiStore(sql)
 
     const qtyItem: QuantityItemRecord = {
@@ -583,7 +599,8 @@ describe('NeonApiStore', () => {
 
     await store.persistQuantities(snapshot)
 
-    // Should have been called for: snapshot UPSERT + item UPSERT + source UPSERT = 3 calls
+    // #68: snapshot UPSERT + item UPSERT + source UPSERT の 3 クエリが単一トランザクションで発行される
+    expect(sql.transaction).toHaveBeenCalledTimes(1)
     expect(sql).toHaveBeenCalledTimes(3)
     expect(store.quantities.get('rev-1')?.quantityVersion).toBe(1)
   })
@@ -695,5 +712,233 @@ describe('NeonApiStore', () => {
     // Verify the SQL call was made — with parameterized values, the injection
     // should be escaped by the driver
     expect(sql).toHaveBeenCalled()
+  })
+
+  describe('composite persistence — single transaction for 2 records (#68)', () => {
+    it('persistProjectWithMember writes both records in a single transaction', async () => {
+      const sql = makeSqlClient()
+      const store = new NeonApiStore(sql)
+
+      const project: ProjectRecord = {
+        id: 'proj-new',
+        projectNumber: 'P-002',
+        name: '新規案件',
+        status: 'active',
+        createdAt: now,
+        createdBy: 'user@test',
+        updatedAt: now,
+        updatedBy: 'user@test',
+        version: 1,
+      }
+      const member: ProjectMemberRecord = {
+        projectId: 'proj-new',
+        userId: 'user@test',
+        role: 'manager',
+        createdAt: now,
+        updatedAt: now,
+      }
+
+      await store.persistProjectWithMember(project, member)
+
+      // project INSERT + member INSERT = 2 クエリが単一トランザクションで発行される
+      expect(sql.transaction).toHaveBeenCalledTimes(1)
+      expect(sql).toHaveBeenCalledTimes(2)
+      expect(store.projects.get('proj-new')?.projectNumber).toBe('P-002')
+      expect(store.projectMembers.get('proj-new:user@test')?.role).toBe('manager')
+    })
+
+    it('persistProjectWithMember propagates transaction failure without updating local caches', async () => {
+      const sql = makeSqlClient()
+      sql.transaction.mockRejectedValueOnce(new Error('neon transaction failed'))
+      const store = new NeonApiStore(sql)
+
+      const project: ProjectRecord = {
+        id: 'proj-fail',
+        projectNumber: 'P-FAIL',
+        name: '失敗案件',
+        status: 'active',
+        createdAt: now,
+        createdBy: 'user@test',
+        updatedAt: now,
+        updatedBy: 'user@test',
+        version: 1,
+      }
+      const member: ProjectMemberRecord = {
+        projectId: 'proj-fail',
+        userId: 'user@test',
+        role: 'manager',
+        createdAt: now,
+        updatedAt: now,
+      }
+
+      await expect(store.persistProjectWithMember(project, member)).rejects.toThrow(
+        'neon transaction failed',
+      )
+
+      // #68 契約: トランザクション失敗時はどちらのローカルキャッシュも更新しない（部分永続化を防ぐ）
+      expect(store.projects.has('proj-fail')).toBe(false)
+      expect(store.projectMembers.has('proj-fail:user@test')).toBe(false)
+    })
+
+    it('persistRevisionWithDrawing writes both records in a single transaction', async () => {
+      const sql = makeSqlClient()
+      const store = new NeonApiStore(sql)
+
+      const revision: RevisionRecord = {
+        id: 'rev-new',
+        drawingId: 'draw-1',
+        revisionNumber: '2',
+        status: 'draft',
+        changeSummary: '2版',
+        contentVersion: 1,
+        contentChecksum: 'sha256:new',
+        createdAt: now,
+        createdBy: 'user@test',
+        updatedAt: now,
+        updatedBy: 'user@test',
+      }
+      const drawing: DrawingRecord = {
+        id: 'draw-1',
+        projectId: 'proj-1',
+        drawingNumber: 'DWG-001',
+        name: '平面図',
+        drawingType: 'general',
+        settings: {},
+        status: 'active',
+        activeRevisionId: 'rev-new',
+        createdAt: now,
+        createdBy: 'user@test',
+        updatedAt: now,
+        updatedBy: 'user@test',
+        version: 2,
+      }
+
+      await store.persistRevisionWithDrawing(revision, drawing)
+
+      // revision UPSERT + drawing UPSERT = 2 クエリ
+      expect(sql.transaction).toHaveBeenCalledTimes(1)
+      expect(sql).toHaveBeenCalledTimes(2)
+      expect(store.revisions.get('rev-new')?.revisionNumber).toBe('2')
+      expect(store.drawings.get('draw-1')?.activeRevisionId).toBe('rev-new')
+    })
+
+    it('persistContentWithRevision writes both records in a single transaction', async () => {
+      const sql = makeSqlClient()
+      const store = new NeonApiStore(sql)
+
+      const content: ContentRecord = {
+        revisionId: 'rev-1',
+        content: { geometries: [] },
+        byteSize: 10,
+        contentChecksum: 'sha256:content',
+        mimeType: 'application/json',
+        schemaVersion: 1,
+        contentVersion: 2,
+        updatedAt: now,
+      }
+      const revision: RevisionRecord = {
+        id: 'rev-1',
+        drawingId: 'draw-1',
+        revisionNumber: '1',
+        status: 'draft',
+        changeSummary: '更新',
+        contentVersion: 2,
+        contentChecksum: 'sha256:content',
+        createdAt: now,
+        createdBy: 'user@test',
+        updatedAt: now,
+        updatedBy: 'user@test',
+      }
+
+      await store.persistContentWithRevision(content, revision)
+
+      // content UPSERT + revision UPSERT = 2 クエリ
+      expect(sql.transaction).toHaveBeenCalledTimes(1)
+      expect(sql).toHaveBeenCalledTimes(2)
+      expect(store.contents.get('rev-1')?.contentVersion).toBe(2)
+      expect(store.revisions.get('rev-1')?.contentChecksum).toBe('sha256:content')
+    })
+
+    it('persistQuantitiesWithRevision writes snapshot, items, sources, and revision in a single transaction', async () => {
+      const sql = makeSqlClient()
+      const store = new NeonApiStore(sql)
+
+      const qtyItem: QuantityItemRecord = {
+        id: 'qty-1',
+        revisionId: 'rev-1',
+        groupKey: 'earthwork',
+        method: 'volume',
+        unit: 'm3',
+        rawValue: 10,
+        roundedValue: 10,
+        sources: [{ geometryId: 'g-1', contributionRaw: 10 }],
+        status: 'valid',
+      }
+      const snapshot: QuantitySnapshotRecord = {
+        revisionId: 'rev-1',
+        items: [qtyItem],
+        quantityVersion: 1,
+        updatedAt: now,
+        updatedBy: 'user@test',
+      }
+      const revision: RevisionRecord = {
+        id: 'rev-1',
+        drawingId: 'draw-1',
+        revisionNumber: '1',
+        status: 'draft',
+        changeSummary: '数量更新',
+        contentVersion: 1,
+        contentChecksum: 'sha256:abc',
+        createdAt: now,
+        createdBy: 'user@test',
+        updatedAt: now,
+        updatedBy: 'user@test',
+      }
+
+      await store.persistQuantitiesWithRevision(snapshot, revision)
+
+      // snapshot UPSERT + item UPSERT + source UPSERT + revision UPSERT = 4 クエリ
+      expect(sql.transaction).toHaveBeenCalledTimes(1)
+      expect(sql).toHaveBeenCalledTimes(4)
+      expect(store.quantities.get('rev-1')?.quantityVersion).toBe(1)
+      expect(store.revisions.get('rev-1')?.changeSummary).toBe('数量更新')
+    })
+
+    it('persistWorkflowActionWithRevision writes both records in a single transaction', async () => {
+      const sql = makeSqlClient()
+      const store = new NeonApiStore(sql)
+
+      const action: WorkflowActionRecord = {
+        id: 'wf-new',
+        revisionId: 'rev-1',
+        action: 'submitReview',
+        fromStatus: 'draft',
+        toStatus: 'inReview',
+        actorId: 'user@test',
+        occurredAt: now,
+      }
+      const revision: RevisionRecord = {
+        id: 'rev-1',
+        drawingId: 'draw-1',
+        revisionNumber: '1',
+        status: 'inReview',
+        changeSummary: '査読依頼',
+        contentVersion: 1,
+        contentChecksum: 'sha256:abc',
+        createdAt: now,
+        createdBy: 'user@test',
+        updatedAt: now,
+        updatedBy: 'user@test',
+      }
+
+      await store.persistWorkflowActionWithRevision(action, revision)
+
+      // workflow_action INSERT + revision UPSERT = 2 クエリ
+      expect(sql.transaction).toHaveBeenCalledTimes(1)
+      expect(sql).toHaveBeenCalledTimes(2)
+      expect(store.workflowActions).toHaveLength(1)
+      expect(store.workflowActions[0]?.action).toBe('submitReview')
+      expect(store.revisions.get('rev-1')?.status).toBe('inReview')
+    })
   })
 })

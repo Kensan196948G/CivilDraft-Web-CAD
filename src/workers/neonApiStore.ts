@@ -10,7 +10,7 @@
  * operations are performed.  Factory `createNeonApiStore(env)` in persistence.ts
  * handles this.
  */
-import type { neon } from '@neondatabase/serverless'
+import type { neon, NeonQueryFunctionInTransaction, NeonQueryInTransaction } from '@neondatabase/serverless'
 import type {
   ApiStore,
   AuditLogRecord,
@@ -337,6 +337,76 @@ function rowToAuditLog(row: AuditLogRow): AuditLogRecord {
 }
 
 // ---------------------------------------------------------------------------
+// Transaction query builders (#68)
+// ---------------------------------------------------------------------------
+//
+// `sql.transaction((txn) => [...])` は非 async のコールバックを要求し、
+// txn`...` の呼び出し（NeonQueryPromise）は即座に発行されず、返した配列を
+// transaction() が単一 HTTP トランザクションとしてバッチ実行する。
+// 複数の persistX/persistXWithY で同じクエリ列を再利用するため、
+// クエリ構築ロジックを txn を受け取る純粋関数として切り出す。
+
+/** Build the snapshot + items + sources upsert queries for a quantity snapshot. */
+function buildQuantitiesQueries(
+  txn: NeonQueryFunctionInTransaction<boolean, boolean>,
+  snapshot: QuantitySnapshotRecord,
+): NeonQueryInTransaction[] {
+  const queries: NeonQueryInTransaction[] = [
+    txn`
+      INSERT INTO quantity_snapshots (revision_id, quantity_version, updated_at, updated_by)
+      VALUES (${snapshot.revisionId}, ${snapshot.quantityVersion}, ${snapshot.updatedAt}, ${snapshot.updatedBy})
+      ON CONFLICT (revision_id) DO UPDATE SET
+        quantity_version = EXCLUDED.quantity_version,
+        updated_at = EXCLUDED.updated_at,
+        updated_by = EXCLUDED.updated_by
+    `,
+  ]
+  for (const item of snapshot.items) {
+    queries.push(txn`
+      INSERT INTO quantity_items (id, revision_id, group_key, work_type, specification, method, unit, raw_value, rounded_value, item_status, quantity_version)
+      VALUES (${item.id}, ${item.revisionId}, ${item.groupKey}, ${item.workType ?? null}, ${item.specification ?? null}, ${item.method}, ${item.unit}, ${item.rawValue}, ${item.roundedValue}, ${item.status}, ${snapshot.quantityVersion})
+      ON CONFLICT (id) DO UPDATE SET
+        group_key = EXCLUDED.group_key,
+        work_type = EXCLUDED.work_type,
+        specification = EXCLUDED.specification,
+        method = EXCLUDED.method,
+        unit = EXCLUDED.unit,
+        raw_value = EXCLUDED.raw_value,
+        rounded_value = EXCLUDED.rounded_value,
+        item_status = EXCLUDED.item_status,
+        quantity_version = EXCLUDED.quantity_version
+    `)
+    for (const source of item.sources) {
+      queries.push(txn`
+        INSERT INTO quantity_sources (quantity_item_id, geometry_id, contribution_raw)
+        VALUES (${item.id}, ${source.geometryId}, ${source.contributionRaw})
+        ON CONFLICT (quantity_item_id, geometry_id) DO UPDATE SET
+          contribution_raw = EXCLUDED.contribution_raw
+      `)
+    }
+  }
+  return queries
+}
+
+/** Build the revision upsert query (shared by persist*WithRevision combos). */
+function buildRevisionQuery(
+  txn: NeonQueryFunctionInTransaction<boolean, boolean>,
+  revision: RevisionRecord,
+): NeonQueryInTransaction {
+  return txn`
+    INSERT INTO drawing_revisions (id, drawing_id, revision_number, status, change_summary, based_on_revision_id, content_version, content_checksum, created_at, created_by, updated_at, updated_by)
+    VALUES (${revision.id}, ${revision.drawingId}, ${revision.revisionNumber}, ${revision.status}, ${revision.changeSummary}, ${revision.basedOnRevisionId ?? null}, ${revision.contentVersion}, ${revision.contentChecksum}, ${revision.createdAt}, ${revision.createdBy}, ${revision.updatedAt}, ${revision.updatedBy})
+    ON CONFLICT (id) DO UPDATE SET
+      status = EXCLUDED.status,
+      change_summary = EXCLUDED.change_summary,
+      content_version = EXCLUDED.content_version,
+      content_checksum = EXCLUDED.content_checksum,
+      updated_at = EXCLUDED.updated_at,
+      updated_by = EXCLUDED.updated_by
+  `
+}
+
+// ---------------------------------------------------------------------------
 // NeonApiStore
 // ---------------------------------------------------------------------------
 
@@ -566,40 +636,9 @@ export class NeonApiStore implements ApiStore {
     this.contents.set(content.revisionId, content)
   }
 
-  /** Insert or update a quantity snapshot with its items and sources. */
+  /** Insert or update a quantity snapshot with its items and sources (single transaction; #68). */
   async persistQuantities(snapshot: QuantitySnapshotRecord): Promise<void> {
-    await this.#sql`
-      INSERT INTO quantity_snapshots (revision_id, quantity_version, updated_at, updated_by)
-      VALUES (${snapshot.revisionId}, ${snapshot.quantityVersion}, ${snapshot.updatedAt}, ${snapshot.updatedBy})
-      ON CONFLICT (revision_id) DO UPDATE SET
-        quantity_version = EXCLUDED.quantity_version,
-        updated_at = EXCLUDED.updated_at,
-        updated_by = EXCLUDED.updated_by
-    `
-    for (const item of snapshot.items) {
-      await this.#sql`
-        INSERT INTO quantity_items (id, revision_id, group_key, work_type, specification, method, unit, raw_value, rounded_value, item_status, quantity_version)
-        VALUES (${item.id}, ${item.revisionId}, ${item.groupKey}, ${item.workType ?? null}, ${item.specification ?? null}, ${item.method}, ${item.unit}, ${item.rawValue}, ${item.roundedValue}, ${item.status}, ${snapshot.quantityVersion})
-        ON CONFLICT (id) DO UPDATE SET
-          group_key = EXCLUDED.group_key,
-          work_type = EXCLUDED.work_type,
-          specification = EXCLUDED.specification,
-          method = EXCLUDED.method,
-          unit = EXCLUDED.unit,
-          raw_value = EXCLUDED.raw_value,
-          rounded_value = EXCLUDED.rounded_value,
-          item_status = EXCLUDED.item_status,
-          quantity_version = EXCLUDED.quantity_version
-      `
-      for (const source of item.sources) {
-        await this.#sql`
-          INSERT INTO quantity_sources (quantity_item_id, geometry_id, contribution_raw)
-          VALUES (${item.id}, ${source.geometryId}, ${source.contributionRaw})
-          ON CONFLICT (quantity_item_id, geometry_id) DO UPDATE SET
-            contribution_raw = EXCLUDED.contribution_raw
-        `
-      }
-    }
+    await this.#sql.transaction((txn) => buildQuantitiesQueries(txn, snapshot))
     this.quantities.set(snapshot.revisionId, snapshot)
   }
 
@@ -637,5 +676,108 @@ export class NeonApiStore implements ApiStore {
       VALUES (${log.id}, ${log.occurredAt}, ${log.eventName}, ${log.actorId}, ${log.projectId ?? null}, ${log.entityType ?? null}, ${log.entityId ?? null}, ${log.result}, ${log.correlationId}, ${detailJson}::jsonb, null, null, 'sha256')
     `
     this.auditLogs.push(log)
+  }
+
+  // -----------------------------------------------------------------------
+  // Composite write helpers — single transaction for 2 records (#68)
+  // -----------------------------------------------------------------------
+
+  /** Insert a project and its initial member in one transaction. */
+  async persistProjectWithMember(project: ProjectRecord, member: ProjectMemberRecord): Promise<void> {
+    await this.#sql.transaction((txn) => [
+      txn`
+        INSERT INTO projects (id, project_number, name, client_name, status, created_at, created_by, updated_at, updated_by, version)
+        VALUES (${project.id}, ${project.projectNumber}, ${project.name}, ${project.clientName ?? null}, ${project.status}, ${project.createdAt}, ${project.createdBy}, ${project.updatedAt}, ${project.updatedBy}, ${project.version})
+        ON CONFLICT (id) DO UPDATE SET
+          project_number = EXCLUDED.project_number,
+          name = EXCLUDED.name,
+          client_name = EXCLUDED.client_name,
+          status = EXCLUDED.status,
+          updated_at = EXCLUDED.updated_at,
+          updated_by = EXCLUDED.updated_by,
+          version = EXCLUDED.version
+      `,
+      txn`
+        INSERT INTO project_members (project_id, user_id, role, created_at, updated_at)
+        VALUES (${member.projectId}, ${member.userId}, ${member.role}, ${member.createdAt}, ${member.updatedAt})
+        ON CONFLICT (project_id, user_id) DO UPDATE SET
+          role = EXCLUDED.role,
+          updated_at = EXCLUDED.updated_at
+      `,
+    ])
+    this.projects.set(project.id, project)
+    this.projectMembers.set(memberMapKey(member.projectId, member.userId), member)
+  }
+
+  /** Insert a revision and update its parent drawing's active_revision_id in one transaction. */
+  async persistRevisionWithDrawing(revision: RevisionRecord, drawing: DrawingRecord): Promise<void> {
+    await this.#sql.transaction((txn) => [
+      buildRevisionQuery(txn, revision),
+      txn`
+        INSERT INTO drawings (id, project_id, drawing_number, name, drawing_type, settings, status, active_revision_id, created_at, created_by, updated_at, updated_by, version)
+        VALUES (${drawing.id}, ${drawing.projectId}, ${drawing.drawingNumber}, ${drawing.name}, ${drawing.drawingType}, ${JSON.stringify(drawing.settings ?? {})}::jsonb, ${drawing.status}, ${drawing.activeRevisionId ?? null}, ${drawing.createdAt}, ${drawing.createdBy}, ${drawing.updatedAt}, ${drawing.updatedBy}, ${drawing.version})
+        ON CONFLICT (id) DO UPDATE SET
+          drawing_number = EXCLUDED.drawing_number,
+          name = EXCLUDED.name,
+          drawing_type = EXCLUDED.drawing_type,
+          settings = EXCLUDED.settings,
+          status = EXCLUDED.status,
+          active_revision_id = EXCLUDED.active_revision_id,
+          updated_at = EXCLUDED.updated_at,
+          updated_by = EXCLUDED.updated_by,
+          version = EXCLUDED.version
+      `,
+    ])
+    this.revisions.set(revision.id, revision)
+    this.drawings.set(drawing.id, drawing)
+  }
+
+  /** Insert drawing content and update its revision's checksum/version in one transaction. */
+  async persistContentWithRevision(content: ContentRecord, revision: RevisionRecord): Promise<void> {
+    await this.#sql.transaction((txn) => [
+      txn`
+        INSERT INTO drawing_contents (revision_id, content, byte_size, content_checksum, mime_type, schema_version, content_version, updated_at, updated_by, storage_provider)
+        VALUES (${content.revisionId}, ${JSON.stringify(content.content ?? null)}::jsonb, ${content.byteSize}, ${content.contentChecksum}, ${content.mimeType}, ${content.schemaVersion}, ${content.contentVersion}, ${content.updatedAt}, 'system', 'neon')
+        ON CONFLICT (revision_id) DO UPDATE SET
+          content = EXCLUDED.content,
+          byte_size = EXCLUDED.byte_size,
+          content_checksum = EXCLUDED.content_checksum,
+          schema_version = EXCLUDED.schema_version,
+          content_version = EXCLUDED.content_version,
+          updated_at = EXCLUDED.updated_at
+      `,
+      buildRevisionQuery(txn, revision),
+    ])
+    this.contents.set(content.revisionId, content)
+    this.revisions.set(revision.id, revision)
+  }
+
+  /** Insert a quantity snapshot (with items/sources) and update its revision in one transaction. */
+  async persistQuantitiesWithRevision(
+    snapshot: QuantitySnapshotRecord,
+    revision: RevisionRecord,
+  ): Promise<void> {
+    await this.#sql.transaction((txn) => [
+      ...buildQuantitiesQueries(txn, snapshot),
+      buildRevisionQuery(txn, revision),
+    ])
+    this.quantities.set(snapshot.revisionId, snapshot)
+    this.revisions.set(revision.id, revision)
+  }
+
+  /** Append a workflow action and update its revision's status in one transaction. */
+  async persistWorkflowActionWithRevision(
+    action: WorkflowActionRecord,
+    revision: RevisionRecord,
+  ): Promise<void> {
+    await this.#sql.transaction((txn) => [
+      txn`
+        INSERT INTO workflow_actions (id, revision_id, action, from_status, to_status, actor_id, comment, occurred_at)
+        VALUES (${action.id}, ${action.revisionId}, ${action.action}, ${action.fromStatus}, ${action.toStatus}, ${action.actorId}, ${action.comment ?? null}, ${action.occurredAt})
+      `,
+      buildRevisionQuery(txn, revision),
+    ])
+    this.workflowActions.push(action)
+    this.revisions.set(revision.id, revision)
   }
 }

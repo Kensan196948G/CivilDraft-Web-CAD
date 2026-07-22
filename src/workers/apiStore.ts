@@ -169,6 +169,24 @@ export interface ApiStore {
   persistWorkflowAction?(action: WorkflowActionRecord): Promise<void>
   persistExportJob?(job: ExportJobRecord): Promise<void>
   persistAuditLog?(log: AuditLogRecord): Promise<void>
+
+  // -- 複合永続化フック（#68） --
+  // 2 レコードの書き込みが 1 つの操作として不可分であるべきハンドラ用。
+  // NeonApiStore 実装はバックエンドの単一トランザクション内で両方を書き込み、
+  // 途中失敗時はどちらも永続化しない（部分永続化を防ぐ）。
+  // フックを持たない store では、各レコードを Map へ直接（順次）設定してよい
+  // （メモリ内更新は同期的でアトミックなため、疑似的な原子性が成立する）。
+  persistProjectWithMember?(project: ProjectRecord, member: ProjectMemberRecord): Promise<void>
+  persistRevisionWithDrawing?(revision: RevisionRecord, drawing: DrawingRecord): Promise<void>
+  persistContentWithRevision?(content: ContentRecord, revision: RevisionRecord): Promise<void>
+  persistQuantitiesWithRevision?(
+    snapshot: QuantitySnapshotRecord,
+    revision: RevisionRecord,
+  ): Promise<void>
+  persistWorkflowActionWithRevision?(
+    action: WorkflowActionRecord,
+    revision: RevisionRecord,
+  ): Promise<void>
 }
 
 export function createMemoryStore(): ApiStore {

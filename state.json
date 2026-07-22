@@ -8,10 +8,10 @@
   "session": {
     "session_start_utc": "2026-07-18T00:00:00Z",
     "max_duration_minutes": 300,
-    "last_update_utc": "2026-07-21T09:55:00Z",
-    "note": "本番デプロイ完了: civildraft-web-cad.mirai-dx-platform.com（SPA HTTP 200 / API GET認証なしでHTTP 401 CD-AUTH-001、fail-closedの503ではない＝Worker稼働・認証層も機能）。Worker bindings実測: ASSETS/CIVILDRAFT_API_MODE=neon-r2/CIVILDRAFT_NEON_CONNECTION確認、CIVILDRAFT_ACCESS_TEAM_DOMAIN・ACCESS_AUDはbindings一覧で未確認（要人間確認）。Neon civildraft-production（pg17）に0001+0002適用済み、0003はマージ済みだが本番未適用（人間承認待ち）。R2はADR-0014でスキップ。追記2026-07-18 14:27: silent-failure-hunterのCRITICAL指摘（neonApiStoreのpersistX系メソッド未配線）を受け、fail-closed対象をPUT content/quantitiesの2ルートからGET以外の全9ルート+監査ログへ拡大（isSharedSaveRoute→isPersistedWriteRoute）。CodeRabbit相当レビュー指摘3件（High 1・Medium 2）も同一PR内で是正。恒久対応（persistX配線実装）はIssue #66に切り出し。追記2026-07-18 15:05: PR#65を人間承認（Y）を得てsquashマージ完了（squash commit 4167b098、main branch protection enforce_adminsを一時解除→マージ→即復元。Codex公式レビューはユーザー判断により省略）。main上のマージ後CI（run 29648908263）success確認済み。GitHub Projects #44へIssue #66・PR#65を新規登録・Status反映済み。追記2026-07-18 15:15: PR#67（state.json/Projects同期、Draft）作成直後、head branch(deploy/production-release)がsquash commit(4167b098)とのコミットグラフ分岐によりmainとCONFLICTING状態になり、CIが一切起動しない事象を検知。git merge origin/main実行→state.jsonコンフリクトをours採用で解消（内容はours側がtheirs側を完全に上位互換、意味的矛盾なし）→push（マージコミット3363292）でsynchronizeイベント発生、CI 4ジョブ全green確認（run 29649368429）。原因と対処をMemory(merge-train-procedure.md)へ追記済み。追記2026-07-21: Issue #66恒久対応をPR#67スコープへ実装（persistX配線9ハンドラ+監査ログflush+fail-closed撤去）。配線検証で既存バグ4件を確定・修正（ID型ドリフトuuid vs接頭辞文字列→migration 0004/ADR-0015、driver数値・時刻型正規化漏れ、quantity sources復元バグ、jsonbトップレベル配列直列化）。Neon検証ブランチverify-pr67-migrations-0003-0004（mainから分岐）で0003→0004適用成功+実接続roundtrip結合テスト2件pass。wrangler secret list（名前のみread-only照会）でACCESS_TEAM_DOMAIN/ACCESS_AUD未登録を確定→未登録の間neon-r2 APIは認証構成fail-closed(401/503)のためゲート撤去後もデータ経路は開かない。残存制約（トランザクション境界なし）はIssue #68起票。"
+    "last_update_utc": "2026-07-22T10:37:00Z",
+    "note": "本番デプロイ完了: civildraft-web-cad.mirai-dx-platform.com（SPA HTTP 200 / API GET認証なしでHTTP 401 CD-AUTH-001、fail-closedの503ではない＝Worker稼働・認証層も機能）。Worker bindings実測: ASSETS/CIVILDRAFT_API_MODE=neon-r2/CIVILDRAFT_NEON_CONNECTION確認、CIVILDRAFT_ACCESS_TEAM_DOMAIN・ACCESS_AUDはbindings一覧で未確認（要人間確認）。Neon civildraft-production（pg17）に0001+0002適用済み、0003はマージ済みだが本番未適用（人間承認待ち）。R2はADR-0014でスキップ。追記2026-07-18 14:27: silent-failure-hunterのCRITICAL指摘（neonApiStoreのpersistX系メソッド未配線）を受け、fail-closed対象をPUT content/quantitiesの2ルートからGET以外の全9ルート+監査ログへ拡大（isSharedSaveRoute→isPersistedWriteRoute）。CodeRabbit相当レビュー指摘3件（High 1・Medium 2）も同一PR内で是正。恒久対応（persistX配線実装）はIssue #66に切り出し。追記2026-07-18 15:05: PR#65を人間承認（Y）を得てsquashマージ完了（squash commit 4167b098、main branch protection enforce_adminsを一時解除→マージ→即復元。Codex公式レビューはユーザー判断により省略）。main上のマージ後CI（run 29648908263）success確認済み。GitHub Projects #44へIssue #66・PR#65を新規登録・Status反映済み。追記2026-07-18 15:15: PR#67（state.json/Projects同期、Draft）作成直後、head branch(deploy/production-release)がsquash commit(4167b098)とのコミットグラフ分岐によりmainとCONFLICTING状態になり、CIが一切起動しない事象を検知。git merge origin/main実行→state.jsonコンフリクトをours採用で解消（内容はours側がtheirs側を完全に上位互換、意味的矛盾なし）→push（マージコミット3363292）でsynchronizeイベント発生、CI 4ジョブ全green確認（run 29649368429）。原因と対処をMemory(merge-train-procedure.md)へ追記済み。追記2026-07-21: Issue #66恒久対応をPR#67スコープへ実装（persistX配線9ハンドラ+監査ログflush+fail-closed撤去）。配線検証で既存バグ4件を確定・修正（ID型ドリフトuuid vs接頭辞文字列→migration 0004/ADR-0015、driver数値・時刻型正規化漏れ、quantity sources復元バグ、jsonbトップレベル配列直列化）。Neon検証ブランチverify-pr67-migrations-0003-0004（mainから分岐）で0003→0004適用成功+実接続roundtrip結合テスト2件pass。wrangler secret list（名前のみread-only照会）でACCESS_TEAM_DOMAIN/ACCESS_AUD未登録を確定→未登録の間neon-r2 APIは認証構成fail-closed(401/503)のためゲート撤去後もデータ経路は開かない。残存制約（トランザクション境界なし）はIssue #68起票。追記2026-07-21 20:00-21:54: Issue #66完了後、CTO代行としてPhase1〜3統合Goalを継続。PR#70（アダプティブグリッド間隔でCAD編集初期表示にグリッド可視化）とPR#71（グリッド線色が背景色と同化し不可視だった真因を中間グレー+不透明度階調へ修正）を各々実装・CI green・人間承認Y・マージ・wrangler deploy・本番smoke確認まで完遂（Version 12fe4b5d→697e6051）。追記2026-07-22: Issue #68（persistX複合書き込みのトランザクション化）に着手。ApiStoreへ複合永続化フック5種（persistProjectWithMember/persistRevisionWithDrawing/persistContentWithRevision/persistQuantitiesWithRevision/persistWorkflowActionWithRevision）を追加し、NeonApiStoreはNeon serverless driverのsql.transaction() APIで単一HTTPトランザクション化。index.tsの5ハンドラを複合commitヘルパー経由に書き換え。ユニットテスト90件（6ファイル）全pass・lint/typecheck/build/npm audit全PASS。無関係な既存未コミット変更（.claude/START_PROMPT.md、ルートCLAUDE.mdの様式移行）はCLAUDE.mdのユーザー変更保護原則に従い選択的git addで分離・保護。feat/issue-68-persistx-transactionブランチでcommit(a9ceb12)・push、Draft PR #72作成、Issue #68へリンクコメント追加。CI確認中（Dependency Audit/SBOM PASS、Lint/Typecheck/Test/Build・Browser E2Eは実行中）。並行してCloudflare Workers Observability（直近24時間エラーログ0件）・Neon civildraft-production（mainブランチready、検証用ブランチ2本は人間削除判断待ちのまま残存、state.json記載と一致）をread-only確認。追記2026-07-22 10:10 UTC: PR #72 CI全4チェックpass確認（Browser E2E/Dependency Audit/Lint・Typecheck・Test・Build/SBOM・Notices）。gh pr ready 72でReady for Reviewへ変更。GitHub Projects #44でIssue #68・PR #72をBacklog→Verify→Deploy Gateへ実態同期（新規追加時Backlog固定だったため手動遷移）。state.jsonのPR#67/69/70/71未反映・Worker version古い記載（269aebbe止まり、実際は697e6051が最新稼働）を発見し本セッションで是正。追記2026-07-22 10:25 UTC: state.json同期をfeat/issue-68-persistx-transactionブランチへcommit(482cb45)・push、head SHA変化に伴いCI再確認（4チェック全pass再現）。PR本文で「別Issue起票予定」としていた2件を実装過程の該当コード（buildQuantitiesQueries未DELETE、persistExportJobのobject_provider='r2'固定）を特定した上でIssue #73(P2)・#74(P3)として起票し、PR #72本文とIssue #68コメントへ相互リンク。Phase 1完了条件（機能実装・lint/typecheck/test/build/audit・CI・Draft PR Ready化・Issue/Projects実態一致）を充足、マージ判定Y/N提示へ移行。追記2026-07-22 10:37 UTC: README.mdの実態乖離4箇所（開発進捗マイルストーン表にPR#69-#72未反映、Pull Requestテーブル同様、現在のCI実態の日付・テスト数が2026-07-18時点の1191件のまま、現在の未決事項が本番Neon接続完了・ADR-0014のR2任意化を反映していない）を特定し是正。Issue #73・#74をGitHub Projects #44へBacklogステータスで新規登録（未登録だった）。CodeRabbitのインラインコメント（neonApiStore.ts:389、🟠 Major、quantity_items削除同期漏れ）がIssue #73と完全一致することを確認し、Issue番号を明示した返信を投稿済み（独立レビューツールによる指摘とIssue化の整合性を相互検証）。CIログ直接取得（gh run view --log）は0行で失敗したためローカルnpm run testで代替検証（105ファイル/1209テストpass・2 skip、既存の制約であるNeon実接続結合テストのみ）。README.md変更をcommit(a03266b)・push、head SHA変化に伴うCI再起動を確認中。"
   },
-  "goal": "✅達成（2026-07-21）: PR#67人間承認Y→squashマージ(d923992)→main CI success→migration 0003/0004本番Neon main適用（Neon MCP経由・スキーマ検証一致）→wrangler deploy（Version 269aebbe、ユーザー実行=classifierブロックのため!コマンド）→スモーク全5項目期待値一致→Release v0.1.0作成→Issue #66クローズ。次Goal候補: Access Application設定+Access Secret登録（人間）後のフル機能E2E、Issue #68トランザクション化。",
+  "goal": "進行中（2026-07-22）: CTO代行Phase 1〜3統合Goal継続実行中。v0.1.0リリース後、PR#70（アダプティブグリッド初期表示）・PR#71（グリッド色修正）を追加でPhase1〜3完遂・本番デプロイ済み（Worker Version 697e6051、2026-07-21T11:08:39Z）。Issue #68（persistX複合書き込みのトランザクション化）恒久対応PR #72はCI全4チェックpass・Ready for Review化・GitHub Projects Deploy Gate同期済み、CodeRabbitレビュー対応済み、README実態同期済み（commit a03266b）。実装過程で発見した別件不整合はIssue #73/#74として分離起票・GitHub Projects登録済み。Phase 1完了条件を全て充足、マージ判定Y/N提示へ移行。",
   "phase": "Maintenance",
   "kpi": {
     "success_rate_target": 0.9,
@@ -175,15 +175,47 @@
       "pr": 65,
       "merged": "2026-07-18",
       "note": "共有保存fail-closed化(isPersistedWriteRoute拡大)+ADR-0014(Neon直接格納・R2任意化)+migration 0003+CodeRabbit相当指摘3件是正。squash commit 4167b098。Codex公式レビューは省略（ユーザー判断）、CodeRabbit(GitHub App)・silent-failure-hunter対応済み・CI 5ジョブ全green・テスト1192件全passを根拠"
+    },
+    {
+      "pr": 67,
+      "merged": "2026-07-21",
+      "note": "Issue #66恒久対応: persistX配線9ハンドラ+監査ログflush+fail-closed撤去。migration 0003/0004本番Neon適用。squash commit d923992。wrangler deploy Version 269aebbe。Release v0.1.0作成、Issue #66クローズ"
+    },
+    {
+      "pr": 69,
+      "merged": "2026-07-21",
+      "note": "v0.1.0リリース結果の文書同期（state.json/README実態一致化）"
+    },
+    {
+      "pr": 70,
+      "merged": "2026-07-21",
+      "note": "アダプティブグリッド間隔でCAD編集の初期表示からグリッドを可視化。wrangler deploy Version 12fe4b5d"
+    },
+    {
+      "pr": 71,
+      "merged": "2026-07-21",
+      "note": "グリッド線色が背景と同化し不可視だった真因を修正（中間グレー+不透明度階調へ変更）。wrangler deploy Version 697e6051（現行本番稼働バージョン）"
     }
   ],
   "blocked_issues": [],
   "open_issues_next": [
     {
-      "issue": 66,
-      "title": "neonApiStore.tsのpersistX系メソッド未配線（persistProject/persistDrawing/persistRevision/persistWorkflowAction/persistExportJob）",
-      "priority": "P1",
-      "note": "silent-failure-hunterのCRITICAL指摘。index.tsのどのハンドラからも呼ばれておらず、書き込みがインメモリ操作のみで完結しリクエスト終了時に消える。mainブランチに既存のバグ（PR#65固有ではない）。PR#65ではisPersistedWriteRouteによるfail-closed拡大で二次防御のみ実施。恒久対応（配線実装+結合テスト）はこのIssueで追跡。ADR-0014 Decision 5参照"
+      "issue": 68,
+      "title": "[P2] persistX複数レコード書き込みのトランザクション化（部分永続化の解消）",
+      "priority": "P2",
+      "note": "#66配線後も、複合書き込みハンドラ（createProject等5種）はpersist呼び出し間にトランザクション境界がなく部分永続化の余地があった。恒久対応としてNeonApiStoreに複合永続化フック5種（persistProjectWithMember等）を追加し、sql.transaction()で単一HTTPトランザクション化。PR #72はCI全4〜5チェックpass・Ready for Review化済み・GitHub Projects Deploy Gate・CodeRabbitレビュー対応済み（Issue #73相当の指摘に返信済み）・README実態同期済み。head SHA a03266bへのCI再確認中。マージ判定Y/N提示へ移行"
+    },
+    {
+      "issue": 73,
+      "title": "[P2] quantity_items の部分更新PUTで削除意図のitemがNeonに残留する",
+      "priority": "P2",
+      "note": "PUT quantitiesがON CONFLICT DO UPDATEのみでDELETEがないため、新スナップショットから除外されたitem/sourcesがDBに残留する。Issue #68実装過程で発見、PR #72のスコープ外として分離起票。本番quantity_items/quantity_sourcesは実データ0件で既存データ影響なし"
+    },
+    {
+      "issue": 74,
+      "title": "[P3] persistExportJobのobject_providerが'r2'固定でADR-0014の方針と不整合",
+      "priority": "P3",
+      "note": "ADR-0014でR2は任意拡張点に格下げ・本番はR2無効化済みだが、export_jobs.object_providerは常に'r2'を書き込む。Issue #68実装過程で発見、PR #72のスコープ外として分離起票。監査・追跡情報の不整合であり機能影響なし（低優先度）"
     },
     {
       "issue": 23,
@@ -349,12 +381,12 @@
     ],
     "guide": "docs/operations/production-deployment.md",
     "url": "https://civildraft-web-cad.mirai-dx-platform.com",
-    "deployed_at": "2026-07-21T10:05:00Z",
+    "deployed_at": "2026-07-21T11:08:39Z",
     "version": "v0.1.0",
-    "worker_version_id": "269aebbe-c6d4-4a62-ba96-271d0b0da19f",
+    "worker_version_id": "697e6051-0e7d-4e61-9bac-cdf3bf883be0",
     "release_url": "https://github.com/Kensan196948G/CivilDraft-Web-CAD/releases/tag/v0.1.0",
     "migrations_applied_production": ["0001", "0002", "0003", "0004"],
-    "note": "v0.1.0（2026-07-21）: persistX配線・監査ログ永続化が本番反映、isPersistedWriteRouteゲート撤去済み。migration 0003/0004本番適用済み（適用前後とも実データ0件・前方互換）。スモーク2026-07-21: SPA=200, API無認証=401 CD-AUTH-001, API JWT有り=503 CD-SYS-002（Access検証未構成のfail-closed=期待値。旧『一時停止』503の消滅を確認）。Workers Observabilityエラーログ0件（デプロイ後1時間枠）。R2スキップ（ADR-0014）は継続、ローカルはIndexedDB+DL。Access Application+Secret登録（人間）完了時点でフル機能開通（追加デプロイ不要）。",
+    "note": "v0.1.0基盤（2026-07-21T10:05）にPR#70（アダプティブグリッド初期表示、Version 12fe4b5d）・PR#71（グリッド色修正、Version 697e6051=現行稼働）を追加デプロイ。DBスキーマ変更は伴わないコードのみの差分デプロイ。2026-07-22時点でWorkers Observabilityエラーログ0件（直近24時間）確認済み。persistX配線・監査ログ永続化・isPersistedWriteRouteゲート撤去はPR#67時点から継続有効。migration 0003/0004本番適用済み（適用前後とも実データ0件・前方互換）。R2スキップ（ADR-0014）は継続、ローカルはIndexedDB+DL。Access Application+Secret登録（人間）完了時点でフル機能開通（追加デプロイ不要）。",
     "workers_dev_url": "https://civildraft-web-cad.kensan1969.workers.dev",
     "domain": {
       "zone": "mirai-dx-platform.com",
