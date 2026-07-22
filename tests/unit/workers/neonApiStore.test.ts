@@ -654,6 +654,7 @@ describe('NeonApiStore', () => {
     expect(sql).toHaveBeenCalledTimes(4)
     const deleteCall = sqlCalls(sql).find((call) => call[0][0]?.includes('DELETE FROM quantity_items'))
     expect(deleteCall).toBeDefined()
+    expect(deleteCall?.[0].join('')).toMatch(/WHERE revision_id =\s*AND id != ALL\(/)
     expect(deleteCall?.[1]).toBe('rev-1')
     expect(deleteCall?.[2]).toEqual(['qty-1', 'qty-2'])
   })
@@ -686,6 +687,7 @@ describe('NeonApiStore', () => {
 
     const deleteCall = sqlCalls(sql).find((call) => call[0][0]?.includes('DELETE FROM quantity_items'))
     expect(deleteCall).toBeDefined()
+    expect(deleteCall?.[0].join('')).toMatch(/WHERE revision_id =\s*AND id != ALL\(/)
     // #73 回帰: 削除された qty-2 は生存 id 配列に含まれてはならない（含まれると永続残留する = 元バグ）
     expect(deleteCall?.[2]).toEqual(['qty-1'])
     expect(deleteCall?.[2]).not.toContain('qty-2')
@@ -709,6 +711,7 @@ describe('NeonApiStore', () => {
     expect(sql).toHaveBeenCalledTimes(2)
     const deleteCall = sqlCalls(sql).find((call) => call[0][0]?.includes('DELETE FROM quantity_items'))
     expect(deleteCall).toBeDefined()
+    expect(deleteCall?.[0].join('')).toMatch(/WHERE revision_id =\s*AND id != ALL\(/)
     // #73: 空配列は `!= ALL('{}')` として全行に一致し、全件削除として正しく機能する
     expect(deleteCall?.[2]).toEqual([])
     expect(store.quantities.get('rev-1')?.items).toEqual([])
