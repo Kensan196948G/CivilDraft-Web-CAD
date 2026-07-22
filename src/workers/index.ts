@@ -471,14 +471,15 @@ async function flushPendingAuditLogs(
 }
 
 // ---------------------------------------------------------------------------
-// Persistence commit helpers（#66）
+// Persistence commit helpers（#66 / #68）
 // Map 更新（インメモリ）と Neon 永続化（persistX フック）の単一の入口。
 // フックを持つ store では「SQL 書き込み → 成功後にキャッシュ更新」を
 // persistX 側が保証する。フックを持たない store（memory/dev）は従来どおり
 // Map/配列を同期更新する（この場合 await は即時解決で、検証→書き込みの
 // 同期性は保たれる）。フックの reject は handleRequest の catch で 500 になる。
-// 既知の制約: 複数レコードを書くハンドラでは書き込み間にトランザクション
-// 境界がなく、途中失敗で部分永続化が起こり得る（追跡 Issue 参照）。
+// 2 レコードを不可分に書くハンドラは commitXWithY（#68）を使う。
+// NeonApiStore はバックエンドの単一トランザクション内で両方を書き込み、
+// 途中失敗時はどちらも永続化しない（部分永続化を防ぐ）。
 // ---------------------------------------------------------------------------
 
 async function commitProject(store: ApiStore, project: ProjectRecord): Promise<void> {
@@ -486,14 +487,6 @@ async function commitProject(store: ApiStore, project: ProjectRecord): Promise<v
     await store.persistProject(project)
   } else {
     store.projects.set(project.id, project)
-  }
-}
-
-async function commitProjectMember(store: ApiStore, member: ProjectMemberRecord): Promise<void> {
-  if (store.persistProjectMember) {
-    await store.persistProjectMember(member)
-  } else {
-    store.projectMembers.set(memberKey(member.projectId, member.userId), member)
   }
 }
 
@@ -505,43 +498,76 @@ async function commitDrawing(store: ApiStore, drawing: DrawingRecord): Promise<v
   }
 }
 
-async function commitRevision(store: ApiStore, revision: RevisionRecord): Promise<void> {
-  if (store.persistRevision) {
-    await store.persistRevision(revision)
-  } else {
-    store.revisions.set(revision.id, revision)
-  }
-}
-
-async function commitContent(store: ApiStore, content: ContentRecord): Promise<void> {
-  if (store.persistContent) {
-    await store.persistContent(content)
-  } else {
-    store.contents.set(content.revisionId, content)
-  }
-}
-
-async function commitQuantities(store: ApiStore, snapshot: QuantitySnapshotRecord): Promise<void> {
-  if (store.persistQuantities) {
-    await store.persistQuantities(snapshot)
-  } else {
-    store.quantities.set(snapshot.revisionId, snapshot)
-  }
-}
-
-async function commitWorkflowAction(store: ApiStore, action: WorkflowActionRecord): Promise<void> {
-  if (store.persistWorkflowAction) {
-    await store.persistWorkflowAction(action)
-  } else {
-    store.workflowActions.push(action)
-  }
-}
-
 async function commitExportJob(store: ApiStore, job: ExportJobRecord): Promise<void> {
   if (store.persistExportJob) {
     await store.persistExportJob(job)
   } else {
     store.exportJobs.set(job.id, job)
+  }
+}
+
+async function commitProjectWithMember(
+  store: ApiStore,
+  project: ProjectRecord,
+  member: ProjectMemberRecord,
+): Promise<void> {
+  if (store.persistProjectWithMember) {
+    await store.persistProjectWithMember(project, member)
+  } else {
+    store.projects.set(project.id, project)
+    store.projectMembers.set(memberKey(member.projectId, member.userId), member)
+  }
+}
+
+async function commitRevisionWithDrawing(
+  store: ApiStore,
+  revision: RevisionRecord,
+  drawing: DrawingRecord,
+): Promise<void> {
+  if (store.persistRevisionWithDrawing) {
+    await store.persistRevisionWithDrawing(revision, drawing)
+  } else {
+    store.revisions.set(revision.id, revision)
+    store.drawings.set(drawing.id, drawing)
+  }
+}
+
+async function commitContentWithRevision(
+  store: ApiStore,
+  content: ContentRecord,
+  revision: RevisionRecord,
+): Promise<void> {
+  if (store.persistContentWithRevision) {
+    await store.persistContentWithRevision(content, revision)
+  } else {
+    store.contents.set(content.revisionId, content)
+    store.revisions.set(revision.id, revision)
+  }
+}
+
+async function commitQuantitiesWithRevision(
+  store: ApiStore,
+  snapshot: QuantitySnapshotRecord,
+  revision: RevisionRecord,
+): Promise<void> {
+  if (store.persistQuantitiesWithRevision) {
+    await store.persistQuantitiesWithRevision(snapshot, revision)
+  } else {
+    store.quantities.set(snapshot.revisionId, snapshot)
+    store.revisions.set(revision.id, revision)
+  }
+}
+
+async function commitWorkflowActionWithRevision(
+  store: ApiStore,
+  action: WorkflowActionRecord,
+  revision: RevisionRecord,
+): Promise<void> {
+  if (store.persistWorkflowActionWithRevision) {
+    await store.persistWorkflowActionWithRevision(action, revision)
+  } else {
+    store.workflowActions.push(action)
+    store.revisions.set(revision.id, revision)
   }
 }
 
@@ -771,9 +797,8 @@ async function createProject(
     updatedBy: ctx.actorId,
     version: 1,
   }
-  // FK 制約（project_members.project_id → projects.id）のため project を先に永続化する。
-  await commitProject(store, project)
-  await commitProjectMember(store, {
+  // project と member は単一トランザクションとして永続化する（#68）。
+  await commitProjectWithMember(store, project, {
     projectId: project.id,
     userId: ctx.actorId,
     role: 'manager',
@@ -1064,9 +1089,8 @@ async function createRevision(
     updatedAt: createdAt,
     updatedBy: ctx.actorId,
   }
-  // FK 制約（drawings.active_revision_id → drawing_revisions.id）のため revision を先に永続化する。
-  await commitRevision(store, revision)
-  await commitDrawing(store, { ...drawing, activeRevisionId: revision.id })
+  // revision と drawing（activeRevisionId 更新）は単一トランザクションとして永続化する（#68）。
+  await commitRevisionWithDrawing(store, revision, { ...drawing, activeRevisionId: revision.id })
   appendAudit(store, ctx, {
     eventName: 'revision.created',
     projectId: drawing.projectId,
@@ -1170,8 +1194,8 @@ async function putRevisionContent(
     contentVersion: (previous?.contentVersion ?? 0) + 1,
     updatedAt: nowIso(),
   }
-  await commitContent(store, content)
-  await commitRevision(store, {
+  // content と revision（contentVersion/checksum 更新）は単一トランザクションとして永続化する（#68）。
+  await commitContentWithRevision(store, content, {
     ...latestRevision,
     contentChecksum: checksum,
     contentVersion: content.contentVersion,
@@ -1269,8 +1293,8 @@ async function putRevisionQuantities(
     updatedAt,
     updatedBy: ctx.actorId,
   }
-  await commitQuantities(store, snapshot)
-  await commitRevision(store, {
+  // snapshot と revision（updatedAt 更新）は単一トランザクションとして永続化する（#68）。
+  await commitQuantitiesWithRevision(store, snapshot, {
     ...revision,
     updatedAt,
     updatedBy: ctx.actorId,
@@ -1357,14 +1381,14 @@ async function postWorkflowAction(
     comment: optionalString(body.comment) ?? optionalString(body.returnReason) ?? optionalString(body.obsoleteReason),
     occurredAt,
   }
-  await commitWorkflowAction(store, workflowAction)
   const updatedRevision: RevisionRecord = {
     ...revision,
     status: nextStatus,
     updatedAt: occurredAt,
     updatedBy: ctx.actorId,
   }
-  await commitRevision(store, updatedRevision)
+  // workflowAction と revision（status 遷移）は単一トランザクションとして永続化する（#68）。
+  await commitWorkflowActionWithRevision(store, workflowAction, updatedRevision)
   appendAudit(store, ctx, {
     eventName: `workflow.${action}`,
     projectId: drawing.projectId,

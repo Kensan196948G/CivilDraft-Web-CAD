@@ -1002,6 +1002,32 @@ describe('#66 永続化フック配線（persistX wiring）', () => {
       persistAuditLog: vi.fn(async (l: unknown) => {
         base.auditLogs.push(l as never)
       }),
+      // -- 複合永続化フック（#68）: NeonApiStore の単一トランザクション契約を模倣 --
+      persistProjectWithMember: vi.fn(
+        async (
+          p: (typeof base.projects extends Map<string, infer V> ? V : never),
+          m: { projectId: string; userId: string },
+        ) => {
+          base.projects.set(p.id, p)
+          base.projectMembers.set(`${m.projectId}:${m.userId}`, m as never)
+        },
+      ),
+      persistRevisionWithDrawing: vi.fn(async (r: { id: string }, d: { id: string }) => {
+        base.revisions.set(r.id, r as never)
+        base.drawings.set(d.id, d as never)
+      }),
+      persistContentWithRevision: vi.fn(async (c: { revisionId: string }, r: { id: string }) => {
+        base.contents.set(c.revisionId, c as never)
+        base.revisions.set(r.id, r as never)
+      }),
+      persistQuantitiesWithRevision: vi.fn(async (s: { revisionId: string }, r: { id: string }) => {
+        base.quantities.set(s.revisionId, s as never)
+        base.revisions.set(r.id, r as never)
+      }),
+      persistWorkflowActionWithRevision: vi.fn(async (a: unknown, r: { id: string }) => {
+        base.workflowActions.push(a as never)
+        base.revisions.set(r.id, r as never)
+      }),
     })
     return store
   }
@@ -1014,23 +1040,22 @@ describe('#66 永続化フック配線（persistX wiring）', () => {
     const store = createHookedStore()
     const env = hookedEnv(store)
 
-    // Project 作成: persistProject + persistProjectMember（manager 自動付与）
+    // Project 作成: persistProjectWithMember（project + manager 自動付与を単一トランザクションで永続化・#68）
     const projectRes = await handleRequest(
       authedRequest('POST', '/api/v1/projects', { projectNumber: 'P-66', name: '配線検証案件' }),
       env,
     )
     expect(projectRes.status).toBe(201)
-    expect(store.persistProject).toHaveBeenCalledTimes(1)
-    expect(store.persistProjectMember).toHaveBeenCalledTimes(1)
+    expect(store.persistProjectWithMember).toHaveBeenCalledTimes(1)
     const projectId = (await json<ProjectBody>(projectRes)).project.id
 
-    // Project 更新: persistProject 2 回目
+    // Project 更新: 単体レコードのため persistProject（#66 個別フック）を引き続き使用
     const patchRes = await handleRequest(
       authedRequest('PATCH', `/api/v1/projects/${projectId}`, { expectedVersion: 1, name: '改名' }),
       env,
     )
     expect(patchRes.status).toBe(200)
-    expect(store.persistProject).toHaveBeenCalledTimes(2)
+    expect(store.persistProject).toHaveBeenCalledTimes(1)
 
     // Drawing 作成: persistDrawing
     const drawingRes = await handleRequest(
@@ -1044,7 +1069,7 @@ describe('#66 永続化フック配線（persistX wiring）', () => {
     expect(store.persistDrawing).toHaveBeenCalledTimes(1)
     const drawingId = (await json<DrawingBody>(drawingRes)).drawing.id
 
-    // Revision 作成: persistRevision + persistDrawing（activeRevisionId 更新）
+    // Revision 作成: persistRevisionWithDrawing（revision + drawing の activeRevisionId 更新を単一トランザクションで永続化・#68）
     const revisionRes = await handleRequest(
       authedRequest('POST', `/api/v1/drawings/${drawingId}/revisions`, {
         revisionNumber: 'A',
@@ -1053,11 +1078,11 @@ describe('#66 永続化フック配線（persistX wiring）', () => {
       env,
     )
     expect(revisionRes.status).toBe(201)
-    expect(store.persistRevision).toHaveBeenCalledTimes(1)
-    expect(store.persistDrawing).toHaveBeenCalledTimes(2)
+    expect(store.persistRevisionWithDrawing).toHaveBeenCalledTimes(1)
+    expect(store.persistDrawing).toHaveBeenCalledTimes(1)
     const revisionId = (await json<RevisionBody>(revisionRes)).revision.id
 
-    // Content 保存: persistContent + persistRevision（checksum/contentVersion 反映）
+    // Content 保存: persistContentWithRevision（content + revision の checksum/contentVersion 反映を単一トランザクションで永続化・#68）
     const contentRes = await handleRequest(
       authedRequest('PUT', `/api/v1/revisions/${revisionId}/content`, {
         schemaVersion: 1,
@@ -1066,19 +1091,17 @@ describe('#66 永続化フック配線（persistX wiring）', () => {
       env,
     )
     expect(contentRes.status).toBe(200)
-    expect(store.persistContent).toHaveBeenCalledTimes(1)
-    expect(store.persistRevision).toHaveBeenCalledTimes(2)
+    expect(store.persistContentWithRevision).toHaveBeenCalledTimes(1)
 
-    // 数量保存: persistQuantities + persistRevision
+    // 数量保存: persistQuantitiesWithRevision（snapshot + revision の updatedAt 反映を単一トランザクションで永続化・#68）
     const quantitiesRes = await handleRequest(
       authedRequest('PUT', `/api/v1/revisions/${revisionId}/quantities`, { items: [] }),
       env,
     )
     expect(quantitiesRes.status).toBe(200)
-    expect(store.persistQuantities).toHaveBeenCalledTimes(1)
-    expect(store.persistRevision).toHaveBeenCalledTimes(3)
+    expect(store.persistQuantitiesWithRevision).toHaveBeenCalledTimes(1)
 
-    // Workflow: persistWorkflowAction + persistRevision
+    // Workflow: persistWorkflowActionWithRevision（workflowAction + revision の status 遷移を単一トランザクションで永続化・#68）
     const workflowRes = await handleRequest(
       authedRequest('POST', `/api/v1/revisions/${revisionId}/workflow-actions`, {
         action: 'submitReview',
@@ -1087,8 +1110,7 @@ describe('#66 永続化フック配線（persistX wiring）', () => {
       env,
     )
     expect(workflowRes.status).toBe(200)
-    expect(store.persistWorkflowAction).toHaveBeenCalledTimes(1)
-    expect(store.persistRevision).toHaveBeenCalledTimes(4)
+    expect(store.persistWorkflowActionWithRevision).toHaveBeenCalledTimes(1)
 
     // Export: persistExportJob
     const exportRes = await handleRequest(
@@ -1104,11 +1126,18 @@ describe('#66 永続化フック配線（persistX wiring）', () => {
     expect(auditEvents).toContain('project.created')
     expect(auditEvents).toContain('revision.content.updated')
     expect(auditEvents).toContain('export.created')
+
+    // 契約（#68）: 複合フックを持つ経路は、対応する個別フックを経由しない（部分永続化の回避）
+    expect(store.persistProjectMember).not.toHaveBeenCalled()
+    expect(store.persistRevision).not.toHaveBeenCalled()
+    expect(store.persistContent).not.toHaveBeenCalled()
+    expect(store.persistQuantities).not.toHaveBeenCalled()
+    expect(store.persistWorkflowAction).not.toHaveBeenCalled()
   })
 
   it('persistX フックの失敗は 500 CD-SYS-003 になり、成功を偽装しない', async () => {
     const store = createHookedStore()
-    store.persistProject.mockRejectedValueOnce(new Error('neon write failed'))
+    store.persistProjectWithMember.mockRejectedValueOnce(new Error('neon write failed'))
     const res = await handleRequest(
       authedRequest('POST', '/api/v1/projects', { projectNumber: 'P-ERR', name: '失敗案件' }),
       hookedEnv(store),
