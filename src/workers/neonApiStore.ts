@@ -385,6 +385,14 @@ function buildQuantitiesQueries(
       `)
     }
   }
+  // #73: スナップショットに存在しない item は削除意図。`!= ALL('{}')` は
+  // 全行に一致するため、items が空配列（全件削除）でも正しく機能する。
+  // quantity_sources は ON DELETE CASCADE (0004) で追従削除される。
+  queries.push(txn`
+    DELETE FROM quantity_items
+    WHERE revision_id = ${snapshot.revisionId}
+      AND id != ALL(${snapshot.items.map((item) => item.id)})
+  `)
   return queries
 }
 

@@ -47,6 +47,13 @@ function makeSqlClient(
   }
 }
 
+// #73: makeSqlClient() の tag は vi.fn だが公開型は SqlClient のため、発行された
+// クエリの実引数（DELETE の WHERE 句パラメータなど）を検査するには実行時キャストが要る。
+type SqlMockCall = [TemplateStringsArray, ...unknown[]]
+function sqlCalls(sql: SqlClient): readonly SqlMockCall[] {
+  return (sql as unknown as { mock: { calls: SqlMockCall[] } }).mock.calls
+}
+
 const now = '2026-07-18T00:00:00.000Z'
 
 function projectRow(id = 'proj-1'): Record<string, unknown> {
@@ -599,10 +606,115 @@ describe('NeonApiStore', () => {
 
     await store.persistQuantities(snapshot)
 
-    // #68: snapshot UPSERT + item UPSERT + source UPSERT の 3 クエリが単一トランザクションで発行される
+    // #68/#73: snapshot UPSERT + item UPSERT + source UPSERT + 孤立item DELETE の 4 クエリが単一トランザクションで発行される
     expect(sql.transaction).toHaveBeenCalledTimes(1)
-    expect(sql).toHaveBeenCalledTimes(3)
+    expect(sql).toHaveBeenCalledTimes(4)
     expect(store.quantities.get('rev-1')?.quantityVersion).toBe(1)
+  })
+
+  it('persistQuantities issues a DELETE excluding the surviving item ids (#73 正常系)', async () => {
+    const sql = makeSqlClient()
+    const store = new NeonApiStore(sql)
+
+    const items: QuantityItemRecord[] = [
+      {
+        id: 'qty-1',
+        revisionId: 'rev-1',
+        groupKey: 'earthwork',
+        method: 'volume',
+        unit: 'm3',
+        rawValue: 10,
+        roundedValue: 10,
+        sources: [],
+        status: 'valid',
+      },
+      {
+        id: 'qty-2',
+        revisionId: 'rev-1',
+        groupKey: 'earthwork',
+        method: 'volume',
+        unit: 'm3',
+        rawValue: 20,
+        roundedValue: 20,
+        sources: [],
+        status: 'valid',
+      },
+    ]
+    const snapshot: QuantitySnapshotRecord = {
+      revisionId: 'rev-1',
+      items,
+      quantityVersion: 2,
+      updatedAt: now,
+      updatedBy: 'user@test',
+    }
+
+    await store.persistQuantities(snapshot)
+
+    // snapshot UPSERT + item UPSERT ×2 + DELETE = 4（このケースは source なし）
+    expect(sql).toHaveBeenCalledTimes(4)
+    const deleteCall = sqlCalls(sql).find((call) => call[0][0]?.includes('DELETE FROM quantity_items'))
+    expect(deleteCall).toBeDefined()
+    expect(deleteCall?.[0].join('')).toMatch(/WHERE revision_id =\s*AND id != ALL\(/)
+    expect(deleteCall?.[1]).toBe('rev-1')
+    expect(deleteCall?.[2]).toEqual(['qty-1', 'qty-2'])
+  })
+
+  it('persistQuantities excludes a removed item from the surviving id list (#73 削除意図の境界値)', async () => {
+    const sql = makeSqlClient()
+    const store = new NeonApiStore(sql)
+
+    // ユーザーが qty-2 を削除した結果、新しい snapshot には qty-1 のみが残る想定。
+    const survivingItem: QuantityItemRecord = {
+      id: 'qty-1',
+      revisionId: 'rev-1',
+      groupKey: 'earthwork',
+      method: 'volume',
+      unit: 'm3',
+      rawValue: 10,
+      roundedValue: 10,
+      sources: [{ geometryId: 'g-1', contributionRaw: 10 }],
+      status: 'valid',
+    }
+    const snapshot: QuantitySnapshotRecord = {
+      revisionId: 'rev-1',
+      items: [survivingItem],
+      quantityVersion: 3,
+      updatedAt: now,
+      updatedBy: 'user@test',
+    }
+
+    await store.persistQuantities(snapshot)
+
+    const deleteCall = sqlCalls(sql).find((call) => call[0][0]?.includes('DELETE FROM quantity_items'))
+    expect(deleteCall).toBeDefined()
+    expect(deleteCall?.[0].join('')).toMatch(/WHERE revision_id =\s*AND id != ALL\(/)
+    // #73 回帰: 削除された qty-2 は生存 id 配列に含まれてはならない（含まれると永続残留する = 元バグ）
+    expect(deleteCall?.[2]).toEqual(['qty-1'])
+    expect(deleteCall?.[2]).not.toContain('qty-2')
+  })
+
+  it('persistQuantities issues a full-deletion DELETE when items is empty (#73 空配列ケース)', async () => {
+    const sql = makeSqlClient()
+    const store = new NeonApiStore(sql)
+
+    const snapshot: QuantitySnapshotRecord = {
+      revisionId: 'rev-1',
+      items: [],
+      quantityVersion: 4,
+      updatedAt: now,
+      updatedBy: 'user@test',
+    }
+
+    await store.persistQuantities(snapshot)
+
+    // snapshot UPSERT + DELETE のみ（items が空のため item/source UPSERT は発行されない）
+    expect(sql).toHaveBeenCalledTimes(2)
+    const deleteCall = sqlCalls(sql).find((call) => call[0][0]?.includes('DELETE FROM quantity_items'))
+    expect(deleteCall).toBeDefined()
+    expect(deleteCall?.[0].join('')).toMatch(/WHERE revision_id =\s*AND id != ALL\(/)
+    // #73: 空配列は `!= ALL('{}')` として全行に一致し、全件削除として正しく機能する
+    expect(deleteCall?.[2]).toEqual([])
+    expect(store.quantities.get('rev-1')?.items).toEqual([])
   })
 
   it('persistWorkflowAction appends an action and updates the local list', async () => {
@@ -897,9 +1009,9 @@ describe('NeonApiStore', () => {
 
       await store.persistQuantitiesWithRevision(snapshot, revision)
 
-      // snapshot UPSERT + item UPSERT + source UPSERT + revision UPSERT = 4 クエリ
+      // snapshot UPSERT + item UPSERT + source UPSERT + 孤立item DELETE(#73) + revision UPSERT = 5 クエリ
       expect(sql.transaction).toHaveBeenCalledTimes(1)
-      expect(sql).toHaveBeenCalledTimes(4)
+      expect(sql).toHaveBeenCalledTimes(5)
       expect(store.quantities.get('rev-1')?.quantityVersion).toBe(1)
       expect(store.revisions.get('rev-1')?.changeSummary).toBe('数量更新')
     })
