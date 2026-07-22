@@ -588,6 +588,11 @@ timeline
 | 2026-07-18 | 🚀 **本番デプロイ実行**（人間承認）: `civildraft-web-cad.mirai-dx-platform.com` へWorkers + Neon本番接続で公開。Neon `civildraft-production`（pg17）にmigration 0001/0002適用済み。共有保存（PUT content/quantities）はmigration 0003（PR #65）本番適用までfail-closed（503）。read-only疎通確認: SPA=HTTP 200、API GET（無認証）=HTTP 401（fail-closedの503ではなくAccess層の通常拒否）。Cloudflare Access Secret（TEAM_DOMAIN/AUD）の本番設定はWorker bindings一覧で未確認のため人間確認待ち |
 | 2026-07-21 | 🎉 **v0.1.0 リリース**（PR #67・人間承認Y）: Issue #66恒久対応としてpersistX全9ハンドラをNeon永続化へ配線、監査ログ永続化（flush失敗は500 fail-visible）、fail-closed暫定措置撤去。配線検証で発覚した既存バグ4件（ID型ドリフト uuid vs 接頭辞文字列→migration 0004/ADR-0015、bigint文字列化による楽観ロック不整合、quantity sources復元、jsonb配列直列化）を修正。migration 0003→0004を本番Neon mainへ適用（実データ0件・前方互換）、Worker再デプロイ（Version 269aebbe）。スモーク: SPA=200/API無認証=401/API JWT有り=503（Access未構成fail-closed・期待値）。`wrangler secret list`（名前照会）でAccess Secret未登録を確定→登録（人間実施）までAPIは認証層で安全に停止。Neon実接続roundtripテスト・DROP CONSTRAINT waiver付きmigration validator追加。残: Access設定（人間）・#68トランザクション化 |
 | 2026-07-18 | 📊 テスト105ファイル・1191テストpass、typecheck/lint/build green |
+| 2026-07-21 | 📚 PR #69: v0.1.0リリース結果をstate.json/READMEへ文書同期 |
+| 2026-07-21 | ✨ PR #70: アダプティブグリッド間隔を導入し、CAD編集画面の初期表示からグリッドを可視化（本番デプロイ済み） |
+| 2026-07-21 | 🎨 PR #71: グリッド線色を背景と同化しない中間グレー+不透明度階調へ変更（本番デプロイ済み、Worker Version `697e6051`） |
+| 2026-07-22 | 🔒 Issue #68恒久対応（PR #72）: persistX複合書き込み5種（project+member、revision+drawing、content+revision、quantities+revision、workflowAction+revision）を`@neondatabase/serverless`の単一トランザクションへ統合し、部分永続化リスクを解消。実装過程で発見した別件2件はスコープ外としてIssue #73（quantity_items削除同期漏れ・P2）・#74（persistExportJobのobject_provider固定・P3）へ分離起票。CI4項目全pass・CodeRabbitレビュー済み（指摘1件はIssue #73で追跡中）、マージ判定待ち |
+| 2026-07-22 | 📊 テスト105ファイル・1209テストpass（Neon実接続が必要な結合テスト1ファイル2件はCI環境上NOT RUN・既存の制約）、typecheck/lint/build green |
 
 ### 🛠️ 次に閉じるべき実務ワークフロー
 
@@ -626,6 +631,10 @@ timeline
 | [#64](../../pull/64) | 外部評価（2026-07-18）精査結果反映（state.jsonのみ・Issue #58-#63起票） | ✅ マージ済み（2026-07-18・admin bypass） |
 | [#65](../../pull/65) | 共有保存fail-closed化・ADR-0014（R2任意化）・Neon migration 0003 | ✅ マージ済み（2026-07-18・人間承認Y） |
 | [#67](../../pull/67) | **v0.1.0**: persistX配線・監査ログ永続化・migration 0004（ID text整合・ADR-0015）・fail-closed撤去（Issue #66恒久対応） | ✅ マージ済み（2026-07-21・人間承認Y）→ migration 0003/0004本番適用・本番デプロイ・[Release v0.1.0](../../releases/tag/v0.1.0) |
+| [#69](../../pull/69) | v0.1.0リリース結果の文書同期（state.json/README） | ✅ マージ済み（2026-07-21） |
+| [#70](../../pull/70) | アダプティブグリッド間隔でCAD編集初期表示からグリッドを可視化 | ✅ マージ済み（2026-07-21・本番デプロイ済み） |
+| [#71](../../pull/71) | グリッド線色を背景と同化しない中間グレー+不透明度階調へ変更 | ✅ マージ済み（2026-07-21・本番デプロイ済み、Worker Version `697e6051`） |
+| [#72](../../pull/72) | Issue #68恒久対応: persistX複数レコード書き込みを単一トランザクション化 | 🟡 CI全pass・CodeRabbitレビュー済み・レビュー可能（マージ判定待ち） |
 
 > マージ済みPRは人間の明示承認（選択式Y判断）を得てマージ済み。レビュー承認1件必須はPR作成者の自己承認不可のため、マージ実行時は enforce_admins を一時解除し完了後に即復元した。
 
@@ -722,7 +731,7 @@ flowchart LR
 
 `main`ブランチはPR必須・レビュー承認1件必須・quality/securityの成功必須（`strict`のためブランチ最新化も要求）・force push禁止・削除禁止で保護されています。e2e/complianceは必須チェック未設定のため、PRマージ前に人間が個別にgreenを確認する運用でカバーしています。
 
-> 2026-07-18時点のローカル検証では、`npm run test -- --reporter=dot` が105ファイル・1191テストpassで完走しています。NAS/Windows環境ではjsdomテストの起動コストが大きいため、Vitestは `node`（domain/shared/workers/cloud client）と `jsdom`（app/infrastructure/integration）に分離しています。
+> 2026-07-22時点のローカル検証では、`npm run test -- --reporter=dot` が105ファイル・1209テストpass（Neon実接続が必要な結合テスト1ファイル2件はskip）で完走しています。NAS/Windows環境ではjsdomテストの起動コストが大きいため、Vitestは `node`（domain/shared/workers/cloud client）と `jsdom`（app/infrastructure/integration）に分離しています。
 
 ---
 
@@ -891,7 +900,7 @@ flowchart TD
 - CivilDraft独自ファイルの拡張子と圧縮方式
 - 対応するDXFバージョンと要素
 - 日本語PDFフォントの方式と配布条件
-- 共有版の正式な認証、本番Neon接続、（任意）R2/Object Storage署名付きURL発行
+- ~~共有版の正式な認証、本番Neon接続~~ → ✅ v0.1.0（PR #67）で本番Neon接続・persistX全配線完了。Cloudflare Access Secret登録（人間実施）待ちでAPI層はfail-closed中。ADR-0014でR2は必須構成から任意拡張点へ格下げ済み、署名付きURL発行は必要になった時点で着手
 - 数量の標準丸め規則と工種・規格マスター
 
 未決事項は「とりあえず実装」で埋めず、性能・運用・権利・土木実務の確認を経てADRで決定します。
