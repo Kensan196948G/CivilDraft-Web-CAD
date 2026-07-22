@@ -10,7 +10,7 @@
 | リポジトリ | `CivilDraft-Web-CAD` |
 | 既存技術資産 | [`Civil-Draw`](https://github.com/Kensan196948G/Civil-Draw) |
 | 開発基盤 | Claude Code on Linux＋GitHub＋Cloudflare＋Neon |
-| 現在の位置付け | **土木特化Web CADの技術プレビュー（v0.1.1）**。ブラウザ内CADコアと土木ドメイン部品は拡充中。Workers APIはP0縦線（Project作成/更新→Drawing作成/更新→Revision作成→Content/数量保存→照査/承認→Export作成→Audit検索）を実装し、本番稼働中（`civildraft-web-cad.mirai-dx-platform.com`）。2026-07-21のv0.1.0でpersistX全9ハンドラのNeon永続化配線・監査ログ永続化が本番反映され、Neon migration 0001〜0004適用済み（0003=Neon直接格納・ADR-0014、0004=ID列text整合・ADR-0015）、書き込み系fail-closed暫定措置は撤去済み。2026-07-22のv0.1.1（PR #72・Issue #68恒久対応）でpersistX複合書き込み5種を単一トランザクションへ統合し本番反映済み。Issue #73恒久対応（PR #75・quantity_items孤立item解消）はmainマージ済み・次回デプロイ対象。Cloudflare Access Application設定とAccess Secret登録（人間実施）が完了するまでAPIは認証構成fail-closed（401/503）で安全に停止 |
+| 現在の位置付け | **土木特化Web CADの技術プレビュー（v0.1.2）**。ブラウザ内CADコアと土木ドメイン部品は拡充中。Workers APIはP0縦線（Project作成/更新→Drawing作成/更新→Revision作成→Content/数量保存→照査/承認→Export作成→Audit検索）を実装し、本番稼働中（`civildraft-web-cad.mirai-dx-platform.com`）。2026-07-21のv0.1.0でpersistX全9ハンドラのNeon永続化配線・監査ログ永続化が本番反映され、Neon migration 0001〜0004適用済み（0003=Neon直接格納・ADR-0014、0004=ID列text整合・ADR-0015）、書き込み系fail-closed暫定措置は撤去済み。2026-07-22のv0.1.1（PR #72・Issue #68恒久対応）でpersistX複合書き込み5種を単一トランザクションへ統合し本番反映済み。2026-07-22のv0.1.2（PR #75・Issue #73恒久対応）でquantity_items孤立item解消も本番反映済み。Cloudflare Access Application設定とAccess Secret登録（人間実施）が完了するまでAPIは認証構成fail-closed（401/503）で安全に停止 |
 
 ---
 
@@ -593,8 +593,9 @@ timeline
 | 2026-07-21 | 🎨 PR #71: グリッド線色を背景と同化しない中間グレー+不透明度階調へ変更（本番デプロイ済み、Worker Version `697e6051`） |
 | 2026-07-22 | 🔒 Issue #68恒久対応（PR #72）: persistX複合書き込み5種（project+member、revision+drawing、content+revision、quantities+revision、workflowAction+revision）を`@neondatabase/serverless`の単一トランザクションへ統合し、部分永続化リスクを解消。実装過程で発見した別件2件はスコープ外としてIssue #73（quantity_items削除同期漏れ・P2）・#74（persistExportJobのobject_provider固定・P3）へ分離起票。CI4項目全pass・CodeRabbitレビュー済み（指摘1件はIssue #73で追跡中）。**v0.1.1として人間承認Y取得・本番デプロイ済み**（[Release v0.1.1](../../releases/tag/v0.1.1)） |
 | 2026-07-22 | 📊 テスト105ファイル・1209テストpass（Neon実接続が必要な結合テスト1ファイル2件はCI環境上NOT RUN・既存の制約）、typecheck/lint/build green |
-| 2026-07-22 | 🐛 Issue #73恒久対応（PR #75）: PR #72の実装過程で発見した`buildQuantitiesQueries`のDELETE文欠落（quantity_items部分更新PUTでの孤立item残留）を解消。新スナップショットのid集合に含まれない行をrevision_id一致条件で削除、既存UPSERT群と同一トランザクションでアトミック実行。回帰テスト3件追加（正常系・削除境界値・全件削除）。lint/typecheck/build green、テスト105ファイル・**1212**テストpass。人間承認Yでmainへsquash-merge済み・次回デプロイ対象 |
+| 2026-07-22 | 🐛 Issue #73恒久対応（PR #75）: PR #72の実装過程で発見した`buildQuantitiesQueries`のDELETE文欠落（quantity_items部分更新PUTでの孤立item残留）を解消。新スナップショットのid集合に含まれない行をrevision_id一致条件で削除、既存UPSERT群と同一トランザクションでアトミック実行。回帰テスト3件追加（正常系・削除境界値・全件削除）。lint/typecheck/build green、テスト105ファイル・**1212**テストpass。人間承認Yでmainへsquash-merge済み。**v0.1.2として本番デプロイ済み**（[Release v0.1.2](../../releases/tag/v0.1.2)） |
 | 2026-07-22 | 📚 PR #76: state.json実態同期（PR #72マージ・v0.1.1本番デプロイ・Issue #68クローズの反映）。人間承認Yでmainへsquash-merge済み |
+| 2026-07-22 | 🚀 v0.1.2 本番デプロイ: main（`ce5a93f`、PR #75/#76含む）をユーザー明示指示によりCTOがwrangler deployで自律実行（Worker Version `39751487`）。スモークテスト（SPA 200・無認証API 401 CD-AUTH-001・Secret残存）全PASS（[Release v0.1.2](../../releases/tag/v0.1.2)） |
 
 ### 🛠️ 次に閉じるべき実務ワークフロー
 
@@ -637,7 +638,7 @@ timeline
 | [#70](../../pull/70) | アダプティブグリッド間隔でCAD編集初期表示からグリッドを可視化 | ✅ マージ済み（2026-07-21・本番デプロイ済み） |
 | [#71](../../pull/71) | グリッド線色を背景と同化しない中間グレー+不透明度階調へ変更 | ✅ マージ済み（2026-07-21・本番デプロイ済み、Worker Version `697e6051`） |
 | [#72](../../pull/72) | **v0.1.1**: Issue #68恒久対応: persistX複数レコード書き込みを単一トランザクション化 | ✅ マージ済み（2026-07-22・人間承認Y）→ 本番デプロイ済み・[Release v0.1.1](../../releases/tag/v0.1.1) |
-| [#75](../../pull/75) | Issue #73恒久対応: quantity_items部分更新PUTでの孤立item残留を解消（`buildQuantitiesQueries`にDELETE文追加） | ✅ マージ済み（2026-07-22・人間承認Y）→ mainマージ済み・次回デプロイ対象 |
+| [#75](../../pull/75) | Issue #73恒久対応: quantity_items部分更新PUTでの孤立item残留を解消（`buildQuantitiesQueries`にDELETE文追加） | ✅ マージ済み（2026-07-22・人間承認Y）→ 本番デプロイ済み・[Release v0.1.2](../../releases/tag/v0.1.2) |
 | [#76](../../pull/76) | state.json実態同期（PR #72マージ・v0.1.1本番デプロイ・Issue #68クローズの反映、コード変更なし） | ✅ マージ済み（2026-07-22・人間承認Y） |
 
 > マージ済みPRは人間の明示承認（選択式Y判断）を得てマージ済み。レビュー承認1件必須はPR作成者の自己承認不可のため、マージ実行時は enforce_admins を一時解除し完了後に即復元した。
