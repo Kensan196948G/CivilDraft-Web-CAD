@@ -347,4 +347,21 @@ describe('CadEditorPage レイヤーパネル', () => {
     expect(store.getState().layers.some((l) => l.name === '測点')).toBe(true)
     expect(store.getState().layers.some((l) => l.name === '地形')).toBe(true)
   })
+
+  it('図面健全性チェックを実行し、問題を表示する（Issue #59）', async () => {
+    const store = createEditorStore()
+    const cloudApiClient: CloudSaveClient = { saveDraft: vi.fn(), getRevisionContent: vi.fn() }
+    renderPage(store, cloudApiClient)
+
+    await userEvent.click(screen.getByRole('button', { name: '図面健全性' }))
+    expect(screen.getByText('✅ 問題なし')).toBeInTheDocument()
+
+    // 用紙（既定 A3 landscape）の外に完全に配置された図形を追加して再チェック
+    const farLine = { ...line('g-far'), start: { x: 999999, y: 0 }, end: { x: 1000000, y: 10 } }
+    store.getState().addGeometries([farLine])
+    await userEvent.click(screen.getByRole('button', { name: '再チェック' }))
+    expect(
+      screen.getByText(/用紙（A3・landscape）の外に配置された図形が 1 件あります/),
+    ).toBeInTheDocument()
+  })
 })

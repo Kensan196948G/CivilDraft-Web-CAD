@@ -24,6 +24,7 @@ import { DEFAULT_CONSTRUCTION_STEPS } from '@/domain/construction-steps'
 import type { ToolType } from '@/domain/tools/draftGeometry'
 import { EDITING_TOOLS, PARAM_EDITING_TOOLS, SELECTION_REQUIRED_TOOLS } from '@/domain/tools/editGeometry'
 import { LAYER_TEMPLATES } from '@/domain/catalog/layerTemplates'
+import { checkDrawingHealth, type DrawingHealthResult } from '@/domain/validation/drawingHealth'
 import { defaultCreationContext } from '@/domain/geometry/geometryFactory'
 import type { AutosaveStore } from '@/infrastructure/autosave/autosaveStore'
 import { scheduleAutosave } from '@/infrastructure/autosave/autosaveScheduler'
@@ -688,6 +689,8 @@ export function CadEditorPage({
   const [lastCloudRevisionId, setLastCloudRevisionId] = useState<string | null>(null)
   const [editNotice, setEditNotice] = useState<string | null>(null)
   const [selectedTemplateId, setSelectedTemplateId] = useState<string>(LAYER_TEMPLATES[0]?.id ?? '')
+  const [healthOpen, setHealthOpen] = useState(false)
+  const [healthResult, setHealthResult] = useState<DrawingHealthResult | null>(null)
 
   const [textInputValue, setTextInputValue] = useState('')
   const [textFontSize, setTextFontSize] = useState(14)
@@ -851,6 +854,15 @@ export function CadEditorPage({
     }
   }
 
+  /** 図面健全性チェックを実行して結果パネルを開く（Issue #59）。 */
+  const runHealthCheck = () => {
+    setHealthResult(checkDrawingHealth({ geometries, layers }))
+    setHealthOpen(true)
+  }
+
+  const healthSeverityColor = (severity: 'error' | 'warning' | 'info') =>
+    severity === 'error' ? '#B3261E' : severity === 'warning' ? '#A15C00' : 'var(--muted)'
+
   const runCloudReload = async () => {
     if (lastCloudRevisionId === null) {
       setCloudSaveStatus({ ok: false, text: '共有保存後に再読込できます' })
@@ -955,10 +967,60 @@ export function CadEditorPage({
         >
           共有再読込
         </button>
+        <button style={ghostButtonStyle} onClick={runHealthCheck}>
+          図面健全性
+        </button>
         <button style={primaryButtonStyle} onClick={() => onNavigate('print')}>
           出力
         </button>
       </header>
+
+      {healthOpen && (
+        <div
+          style={{
+            padding: '10px 18px',
+            borderBottom: '1px solid var(--line2)',
+            background: 'var(--surface)',
+            display: 'flex',
+            flexDirection: 'column',
+            gap: 6,
+          }}
+        >
+          <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
+            <span style={{ fontWeight: 600, fontSize: 13, color: 'var(--ink)' }}>図面健全性チェック</span>
+            {healthResult !== null && (
+              <span style={{ fontSize: 12, color: 'var(--muted)' }}>
+                図形 {healthResult.geometryCount} 件・レイヤー {healthResult.layerCount} 件
+              </span>
+            )}
+            <button style={ghostButtonStyle} onClick={runHealthCheck}>
+              再チェック
+            </button>
+            <button style={ghostButtonStyle} onClick={() => setHealthOpen(false)}>
+              閉じる
+            </button>
+          </div>
+          {healthResult === null ? (
+            <div style={{ fontSize: 12.5, color: 'var(--muted)' }}>
+              「再チェック」を押すと図面の問題（用紙外図形・不明レイヤー等）を検出します。
+            </div>
+          ) : healthResult.healthy ? (
+            <div role="status" style={{ fontSize: 12.5, color: '#1F8255', fontWeight: 600 }}>
+              ✅ 問題なし
+            </div>
+          ) : (
+            healthResult.issues.map((issue) => (
+              <div
+                key={issue.code}
+                role="status"
+                style={{ fontSize: 12.5, color: healthSeverityColor(issue.severity) }}
+              >
+                {issue.severity === 'error' ? '🚨' : issue.severity === 'warning' ? '⚠️' : 'ℹ️'} {issue.message}
+              </div>
+            ))
+          )}
+        </div>
+      )}
 
       <div style={bodyRowStyle}>
         <aside style={toolPanelStyle}>
