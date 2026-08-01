@@ -116,11 +116,18 @@ export interface WorkflowActionRecord {
 export type ExportFormat = 'pdf' | 'dxf' | 'csv' | 'json'
 export type ExportStatus = 'pending' | 'processing' | 'completed' | 'failed'
 
+// 出力成果物の永続化先。現状の export 実装は成果物をサーバ側で保持せず
+// （ブラウザ側生成・メタデータのみ Neon）、R2 は実在しないため、
+// 正式値は 'unassigned'（実体未割当）とする（ADR-0014 / Issue #74）。
+// 実体格納を導入した時点で 'neon' / 'r2' へ切り替える。
+export type ExportObjectProvider = 'unassigned' | 'neon' | 'r2'
+
 export interface ExportJobRecord {
   readonly id: string
   readonly revisionId: string
   readonly format: ExportFormat
   readonly status: ExportStatus
+  readonly objectProvider: ExportObjectProvider
   readonly objectKey?: string
   readonly byteSize?: number
   readonly contentChecksum?: string

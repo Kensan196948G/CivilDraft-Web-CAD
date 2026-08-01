@@ -31,3 +31,11 @@ Issue #36（Cloudflare Workers + Neon永続化アダプタの実装）着手時�
 - 本番Neon mainへのmigration `0003`適用、および対応するWorker再デプロイの実行は、人間承認後に実施する。本ADRはコード・migrationの方針決定を記録するものであり、本番適用の実行そのものを承認するものではない。
 - fail-closed措置（`isPersistedWriteRoute`）は、(a) `0003`本番適用（スキーマドリフト解消）と (b) `neonApiStore.ts`のpersistX系メソッドを`index.ts`の各書き込みハンドラへ配線する実装の**両方**が完了して初めて撤去可能な暫定コードであり、恒久的な仕様ではない。`0003`適用のみでは、persistXが未配線のままサイレントデータ消失が再発するため撤去できない。撤去判断は上記(a)(b)の変更セットが揃った時点で行う。
 - ADR-0006（デプロイ標準スタック、Status: Proposed）とは独立した決定だが、同スタック上での永続化方式を具体化するものとして位置づけられる。
+
+## 追記（2026-08-01、Issue #74）
+
+`drawing_contents.storage_provider` は内容実体をNeonへ直接格納するため `'neon'` が正確だが、`export_jobs.object_provider` は export 成果物の実体をサーバが保存しない現状（ブラウザ側生成・メタデータのみNeon）を反映し、正式値を `'unassigned'`（実体未割当）へ統一した。
+
+- `ExportJobRecord` に `objectProvider: 'unassigned' | 'neon' | 'r2'` を明示フィールドとして追加し、`persistExportJob` はハードコードではなくレコードの値を書き込む（実体格納導入時にレコード単位で `'neon'` / `'r2'` を指定可能）。
+- `createExportJob` は成果物をブラウザ側で生成しサーバはメタデータのみ保持するため、`objectProvider: 'unassigned'` を設定する（署名付きURLは発行しない）。
+- migration `0005` で `export_jobs.object_provider` の既定値を `'r2'` → `'unassigned'` へ変更し、既存の `'r2'` 記録を補正する。

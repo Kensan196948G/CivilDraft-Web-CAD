@@ -1431,6 +1431,9 @@ async function createExportJob(
     revisionId,
     format,
     status: 'completed',
+    // 出力成果物はブラウザ側で生成され、サーバはメタデータのみ保持する。
+    // 実体はどのストレージにも保存されていないため 'unassigned'（実体未割当）とする（Issue #74）。
+    objectProvider: 'unassigned',
     objectKey,
     byteSize: content.byteSize,
     contentChecksum: content.contentChecksum,
@@ -1450,7 +1453,7 @@ async function createExportJob(
       format,
       status: exportJob.status,
       objectKey,
-      note: 'R2本番接続前のAPI契約。署名付きURLは未発行',
+      note: '成果物はクライアント生成・実体は未保存（objectProvider=unassigned）。メタデータのみNeonに格納（ADR-0014）',
     },
   })
   return jsonResponse(201, { exportJob }, ctx.correlationId)

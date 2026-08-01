@@ -105,6 +105,7 @@ interface ExportJobBody {
     readonly revisionId: string
     readonly format: string
     readonly status: string
+    readonly objectProvider: string
     readonly objectKey?: string
     readonly contentChecksum?: string
   }
@@ -347,6 +348,7 @@ describe('§25.2 ルーティング', () => {
       revisionId: revisionBody.revision.id,
       format: 'pdf',
       status: 'completed',
+      objectProvider: 'unassigned',
       contentChecksum: getContentBody.content.contentChecksum,
     })
     expect(exportBody.exportJob.objectKey).toMatch(/\.pdf$/)

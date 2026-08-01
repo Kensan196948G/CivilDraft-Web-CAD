@@ -135,6 +135,7 @@ const exportJob: ExportJobRecord = {
   revisionId: revision.id,
   format: 'pdf',
   status: 'completed',
+  objectProvider: 'unassigned',
   objectKey: `exports/${project.id}/${drawing.id}/${revision.id}/it.pdf`,
   byteSize: 96,
   contentChecksum: 'sha256:it-checksum',
@@ -247,6 +248,7 @@ describe.skipIf(!connection)('Neon 永続化 roundtrip（実接続・#66）', ()
       expect(reloadedExport).toMatchObject({
         format: 'pdf',
         status: 'completed',
+        objectProvider: 'unassigned',
         objectKey: exportJob.objectKey,
         byteSize: exportJob.byteSize,
       })
