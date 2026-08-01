@@ -38,6 +38,8 @@ CivilDraft は 2026-07-22 に v0.1.2 として本番公開済み（civildraft-we
 | Object Storage | PUT/GET失敗、署名URL失敗、容量 | Provider metrics | ☐ |
 | アプリ監査 | 保存、承認、出力、認証、設定変更 | `audit_logs` ハッシュチェーン永続化 + `GET /api/v1/audit-logs/verify` による改ざん検知（Issue #61） | ☐（本番デプロイ後に確認） |
 | CI/CD | quality/e2e/security/compliance失敗 | GitHub branch protection + required checks | ☐ |
+| 本番合成監視 | SPA 200 / API 401 CD-AUTH-001 / セキュリティヘッダー | GitHub Actions `health-check.yml`（30分毎）+ 失敗時 Issue アラート | ✅ 導入済み（2026-08-01） |
+| DB バックアップ | 週次バックアップブランチ作成 | GitHub Actions `backup.yml`（毎週日曜 00:30 JST）+ Artifacts 90日 | ✅ 導入済み（2026-08-01） |
 
 ## 3. アラート基準案
 
@@ -47,6 +49,19 @@ CivilDraft は 2026-07-22 に v0.1.2 として本番公開済み（civildraft-we
 | High | Workers 5xx率が継続、DB接続エラー、出力ジョブ失敗多発 | 直近リリース差分確認、rollback判断 |
 | Medium | PDF/DXF/CSV出力の一部失敗、性能劣化、CI赤転 | Issue化、前進修正 |
 | Low | UI表示崩れ、文書差分、警告ログ増加 | Backlog化 |
+
+## 3.1 SLO 草案（2026-08-01・合意前の内部目安）
+
+| 指標 | 目標 | 計測 | アラート条件 |
+| --- | --- | --- | --- |
+| 可用性（SPA 配信） | 99.5%（月間） | 合成監視（30分毎）+ Workers Analytics | 連続2回失敗 |
+| API 5xx 率 | < 1%（月間） | Workers Analytics（GraphQL） | 直近1時間で 5xx > 1% |
+| 認証 fail-closed 正常性 | 100%（無認証リクエストは 401/503 を返す） | 合成監視（API error.code 検証） | 401 以外の応答 |
+| セキュリティヘッダー | 100%（全応答に付与） | 合成監視 | ヘッダー欠落 |
+| 監査ログ書込失敗 | 0 件 | API 500（監査flush失敗）・hash chain verify | 失敗検知時は Critical |
+| バックアップ | 週1回以上成功 | `backup.yml` 実行結果 | 2週連続失敗 |
+
+> SLO/SLA の対外公開・通知先の確定は人間決裁事項（§5）。上記は内部運用の目安。
 
 ## 4. ログ方針
 
