@@ -118,4 +118,53 @@ describe('AuditLogPage', () => {
     expect(screen.getByText(/監査チェーン検証: 正常（1件ハッシュ連結・検査1件）/)).toBeInTheDocument()
     expect(screen.queryByText('DWG-014を保存')).not.toBeInTheDocument()
   })
+
+  it('フィルタ適用とカーソルページングが動作する（Issue #85）', async () => {
+    const fetchMock = vi.fn((input: string | URL | Request) => {
+      const url = String(input)
+      if (url.includes('/api/v1/audit-logs/verify')) {
+        return Promise.resolve(
+          new Response(
+            JSON.stringify({
+              auditChain: { valid: true, checkedCount: 1, hashedCount: 1, legacyCount: 0 },
+            }),
+            { status: 200, headers: { 'Content-Type': 'application/json' } },
+          ),
+        )
+      }
+      if (url.includes('/api/v1/audit-logs')) {
+        const isSecondPage = url.includes('cursor=c1')
+        return Promise.resolve(
+          new Response(
+            JSON.stringify({
+              auditLogs: [
+                {
+                  id: isSecondPage ? 'audit-2' : 'audit-1',
+                  occurredAt: '2026-08-01T00:00:00.000Z',
+                  eventName: 'drawing.created',
+                  actorId: 'engineer@example.test',
+                  result: 'success',
+                  correlationId: 'cid-1',
+                },
+              ],
+              total: 2,
+              ...(isSecondPage ? {} : { nextCursor: 'c1' }),
+            }),
+            { status: 200, headers: { 'Content-Type': 'application/json' } },
+          ),
+        )
+      }
+      return Promise.resolve(new Response('{}', { status: 404 }))
+    })
+    vi.stubGlobal('fetch', fetchMock)
+
+    render(<AuditLogPage />)
+    await waitFor(() => expect(screen.getByText('drawing.created')).toBeInTheDocument())
+    expect(screen.getByText(/フィルタ該当 2 件・表示 1 件/)).toBeInTheDocument()
+
+    await userEvent.click(screen.getByRole('button', { name: 'さらに古い記録 →' }))
+    await waitFor(() =>
+      expect(fetchMock).toHaveBeenCalledWith(expect.stringContaining('cursor=c1'), expect.anything()),
+    )
+  })
 })

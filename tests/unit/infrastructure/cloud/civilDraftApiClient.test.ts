@@ -139,9 +139,34 @@ describe('CivilDraftApiClient', () => {
     const result = await client.listAuditLogs({ limit: 100 })
     expect(result.ok).toBe(true)
     if (!result.ok) return
-    expect(result.value.length).toBeGreaterThan(0)
-    expect(result.value.some((log) => log.eventName === 'project.created')).toBe(true)
-    expect(result.value[0]?.actorId).toBe('engineer@example.test')
+    expect(result.value.auditLogs.length).toBeGreaterThan(0)
+    expect(result.value.auditLogs.some((log) => log.eventName === 'project.created')).toBe(true)
+    expect(result.value.auditLogs[0]?.actorId).toBe('engineer@example.test')
+    expect(result.value.total).toBeGreaterThan(0)
+  })
+
+  it('listAuditLogs はフィルタとカーソルページングに対応する（Issue #85）', async () => {
+    const env: WorkerEnv = { CIVILDRAFT_API_MODE: 'memory', CIVILDRAFT_DEV_STORE: createMemoryStore() }
+    const client = makeClient(env)
+    await client.createProject({ projectNumber: 'P-AUDIT-1', name: '監査ページング1' })
+    await client.createProject({ projectNumber: 'P-AUDIT-2', name: '監査ページング2' })
+
+    const first = await client.listAuditLogs({ eventName: 'project.created', limit: 1 })
+    expect(first.ok).toBe(true)
+    if (!first.ok) return
+    expect(first.value.total).toBe(2)
+    expect(first.value.auditLogs).toHaveLength(1)
+    expect(first.value.nextCursor).toBeDefined()
+
+    const second = await client.listAuditLogs({
+      eventName: 'project.created',
+      limit: 1,
+      cursor: first.value.nextCursor,
+    })
+    expect(second.ok).toBe(true)
+    if (!second.ok) return
+    expect(second.value.auditLogs).toHaveLength(1)
+    expect(second.value.nextCursor).toBeUndefined()
   })
 
   it('verifyAuditChain でチェーン検証結果を取得できる（Issue #61）', async () => {
