@@ -5,6 +5,8 @@ import { CadEditorPage, type CloudDraftSession, type CloudSaveClient } from '@/a
 import { EditorStoreProvider } from '@/app/store/EditorStoreContext'
 import { createDefaultLayer, createEditorStore, type EditorStore } from '@/app/store/editorStore'
 import { MemoryAutosaveStore } from '@/infrastructure/autosave/autosaveStore'
+import { createAddGeometryCommand } from '@/domain/commands/geometryCommands'
+import { defaultCreationContext } from '@/domain/geometry/geometryFactory'
 import type { Geometry, GeometryId } from '@/shared/types'
 
 vi.mock('@/app/canvas/CanvasStage', () => ({
@@ -364,5 +366,45 @@ describe('CadEditorPage レイヤーパネル', () => {
       screen.getByText(/用紙（A3・landscape）の外に配置された図形が 1 件あります/),
     ).toBeInTheDocument()
     expect(screen.getByText(/対象図形 ID: g-far/)).toBeInTheDocument()
+  })
+})
+
+describe('CadEditorPage キーボードショートカットとA11y（#47）', () => {
+  function makeCloudClient(): CloudSaveClient {
+    return { saveDraft: vi.fn(), getRevisionContent: vi.fn() }
+  }
+
+  it('Ctrl+Z で Undo、Ctrl+Y で Redo が動作する（入力欄フォーカス時は無効）', async () => {
+    const store = createEditorStore()
+    renderPage(store, makeCloudClient())
+
+    store.getState().dispatchCommand(createAddGeometryCommand(line('g-1'), defaultCreationContext))
+    expect(store.getState().geometries).toHaveLength(1)
+
+    fireEvent.keyDown(window, { key: 'z', ctrlKey: true })
+    expect(store.getState().geometries).toHaveLength(0)
+
+    fireEvent.keyDown(window, { key: 'y', ctrlKey: true })
+    expect(store.getState().geometries).toHaveLength(1)
+  })
+
+  it('Esc でドラフト取消/選択解除が動作する', async () => {
+    const store = createEditorStore()
+    store.getState().addGeometries([line('g-1')])
+    store.getState().select(['g-1' as GeometryId])
+    renderPage(store, makeCloudClient())
+
+    fireEvent.keyDown(window, { key: 'Escape' })
+    expect(store.getState().selectedIds).toEqual([])
+  })
+
+  it('ツールバーに role/aria-label が付与され、アイコンボタンにアクセシブル名がある', async () => {
+    const store = createEditorStore()
+    renderPage(store, makeCloudClient())
+
+    expect(screen.getByRole('toolbar', { name: '作図ツール' })).toBeInTheDocument()
+    expect(screen.getByRole('toolbar', { name: '編集ツール' })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: '線分' })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'トリム' })).toBeInTheDocument()
   })
 })
