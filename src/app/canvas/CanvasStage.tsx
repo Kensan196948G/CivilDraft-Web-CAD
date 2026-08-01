@@ -232,6 +232,9 @@ export function CanvasStage({ paperSize = 'A3', paperOrientation = 'landscape' }
         state.toggleSelect(topmost)
       } else {
         state.select([topmost])
+        // Issue #42 第二弾: 単純クリック選択時に数量連動ハイライトも更新する。
+        // 数量集計画面ではこのIDを含む明細行がハイライトされる（図形→明細方向）。
+        state.setHighlightedGeometryIds([topmost])
       }
     },
     [storeApi],
