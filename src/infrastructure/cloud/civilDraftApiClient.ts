@@ -81,6 +81,7 @@ export interface CloudExportJob {
   readonly revisionId: string
   readonly format: CloudExportFormat
   readonly status: string
+  readonly objectProvider?: string
   readonly objectKey?: string
   readonly contentChecksum?: string
 }

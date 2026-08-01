@@ -34,6 +34,9 @@ export default tseslint.config(
       '.ds-sync',
       'ds-bundle',
       'sbom',
+      // git worktree（.claude/worktrees/*）は独立したtsconfigを持つため、
+      // メインツリーのlintスキャン対象から除外する（WorkTree運用 §10）。
+      '.claude/worktrees/**',
       '**/*.d.ts',
     ],
   },

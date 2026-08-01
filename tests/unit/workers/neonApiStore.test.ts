@@ -169,6 +169,7 @@ function exportJobRow(id = 'exp-1'): Record<string, unknown> {
     revision_id: 'rev-1',
     format: 'pdf',
     status: 'completed',
+    object_provider: 'unassigned',
     object_key: 'exports/proj-1/draw-1/rev-1/file.pdf',
     byte_size: 100,
     content_checksum: 'sha256:abc',
@@ -403,6 +404,7 @@ describe('NeonApiStore', () => {
     const job = store.exportJobs.get('exp-1')
     expect(job?.format).toBe('pdf')
     expect(job?.status).toBe('completed')
+    expect(job?.objectProvider).toBe('unassigned')
   })
 
   it('initialize loads audit logs from Neon', async () => {
@@ -747,6 +749,7 @@ describe('NeonApiStore', () => {
       revisionId: 'rev-1',
       format: 'json',
       status: 'pending',
+      objectProvider: 'unassigned',
       createdAt: now,
       createdBy: 'user@test',
     }
@@ -754,7 +757,17 @@ describe('NeonApiStore', () => {
     await store.persistExportJob(job)
 
     expect(sql).toHaveBeenCalled()
-    expect(store.exportJobs.get('exp-new')?.format).toBe('json')
+    const calls = sqlCalls(sql)
+    expect(calls).toHaveLength(1)
+    const insertSql = calls[0]?.[0].join('') ?? ''
+    expect(insertSql).toMatch(/INSERT INTO export_jobs/)
+    // #74: object_provider はレコードの objectProvider（既定 'unassigned'）を書き込み、
+    // 'r2' のハードコードを残さない
+    expect(insertSql).toMatch(/object_provider/)
+    expect(calls[0]?.at(-1)).toBe('unassigned')
+    const stored = store.exportJobs.get('exp-new')
+    expect(stored?.format).toBe('json')
+    expect(stored?.objectProvider).toBe('unassigned')
   })
 
   it('persistAuditLog appends an audit entry and updates the local list', async () => {

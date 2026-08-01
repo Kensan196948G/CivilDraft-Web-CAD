@@ -17,6 +17,7 @@ import type {
   ContentRecord,
   DrawingRecord,
   ExportJobRecord,
+  ExportObjectProvider,
   ProjectMemberRecord,
   ProjectRecord,
   QuantityItemRecord,
@@ -150,6 +151,7 @@ interface ExportJobRow extends Record<string, unknown> {
   revision_id: string
   format: string
   status: string
+  object_provider: string
   object_key: string | null
   byte_size: NumericLike | null
   content_checksum: string | null
@@ -311,6 +313,7 @@ function rowToExportJob(row: ExportJobRow): ExportJobRecord {
     revisionId: row.revision_id,
     format: row.format as ExportJobRecord['format'],
     status: row.status as ExportJobRecord['status'],
+    objectProvider: row.object_provider as ExportObjectProvider,
     objectKey: row.object_key ?? undefined,
     byteSize: row.byte_size === null ? undefined : toNumber(row.byte_size),
     contentChecksum: row.content_checksum ?? undefined,
@@ -661,14 +664,18 @@ export class NeonApiStore implements ApiStore {
 
   /** Insert or update an export job. */
   async persistExportJob(job: ExportJobRecord): Promise<void> {
+    // object_provider は export 成果物の実体が未保存である現状を表す
+    // 'unassigned'（実体未割当）が正式値。job.objectProvider は将来
+    // R2 / Neon へ実体格納を導入する際にレコード単位で明示できるよう型で保持する（Issue #74）。
     await this.#sql`
       INSERT INTO export_jobs (id, revision_id, format, status, object_key, byte_size, content_checksum, error_code, created_at, created_by, completed_at, object_provider)
-      VALUES (${job.id}, ${job.revisionId}, ${job.format}, ${job.status}, ${job.objectKey ?? null}, ${job.byteSize ?? null}, ${job.contentChecksum ?? null}, ${job.errorCode ?? null}, ${job.createdAt}, ${job.createdBy}, ${job.completedAt ?? null}, 'r2')
+      VALUES (${job.id}, ${job.revisionId}, ${job.format}, ${job.status}, ${job.objectKey ?? null}, ${job.byteSize ?? null}, ${job.contentChecksum ?? null}, ${job.errorCode ?? null}, ${job.createdAt}, ${job.createdBy}, ${job.completedAt ?? null}, ${job.objectProvider})
       ON CONFLICT (id) DO UPDATE SET
         status = EXCLUDED.status,
         object_key = EXCLUDED.object_key,
         byte_size = EXCLUDED.byte_size,
         content_checksum = EXCLUDED.content_checksum,
+        object_provider = EXCLUDED.object_provider,
         completed_at = EXCLUDED.completed_at
     `
     this.exportJobs.set(job.id, job)
