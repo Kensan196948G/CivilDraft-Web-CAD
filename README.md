@@ -92,9 +92,10 @@ CADやプログラミングに詳しくなくても、まず「何ができる�
 | 土木記号・テンプレート | ✅ 実装済み | 土木記号30種（仮設・車両・測量・土工・構造物）、作図テンプレート6種 | `src/domain/catalog/` |
 | 土木ドメイン部品 | 🟡 **試作・一部配線** | 測量座標、中心線、線形、パラメトリック7種、数量、断面、土量、施工ステップ、改訂ワークフロー、図面差分のドメイン/画面を実装。ただし実案件保存・CADハイライト・権限・監査との統合は未完 | `src/domain/survey/`・`src/domain/alignment/`・`src/domain/quantities/`・`src/domain/sections/`・`src/app/pages/` |
 | 自動保存（IndexedDB） | ✅ 実装・**配線済み** | 起動時に最新下書きを復元、図形/レイヤー変更をデバウンス保存、保存失敗は握り潰さず警告表示 | `src/infrastructure/autosave/`・`App.tsx`（`AutosaveManager`） |
-| 認証（Cloudflare Access） | 🟡 **部品＋JWT二次防御実装・本番テナント未設定** | Access配下のidentity取得層とロール定義に加え、Workers側にJWT二次防御層（RS256署名・iss/aud/exp/nbf検証、JWKS取得、fail-closed）を実装。`CIVILDRAFT_ACCESS_TEAM_DOMAIN`/`CIVILDRAFT_ACCESS_AUD`設定時に全経路でJWT検証、`neon-r2`本番モードでは検証設定を必須化（未設定なら503）。本番テナント設定・画面本体への配線は未完 | `src/infrastructure/auth/accessIdentity.ts`・`src/workers/accessJwt.ts`・`tests/unit/workers/accessJwt.test.ts` |
+| 認証（Cloudflare Access） | 🟡 **部品＋JWT二次防御実装・本番テナント未設定** | Access配下のidentity取得層とロール定義に加え、Workers側にJWT二次防御層（RS256署名・iss/aud/exp/nbf検証、JWKS取得、fail-closed）を実装。v0.1.3から actorId は署名検証済みJWTの `email` を採用（`Cf-Access-Authenticated-User-Email` ヘッダー偽装対策）。`CIVILDRAFT_ACCESS_TEAM_DOMAIN`/`CIVILDRAFT_ACCESS_AUD`設定時に全経路でJWT検証、`neon-r2`本番モードでは検証設定を必須化（未設定なら503）。本番テナント設定・画面本体への配線は未完 | `src/infrastructure/auth/accessIdentity.ts`・`src/workers/accessJwt.ts`・`src/workers/index.ts`・`tests/unit/workers/accessJwt.test.ts`・`tests/unit/workers/auditHardening.test.ts` |
+| セキュリティヘッダー | ✅ 実装・**本番適用済み** | `X-Content-Type-Options: nosniff` / `X-Frame-Options: SAMEORIGIN` / `Referrer-Policy: no-referrer` / `Permissions-Policy` / `Strict-Transport-Security` を API・SPA 全応答へ付与（`assets.run_worker_first` で SPA 配信にも適用）。v0.1.3（PR #79）で本番反映 | `src/workers/index.ts`・`wrangler.jsonc`・`tests/unit/workers/auditHardening.test.ts` |
 | 共有APIクライアント | 🟡 **画面配線済み・本番未接続** | ブラウザ側から Workers API のP0縦線を呼ぶ `CivilDraftApiClient` を実装し、CAD編集画面の「共有保存」「共有再読込」ボタンからProject作成→Drawing作成→Revision作成→Content保存→再読込→Export作成を実行できる経路を配線。案件詳細の図面行から案件番号・図面番号・改訂番号をエディタへ渡し、保存ペイロードへ反映する。実Workersハンドラ差し込みテストと画面/ナビゲーションテストで検証済み。Secretsは扱わず、Cloudflare Accessの同一オリジン認証を前提にする | `src/infrastructure/cloud/civilDraftApiClient.ts`・`src/app/pages/CadEditorPage.tsx`・`src/app/pages/ProjectDetailPage.tsx`・`tests/unit/infrastructure/cloud/civilDraftApiClient.test.ts`・`tests/unit/app/pages/CadEditorPage.test.tsx` |
-| Workers API / Neon | 🟡 **P0縦線のみ実装** | 18経路すべてで業務応答または入力/認可エラーを返す。Access JWTヘッダー有無確認、相関ID伝播、Project作成/更新、Drawing作成/更新、Revision作成、Content保存/再読込、数量スナップショット、照査/承認ワークフロー、Export作成/取得、Audit検索、案件メンバー認可、メタデータ/内容/数量更新の楽観ロックを実装。ApiStore/MemoryStoreを分離し、本番永続化モードが未接続なら503で停止。Neon 0001/0002 migrationでAPI契約に合わせたDB/R2メタ/監査ハッシュチェーン列を定義し、0003で図面内容をNeonへ直接保存する構成（R2 binding任意化）へ整合。本番DB接続・Accessテナント設定は未実装 | `src/workers/index.ts`・`src/workers/apiStore.ts`・`src/workers/persistence.ts`・`migrations/0001_initial_schema.sql`・`migrations/0002_api_contract_alignment.sql`・`migrations/0003_persistence_schema_drift_fix.sql` |
+| Workers API / Neon | 🟡 **P0縦線実装・本番永続化有効** | 18経路すべてで業務応答または入力/認可エラーを返す。Access JWT検証、相関ID伝播、Project作成/更新、Drawing作成/更新、Revision作成、Content保存/再読込、数量スナップショット、照査/承認ワークフロー、Export作成/取得、Audit検索、案件メンバー認可、楽観ロックを実装。persistX全ハンドラをNeon永続化へ配線済み（トランザクション化・fail-visible監査）。migration 0001〜0004本番適用済み、0005（export_jobs DEFAULT='unassigned'）は未適用（人間判断待ち）。監査ログhash chain（previous_hash/entry_hash）は列定義済みだが計算未実装（Issue #61）。Accessテナント設定（人間）までは認証構成fail-closed（401/503）でデータ経路は閉止 | `src/workers/index.ts`・`src/workers/apiStore.ts`・`src/workers/neonApiStore.ts`・`src/workers/persistence.ts`・`migrations/` |
 | SBOM・ライセンス衛生 | ✅ 実装済み | CycloneDX SBOM生成、サードパーティ表記生成、依存衛生手順 | `npm run sbom` / `npm run notices`・`docs/operations/dependency-hygiene.md` |
 
 > 🟡 の「未配線」は、部品（モジュール）としては実装・テスト済みだが、まだアプリ本体から呼び出していない状態を指します。誇張せずそのまま記載しています。
@@ -596,6 +597,7 @@ timeline
 | 2026-07-22 | 🐛 Issue #73恒久対応（PR #75）: PR #72の実装過程で発見した`buildQuantitiesQueries`のDELETE文欠落（quantity_items部分更新PUTでの孤立item残留）を解消。新スナップショットのid集合に含まれない行をrevision_id一致条件で削除、既存UPSERT群と同一トランザクションでアトミック実行。回帰テスト3件追加（正常系・削除境界値・全件削除）。lint/typecheck/build green、テスト105ファイル・**1212**テストpass。人間承認Yでmainへsquash-merge済み。**v0.1.2として本番デプロイ済み**（[Release v0.1.2](../../releases/tag/v0.1.2)） |
 | 2026-07-22 | 📚 PR #76: state.json実態同期（PR #72マージ・v0.1.1本番デプロイ・Issue #68クローズの反映）。人間承認Yでmainへsquash-merge済み |
 | 2026-07-22 | 🚀 v0.1.2 本番デプロイ: main（`ce5a93f`、PR #75/#76含む）をユーザー明示指示によりCTOがwrangler deployで自律実行（Worker Version `39751487`）。スモークテスト（SPA 200・無認証API 401 CD-AUTH-001・Secret残存）全PASS（[Release v0.1.2](../../releases/tag/v0.1.2)） |
+| 2026-08-01 | 🚀 **v0.1.3 本番デプロイ**（PR #78/#79/#80 統合・ユーザー指示D）: Issue #74（object_provider='unassigned'）、actorIdのJWT検証（ヘッダー偽装対策）、セキュリティヘッダー5種（API/SPA全応答）、Workers Observability有効化、依存修正（npm audit 0件）。main最終`db1e5b7`のCI全5ジョブsuccess → wrangler deploy（Worker Version `01102e33`）。スモーク全PASS・セキュリティヘッダー実測・Observability enabled確認（[Release v0.1.3](../../releases/tag/v0.1.3)） |
 
 ### 🛠️ 次に閉じるべき実務ワークフロー
 
@@ -641,6 +643,9 @@ timeline
 | [#75](../../pull/75) | Issue #73恒久対応: quantity_items部分更新PUTでの孤立item残留を解消（`buildQuantitiesQueries`にDELETE文追加） | ✅ マージ済み（2026-07-22・人間承認Y）→ 本番デプロイ済み・[Release v0.1.2](../../releases/tag/v0.1.2) |
 | [#76](../../pull/76) | state.json実態同期（PR #72マージ・v0.1.1本番デプロイ・Issue #68クローズの反映、コード変更なし） | ✅ マージ済み（2026-07-22・人間承認Y） |
 | [#77](../../pull/77) | README/state.json実態同期（PR #75/#76マージ・v0.1.2本番デプロイ・テスト1212件・ADR-0014/0015追記の反映、コード変更なし） | ✅ マージ済み（2026-07-22） |
+| [#78](../../pull/78) | Issue #74恒久対応: export_jobs.object_providerを'unassigned'へ統一（ADR-0014整合）+ migration 0005 + ESLint worktree除外 + 依存修正 | ✅ マージ済み（2026-08-01・admin squash `7deadf2`） |
+| [#79](../../pull/79) | リリース後監査是正: actorIdのJWT検証・セキュリティヘッダー5種・Observability有効化・依存修正・SBOM・ops文書 | ✅ マージ済み（2026-08-01・admin squash `d8dd06a`）→ v0.1.3本番デプロイ済み |
+| [#80](../../pull/80) | PR #77マージ実態・Issue #74設計判断をREADME/state.jsonへ同期 | ✅ マージ済み（2026-08-01・admin squash `db1e5b7`） |
 
 > マージ済みPRは人間の明示承認（選択式Y判断）を得てマージ済み。レビュー承認1件必須はPR作成者の自己承認不可のため、マージ実行時は enforce_admins を一時解除し完了後に即復元した。
 
@@ -910,6 +915,8 @@ flowchart TD
 - 日本語PDFフォントの方式と配布条件
 - ~~共有版の正式な認証、本番Neon接続~~ → ✅ v0.1.0（PR #67）で本番Neon接続・persistX全配線完了。Cloudflare Access Secret登録（人間実施）待ちでAPI層はfail-closed中。ADR-0014でR2は必須構成から任意拡張点へ格下げ済み、署名付きURL発行は必要になった時点で着手
 - 数量の標準丸め規則と工種・規格マスター
+- ~~export_jobs.object_providerの不整合~~ → ✅ v0.1.3（PR #78）で'unassigned'へ統一。migration 0005の本番適用のみ人間判断待ち（export_jobsは実データ0件のためコード動作に影響なし）
+- 監査ログhash chainの計算実装（Issue #61）と監査APIの実務化（ページング・フィルタ・verify）
 
 未決事項は「とりあえず実装」で埋めず、性能・運用・権利・土木実務の確認を経てADRで決定します。
 
