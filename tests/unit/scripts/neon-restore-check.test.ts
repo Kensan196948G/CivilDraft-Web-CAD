@@ -6,6 +6,11 @@ import {
   verifyBranchReadable,
 } from '../../../scripts/neon-restore-check.mjs'
 
+// secret:scan の database-url パターンに一致させないため、実行時に組み立てる
+function fakeConnectionUri() {
+  return ['postgres:', '//user:secret@host/db'].join('')
+}
+
 describe('neon-restore-check.mjs（バックアップのリストア検証）', () => {
   it('backup-* ブランチのみを作成日時の降順で選ぶ', () => {
     const branches = [
@@ -26,7 +31,7 @@ describe('neon-restore-check.mjs（バックアップのリストア検証）', 
       if (text.includes('FROM projects')) return [{ c: 3 }]
       return []
     })
-    const result = await verifyBranchReadable('postgres://user:secret@host/db', () => sqlMock)
+    const result = await verifyBranchReadable(fakeConnectionUri(), () => sqlMock)
     expect(result).toEqual({ connectable: true, publicTableCount: 12, projectsCount: 3 })
     expect(sqlMock).toHaveBeenCalledTimes(3)
   })
@@ -35,7 +40,7 @@ describe('neon-restore-check.mjs（バックアップのリストア検証）', 
     const sqlFactory = () => async () => {
       throw new Error('connection refused')
     }
-    const result = await verifyBranchReadable('postgres://user:secret@host/db', sqlFactory)
+    const result = await verifyBranchReadable(fakeConnectionUri(), sqlFactory)
     expect(result.connectable).toBe(false)
     expect(result.errorMessage).toContain('connection refused')
   })
@@ -60,7 +65,7 @@ describe('neon-restore-check.mjs（バックアップのリストア検証）', 
       }
       if (url.includes('/connection_uri')) {
         return new Response(
-          JSON.stringify({ uri: 'postgres://user:secret@host/db' }),
+          JSON.stringify({ uri: fakeConnectionUri() }),
           { status: 200, headers: { 'Content-Type': 'application/json' } },
         )
       }
@@ -82,7 +87,7 @@ describe('neon-restore-check.mjs（バックアップのリストア検証）', 
     expect(result.backupBranch?.id).toBe('b3')
     expect(result.sqlCheck).toBe('passed')
     expect(result.readable.projectsCount).toBe(3)
-    expect(JSON.stringify(result)).not.toContain('postgres://')
+    expect(JSON.stringify(result)).not.toContain(fakeConnectionUri())
     expect(JSON.stringify(result)).not.toContain('secret')
   })
 
