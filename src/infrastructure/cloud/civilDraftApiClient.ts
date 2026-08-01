@@ -86,6 +86,27 @@ export interface CloudExportJob {
   readonly contentChecksum?: string
 }
 
+export interface CloudAuditLog {
+  readonly id: string
+  readonly occurredAt: string
+  readonly eventName: string
+  readonly actorId: string
+  readonly projectId?: string
+  readonly entityType?: string
+  readonly entityId?: string
+  readonly result: 'success' | 'failure'
+  readonly correlationId: string
+  readonly detail?: unknown
+}
+
+export interface CloudAuditChainVerification {
+  readonly valid: boolean
+  readonly checkedCount: number
+  readonly hashedCount: number
+  readonly legacyCount: number
+  readonly tailHash?: string
+}
+
 export interface CloudSaveDraftResult {
   readonly project: CloudProject
   readonly drawing: CloudDrawing
@@ -243,6 +264,38 @@ export class CivilDraftApiClient {
     const body = asRecord(response.value, 'response')
     if (!body.ok) return body
     return asRecord(body.value.exportJob, 'exportJob') as Result<CloudExportJob, ValidationIssue>
+  }
+
+  /** 監査ログ一覧を取得する（Issue #61）。 */
+  async listAuditLogs(
+    params: { readonly projectId?: string; readonly limit?: number } = {},
+  ): Promise<Result<CloudAuditLog[], ValidationIssue>> {
+    const search = new URLSearchParams()
+    if (params.projectId !== undefined) search.set('projectId', params.projectId)
+    if (params.limit !== undefined) search.set('limit', String(Math.min(Math.max(Math.trunc(params.limit), 1), 500)))
+    const query = search.toString()
+    const response = await this.request(`/api/v1/audit-logs${query === '' ? '' : `?${query}`}`)
+    if (!response.ok) return response
+    const body = asRecord(response.value, 'response')
+    if (!body.ok) return body
+    const logs = (body.value as Record<string, unknown>).auditLogs
+    if (!Array.isArray(logs)) {
+      return fail('CLOUD_API_SCHEMA', 'auditLogs が配列ではありません', 'auditLogs')
+    }
+    return ok(logs as CloudAuditLog[])
+  }
+
+  /** 監査ハッシュチェーンの完全性を検証する（Issue #61）。 */
+  async verifyAuditChain(): Promise<Result<CloudAuditChainVerification, ValidationIssue>> {
+    const response = await this.request('/api/v1/audit-logs/verify')
+    if (!response.ok) return response
+    const body = asRecord(response.value, 'response')
+    if (!body.ok) return body
+    const chain = (body.value as Record<string, unknown>).auditChain
+    if (!isRecord(chain)) {
+      return fail('CLOUD_API_SCHEMA', 'auditChain がオブジェクトではありません', 'auditChain')
+    }
+    return ok(chain as unknown as CloudAuditChainVerification)
   }
 
   async saveDraft(input: CloudSaveDraftInput): Promise<Result<CloudSaveDraftResult, ValidationIssue>> {

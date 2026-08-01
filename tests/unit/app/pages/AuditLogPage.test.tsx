@@ -39,6 +39,7 @@ function mockDownloads() {
 
 afterEach(() => {
   vi.restoreAllMocks()
+  vi.unstubAllGlobals()
   // createObjectURL/revokeObjectURL は直接代入のためvi.restoreAllMocksでは戻らず、明示的に削除する
   const urlObj = URL as unknown as {
     createObjectURL?: (blob: Blob) => string
@@ -50,11 +51,16 @@ afterEach(() => {
 
 describe('AuditLogPage', () => {
   it('監査ログを表示し、CSV/PDF/HTMLエクスポートを生成する', async () => {
+    // API 未接続（fail-closed 等）時はサンプル表示へフォールバックする
+    vi.stubGlobal('fetch', vi.fn().mockRejectedValue(new TypeError('network disabled in unit test')))
     const blobs = mockDownloads()
     render(<AuditLogPage />)
 
     expect(screen.getByText('保存、承認、出力、認証イベントの記録')).toBeInTheDocument()
     expect(screen.getByText('DWG-014を保存')).toBeInTheDocument()
+    await waitFor(() =>
+      expect(screen.getByText(/監査APIに接続できないためサンプルを表示しています/)).toBeInTheDocument(),
+    )
 
     await userEvent.click(screen.getByRole('button', { name: 'CSVエクスポート' }))
     await userEvent.click(screen.getByRole('button', { name: 'PDFエクスポート' }))
@@ -65,5 +71,51 @@ describe('AuditLogPage', () => {
     expect(blobs[1]?.type).toBe('application/pdf')
     expect(blobs[2]?.type).toBe('text/html;charset=utf-8')
     expect(screen.getByText('HTMLエクスポートを作成しました')).toBeInTheDocument()
+  })
+
+  it('API接続時は本番監査ログとチェーン検証結果を表示する（Issue #61）', async () => {
+    const fetchMock = vi.fn((input: string | URL | Request) => {
+      const url = String(input)
+      if (url.includes('/api/v1/audit-logs/verify')) {
+        return Promise.resolve(
+          new Response(
+            JSON.stringify({
+              auditChain: { valid: true, checkedCount: 1, hashedCount: 1, legacyCount: 0, tailHash: 'a'.repeat(64) },
+            }),
+            { status: 200, headers: { 'Content-Type': 'application/json' } },
+          ),
+        )
+      }
+      if (url.includes('/api/v1/audit-logs')) {
+        return Promise.resolve(
+          new Response(
+            JSON.stringify({
+              auditLogs: [
+                {
+                  id: 'audit-1',
+                  occurredAt: '2026-08-01T00:00:00.000Z',
+                  eventName: 'drawing.created',
+                  actorId: 'engineer@example.test',
+                  entityType: 'drawing',
+                  entityId: 'drawing_1',
+                  result: 'success',
+                  correlationId: 'cid-1',
+                },
+              ],
+            }),
+            { status: 200, headers: { 'Content-Type': 'application/json' } },
+          ),
+        )
+      }
+      return Promise.resolve(new Response('{}', { status: 404 }))
+    })
+    vi.stubGlobal('fetch', fetchMock)
+
+    render(<AuditLogPage />)
+
+    await waitFor(() => expect(screen.getByText('drawing.created')).toBeInTheDocument())
+    expect(screen.getByText('engineer@example.test')).toBeInTheDocument()
+    expect(screen.getByText(/監査チェーン検証: 正常（1件ハッシュ連結・検査1件）/)).toBeInTheDocument()
+    expect(screen.queryByText('DWG-014を保存')).not.toBeInTheDocument()
   })
 })

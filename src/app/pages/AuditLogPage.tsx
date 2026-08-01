@@ -1,9 +1,12 @@
 /**
  * 監査ログ画面。
- * 恒久監査ログ API 接続前のため、画面構成とサンプル値を表示し、
- * CSV/PDF/HTMLとしてローカルエクスポートできるようにする。
+ * Workers API（GET /api/v1/audit-logs と /audit-logs/verify）へ接続し、
+ * 本番監査ログとハッシュチェーン検証結果を表示する（Issue #61）。
+ * API 未接続時（Access未設定の fail-closed 等）は従来のサンプル表示へフォールバックする。
+ * CSV/PDF/HTMLとしてローカルエクスポートできる。
  */
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
+import { createCivilDraftApiClient, type CloudAuditChainVerification } from '@/infrastructure/cloud/civilDraftApiClient'
 import {
   ghostButtonStyle,
   monoStyle,
@@ -58,6 +61,48 @@ const AUDIT_ROWS = [
   },
 ] as const
 
+interface AuditDisplayRow {
+  readonly time: string
+  readonly actor: string
+  readonly action: string
+  readonly target: string
+  readonly result: string
+  readonly kind: 'success' | 'warning'
+  readonly key: string
+}
+
+function formatTime(iso: string): string {
+  const date = new Date(iso)
+  if (Number.isNaN(date.getTime())) return iso
+  return date.toLocaleString('ja-JP', { timeZone: 'Asia/Tokyo' })
+}
+
+function apiRowsToDisplay(logs: readonly CloudAuditLogLike[]): AuditDisplayRow[] {
+  return logs.map((log, index) => ({
+    time: formatTime(log.occurredAt),
+    actor: log.actorId,
+    action: log.eventName,
+    target:
+      log.entityType !== undefined
+        ? `${log.entityType}${log.entityId !== undefined ? `:${log.entityId}` : ''}`
+        : (log.projectId ?? '-'),
+    result: log.result === 'success' ? '成功' : '失敗',
+    kind: log.result === 'success' ? 'success' : 'warning',
+    key: `${log.id}-${index}`,
+  }))
+}
+
+type CloudAuditLogLike = {
+  readonly id: string
+  readonly occurredAt: string
+  readonly eventName: string
+  readonly actorId: string
+  readonly projectId?: string
+  readonly entityType?: string
+  readonly entityId?: string
+  readonly result: 'success' | 'failure'
+}
+
 function downloadBlob(blob: Blob, filename: string): void {
   const url = URL.createObjectURL(blob)
   const anchor = document.createElement('a')
@@ -80,23 +125,23 @@ function escapeHtml(value: string): string {
     .replace(/'/g, '&#39;')
 }
 
-function exportCsv(): void {
+function exportCsv(rows: readonly AuditDisplayRow[]): void {
   const header = ['日時', '利用者', '操作', '対象', '結果']
-  const rows = AUDIT_ROWS.map((row) => [row.time, row.actor, row.action, row.target, row.result])
-  const csv = [header, ...rows].map((row) => row.map(escapeCsv).join(',')).join('\r\n')
+  const csvRows = rows.map((row) => [row.time, row.actor, row.action, row.target, row.result])
+  const csv = [header, ...csvRows].map((row) => row.map(escapeCsv).join(',')).join('\r\n')
   downloadBlob(new Blob([csv], { type: 'text/csv;charset=utf-8' }), 'civildraft-audit-log.csv')
 }
 
-function exportHtml(): void {
-  const rows = AUDIT_ROWS.map(
+function exportHtml(rows: readonly AuditDisplayRow[]): void {
+  const bodyRows = rows.map(
     (row) =>
       `<tr><td>${escapeHtml(row.time)}</td><td>${escapeHtml(row.actor)}</td><td>${escapeHtml(row.action)}</td><td>${escapeHtml(row.target)}</td><td>${escapeHtml(row.result)}</td></tr>`,
   ).join('')
-  const html = `<!doctype html><html lang="ja"><meta charset="utf-8"><title>CivilDraft 監査ログ</title><style>body{font-family:sans-serif;padding:24px}table{border-collapse:collapse;width:100%}td,th{border:1px solid #ccc;padding:8px;text-align:left}</style><h1>監査ログ</h1><p>保存、承認、出力、認証イベントの記録</p><table><thead><tr><th>日時</th><th>利用者</th><th>操作</th><th>対象</th><th>結果</th></tr></thead><tbody>${rows}</tbody></table></html>`
+  const html = `<!doctype html><html lang="ja"><meta charset="utf-8"><title>CivilDraft 監査ログ</title><style>body{font-family:sans-serif;padding:24px}table{border-collapse:collapse;width:100%}td,th{border:1px solid #ccc;padding:8px;text-align:left}</style><h1>監査ログ</h1><p>保存、承認、出力、認証イベントの記録</p><table><thead><tr><th>日時</th><th>利用者</th><th>操作</th><th>対象</th><th>結果</th></tr></thead><tbody>${bodyRows}</tbody></table></html>`
   downloadBlob(new Blob([html], { type: 'text/html;charset=utf-8' }), 'civildraft-audit-log.html')
 }
 
-async function exportPdf(): Promise<void> {
+async function exportPdf(rows: readonly AuditDisplayRow[]): Promise<void> {
   const [{ PDFDocument, StandardFonts }, { loadJapaneseFont }] = await Promise.all([
     import('pdf-lib'),
     import('@/infrastructure/pdf/fontLoader'),
@@ -113,7 +158,7 @@ async function exportPdf(): Promise<void> {
   const lines = [
     'CivilDraft Audit Log',
     '保存、承認、出力、認証イベントの記録',
-    ...AUDIT_ROWS.map((row) => `${row.time}  ${row.actor}  ${row.action}  ${row.target}  ${row.result}`),
+    ...rows.map((row) => `${row.time}  ${row.actor}  ${row.action}  ${row.target}  ${row.result}`),
   ]
   lines.forEach((line, index) => {
     page.drawText(fontResult.ok ? line : line.replace(/[^\x20-\x7E]/g, '?'), {
@@ -129,16 +174,68 @@ async function exportPdf(): Promise<void> {
 
 export function AuditLogPage() {
   const [message, setMessage] = useState<string | null>(null)
+  const [rows, setRows] = useState<AuditDisplayRow[]>(() =>
+    AUDIT_ROWS.map((row, index) => ({
+      time: row.time,
+      actor: row.actor,
+      action: row.action,
+      target: row.target,
+      result: row.result,
+      kind: row.result === '成功' ? 'success' : 'warning',
+      key: `${row.time}-${index}`,
+    })),
+  )
+  const [chain, setChain] = useState<CloudAuditChainVerification | null>(null)
+  const [apiConnected, setApiConnected] = useState(false)
+
+  useEffect(() => {
+    let cancelled = false
+    const client = createCivilDraftApiClient()
+    void (async () => {
+      try {
+        const [logsResult, chainResult] = await Promise.all([
+          client.listAuditLogs({ limit: 200 }),
+          client.verifyAuditChain(),
+        ])
+        if (cancelled) return
+        if (logsResult.ok && chainResult.ok) {
+          setRows(apiRowsToDisplay(logsResult.value))
+          setChain(chainResult.value)
+          setApiConnected(true)
+          setMessage(null)
+        } else {
+          setMessage('⚠️ 監査APIに接続できないためサンプルを表示しています（Access設定後に本番ログへ切替）')
+        }
+      } catch {
+        if (!cancelled) {
+          setMessage('⚠️ 監査APIに接続できないためサンプルを表示しています（Access設定後に本番ログへ切替）')
+        }
+      }
+    })()
+    return () => {
+      cancelled = true
+    }
+  }, [])
+
   const runExport = async (type: 'csv' | 'pdf' | 'html') => {
     try {
-      if (type === 'csv') exportCsv()
-      if (type === 'pdf') await exportPdf()
-      if (type === 'html') exportHtml()
+      if (type === 'csv') exportCsv(rows)
+      if (type === 'pdf') await exportPdf(rows)
+      if (type === 'html') exportHtml(rows)
       setMessage(`${type.toUpperCase()}エクスポートを作成しました`)
     } catch (error) {
       setMessage(`⚠️ ${type.toUpperCase()}エクスポートに失敗しました: ${error instanceof Error ? error.message : String(error)}`)
     }
   }
+
+  const chainStatus =
+    chain === null
+      ? null
+      : chain.valid
+        ? chain.hashedCount > 0
+          ? `✅ 監査チェーン検証: 正常（${chain.hashedCount}件ハッシュ連結・検査${chain.checkedCount}件）`
+          : `✅ 監査チェーン検証: 正常（レガシー${chain.legacyCount}件は未ハッシュ・新規分から連結）`
+        : '🚨 監査チェーンに不整合を検出（要調査）'
 
   return (
     <div style={pageRootStyle}>
@@ -156,7 +253,20 @@ export function AuditLogPage() {
 
       <main style={pageMainStyle}>
         <div style={panelStyle}>
-          <div style={panelHeaderStyle}>監査ログ</div>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+            <div style={panelHeaderStyle}>監査ログ</div>
+            {apiConnected && chainStatus !== null && (
+              <span
+                style={{
+                  fontSize: 12,
+                  color: chain?.valid === true ? 'var(--success, #1F8255)' : '#B3261E',
+                  fontWeight: 600,
+                }}
+              >
+                {chainStatus}
+              </span>
+            )}
+          </div>
           <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 12.5 }}>
             <thead>
               <tr>
@@ -168,8 +278,8 @@ export function AuditLogPage() {
               </tr>
             </thead>
             <tbody>
-              {AUDIT_ROWS.map((row) => (
-                <tr key={`${row.time}-${row.action}`}>
+              {rows.map((row) => (
+                <tr key={row.key}>
                   <td style={{ ...tdStyle, ...monoStyle, color: 'var(--ink2)' }}>{row.time}</td>
                   <td style={tdStyle}>{row.actor}</td>
                   <td style={tdStyle}>{row.action}</td>
@@ -177,7 +287,7 @@ export function AuditLogPage() {
                   <td style={tdStyle}>
                     <span
                       style={
-                        row.result === '成功'
+                        row.kind === 'success'
                           ? statusBadgeStyle('#1F8255', '#E4F3EC')
                           : statusBadgeStyle('#A15C00', '#FFF3D6')
                       }
