@@ -254,6 +254,8 @@ function emitDraftGeometry(
 ): void {
   const state = get()
   const layer = resolveActiveLayer(state.layers, state.activeLayerId)
+  // Issue #40: ロック済みレイヤーへの作図は拒否する（§6.3 運用規則）。
+  if (layer.locked) return
   const timestamp = ctx.now()
   const geometry = composeDraftGeometry(fields, {
     id: ctx.newId(),

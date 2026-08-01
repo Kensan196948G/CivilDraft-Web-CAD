@@ -85,6 +85,7 @@ CADやプログラミングに詳しくなくても、まず「何ができる�
 | --- | --- | --- | --- |
 | 幾何演算エンジン | ✅ 実装済み | トリム・延長・オフセット・フィレット・面取り・回転/ミラー・配列・尺度・スナップ・寸法・ハッチ生成・選択判定・空間索引(R-tree)・カリング・外接矩形・面積・座標パーサ 等 | `src/domain/geometry/`（19ファイル） |
 | Canvas描画・操作 | ✅ 実装済み | 6レイヤー構成の描画、パン・ズーム・クリック/Shiftクリック選択、レイヤー表示制御、500図形超でビューポートカリング | `src/app/canvas/`（`CanvasStage.tsx` 他） |
+| レイヤー管理 | ✅ 実装済み | 表示/非表示・ロック・印刷可否・線幅・追加/削除/リネーム/並替（エディタのレイヤーパネル）。**ロック済みレイヤーは編集コマンド・プロパティ変更・作図から除外**（§6.3 / Issue #40）、PDF出力はprintable=falseを除外、DXFはレイヤー色/線種を出力 | `src/app/store/editorStore.ts`（LayerSlice）・`src/domain/tools/editGeometry.ts`・`src/domain/pdf/pdfExporter.ts`・`src/domain/dxf/dxfExporter.ts` |
 | 作図ツール | ✅ 実装済み | 選択・線・矩形・円・ポリライン（ドラフトプレビュー・自動確定つき状態機械） | `src/domain/tools/draftGeometry.ts`・ToolSlice |
 | Undo / Redo | ✅ 実装済み | 「1操作＝1コマンド」方式、履歴上限100、差分のみ保持 | `src/domain/commands/`・`editorStore.ts` |
 | DXF入出力 | ✅ 実装済み | `$INSUNITS`(mm/cm/m)を内部mmへ変換して取込、書出時は単位宣言と座標を整合。未対応要素は警告(issues)に集約。ツールバーの📥取込/📤出力ボタンから操作可能 | `src/domain/dxf/` |
