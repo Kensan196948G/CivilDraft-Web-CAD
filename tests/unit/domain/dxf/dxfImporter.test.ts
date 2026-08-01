@@ -1,8 +1,35 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import DxfParser from 'dxf-parser'
+import { exportDxf } from '@/domain/dxf/dxfExporter'
 import { importDxf, type ImportResult } from '@/domain/dxf/dxfImporter'
 import { defaultCreationContext, type GeometryCreationContext } from '@/domain/geometry/geometryFactory'
-import type { Geometry, GeometryId, Result, ValidationIssue } from '@/shared/types'
+import type {
+  Geometry,
+  GeometryBase,
+  GeometryId,
+  GeometryStyle,
+  LayerId,
+  Result,
+  ValidationIssue,
+} from '@/shared/types'
+import type { DrawingLayer } from '@/shared/types/layer'
+
+const style: GeometryStyle = {
+  strokeColor: '#ff0000',
+  strokeWidth: 1,
+  lineType: 'continuous',
+  opacity: 1,
+  printable: true,
+}
+
+const base: Omit<GeometryBase, 'id' | 'type'> = {
+  layerId: 'ly1' as LayerId,
+  style,
+  constructionStepIds: [],
+  locked: false,
+  createdAt: '2026-07-15T00:00:00.000Z',
+  updatedAt: '2026-07-15T00:00:00.000Z',
+}
 
 // ---------------------------------------------------------------------------
 // テストヘルパー
@@ -318,6 +345,66 @@ describe('importDxf / レイヤー合成（DrawingLayer）', () => {
     const r = unwrap(importDxf(entitiesDxf(LINE_BODY), seqCtx()))
     expect(r.layers).toHaveLength(1)
     expect(r.layers[0]?.name).toBe('0')
+  })
+
+  it('LAYER テーブルの linetype(6) と lock フラグ(70 bit4) を反映する（線種往復・#40残）', () => {
+    const dxf =
+      `0\nSECTION\n2\nTABLES\n0\nTABLE\n2\nLAYER\n` +
+      `0\nLAYER\n2\nDASH\n6\nDASHED\n70\n4\n62\n3\n` +
+      `0\nLAYER\n2\nDOT\n6\nDASHDOT\n70\n0\n62\n5\n` +
+      `0\nENDTAB\n0\nENDSEC\n` +
+      `0\nSECTION\n2\nENTITIES\n0\nLINE\n8\nDASH\n10\n0\n20\n0\n11\n10\n21\n10\n0\nENDSEC\n0\nEOF\n`
+    const r = unwrap(importDxf(dxf, seqCtx()))
+    const dash = r.layers.find((l) => l.name === 'DASH')
+    const dot = r.layers.find((l) => l.name === 'DOT')
+    expect(dash?.defaultStyle.lineType).toBe('dashed')
+    expect(dash?.locked).toBe(true)
+    expect(dot?.defaultStyle.lineType).toBe('dashDot')
+    expect(dot?.locked).toBe(false)
+  })
+
+  it('LAYER フラグ(70) の frozen ビットを visible=false へ反映する', () => {
+    const dxf =
+      `0\nSECTION\n2\nTABLES\n0\nTABLE\n2\nLAYER\n` +
+      `0\nLAYER\n2\nFROZEN\n70\n1\n62\n7\n` +
+      `0\nENDTAB\n0\nENDSEC\n` +
+      `0\nSECTION\n2\nENTITIES\n0\nLINE\n8\nFROZEN\n10\n0\n20\n0\n11\n10\n21\n10\n0\nENDSEC\n0\nEOF\n`
+    const r = unwrap(importDxf(dxf, seqCtx()))
+    const frozen = r.layers.find((l) => l.name === 'FROZEN')
+    expect(frozen?.visible).toBe(false)
+  })
+
+  it('exportDxf → importDxf の往復で線種（dashed/dashDot）が保持される', () => {
+    const dashLayer: DrawingLayer = {
+      id: 'ly-dash' as LayerId,
+      name: 'DASH',
+      order: 0,
+      visible: true,
+      locked: false,
+      printable: true,
+      defaultStyle: { ...style, lineType: 'dashed', strokeColor: '#2E9E6B' },
+    }
+    const dotLayer: DrawingLayer = {
+      id: 'ly-dot' as LayerId,
+      name: 'DOT',
+      order: 1,
+      visible: true,
+      locked: false,
+      printable: true,
+      defaultStyle: { ...style, lineType: 'dashDot', strokeColor: '#E08A2B' },
+    }
+    const geometry: Geometry = {
+      ...base,
+      id: 'g1' as GeometryId,
+      layerId: dashLayer.id,
+      type: 'line',
+      start: { x: 0, y: 0 },
+      end: { x: 1000, y: 0 },
+    }
+    const dxf = exportDxf([geometry], [dashLayer, dotLayer])
+    const r = unwrap(importDxf(dxf, seqCtx()))
+    expect(r.layers.find((l) => l.name === 'DASH')?.defaultStyle.lineType).toBe('dashed')
+    expect(r.layers.find((l) => l.name === 'DOT')?.defaultStyle.lineType).toBe('dashDot')
   })
 })
 
