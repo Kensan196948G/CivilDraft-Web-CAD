@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import { createEditorStore, MAX_ZOOM, MIN_ZOOM } from '@/app/store/editorStore'
+import { LAYER_TEMPLATES } from '@/domain/catalog/layerTemplates'
 import type {
   DrawingLayer,
   Geometry,
@@ -297,5 +298,45 @@ describe('EditorStore / 数量根拠ハイライト（Issue #42）', () => {
 
     store.getState().clearHighlightedGeometryIds()
     expect(store.getState().highlightedGeometryIds).toEqual([])
+  })
+})
+
+describe('EditorStore / レイヤーテンプレート適用（Issue #40）', () => {
+  it('applyLayerTemplate は同名レイヤーを残し不足分のみ追加し、アクティブを先頭追加レイヤーへ切替える', () => {
+    const store = createEditorStore()
+    // 同名レイヤー（注記）を事前に用意し、維持されることを直接検証する
+    const preExisting = store.getState().addLayer('注記')
+    const initialCount = store.getState().layers.length
+    const initialActive = store.getState().activeLayerId
+
+    store.getState().applyLayerTemplate('survey')
+
+    const survey = LAYER_TEMPLATES.find((t) => t.id === 'survey')
+    expect(survey).toBeDefined()
+    const expectedAdditions = survey?.layers.filter((l) => l.name !== '注記').length ?? 0
+    const layers = store.getState().layers
+    expect(layers.length).toBe(initialCount + expectedAdditions)
+    expect(layers.some((l) => l.name === '測点')).toBe(true)
+    expect(layers.some((l) => l.name === '地形')).toBe(true)
+    expect(layers.find((l) => l.name === '測点')?.defaultStyle.strokeColor).toBe('#7A5FA0')
+    expect(layers.find((l) => l.name === '補助線')).toBeUndefined()
+    // 事前作成の「注記」が維持され、テンプレート側の同名レイヤーは追加されない
+    expect(layers.filter((l) => l.name === '注記')).toHaveLength(1)
+    expect(layers.some((l) => l.id === preExisting)).toBe(true)
+    // アクティブは先頭の追加レイヤー（基準線）へ切替
+    const firstAdded = layers.find((l) => l.name === '基準線')
+    expect(store.getState().activeLayerId).toBe(firstAdded?.id)
+    expect(store.getState().activeLayerId).not.toBe(initialActive)
+
+    // 再適用しても重複しない
+    store.getState().applyLayerTemplate('survey')
+    expect(store.getState().layers.length).toBe(initialCount + expectedAdditions)
+  })
+
+  it('未知テンプレートIDは無視される', () => {
+    const store = createEditorStore()
+    const count = store.getState().layers.length
+    store.getState().applyLayerTemplate('unknown')
+    expect(store.getState().layers.length).toBe(count)
   })
 })
