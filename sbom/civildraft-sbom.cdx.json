@@ -21,7 +21,7 @@
     "component": {
       "bom-ref": "civildraft-web-cad@0.1.0",
       "type": "application",
-      "name": "CivilDraft-Web-CAD",
+      "name": "audit-20260801",
       "version": "0.1.0",
       "scope": "required",
       "description": "CivilDraft — 土木施工図向けWebベース2D CAD",
@@ -4911,13 +4911,13 @@
       ]
     },
     {
-      "bom-ref": "brace-expansion@5.0.7",
+      "bom-ref": "brace-expansion@5.0.9",
       "type": "library",
       "name": "brace-expansion",
-      "version": "5.0.7",
+      "version": "5.0.9",
       "scope": "optional",
       "description": "Brace expansion as known from sh/bash",
-      "purl": "pkg:npm/brace-expansion@5.0.7",
+      "purl": "pkg:npm/brace-expansion@5.0.9",
       "properties": [
         {
           "name": "cdx:npm:package:development",
@@ -4927,7 +4927,7 @@
       "externalReferences": [
         {
           "type": "distribution",
-          "url": "https://registry.npmjs.org/brace-expansion/-/brace-expansion-5.0.7.tgz"
+          "url": "https://registry.npmjs.org/brace-expansion/-/brace-expansion-5.0.9.tgz"
         },
         {
           "type": "vcs",
@@ -4937,7 +4937,7 @@
       "hashes": [
         {
           "alg": "SHA-512",
-          "content": "ee8172ef4dddc5f637fcd2f10b57e1d925024341fdae6018fb91290d57d78d44d3b3e1c4c11da761aa8bbfe196713b2e9b0c4f7e2cfa0b308d9305f0054c2a08"
+          "content": "49c43822ebc8105d533253fb66dfaf8c9ffff7394f6f64837315b13376e4f2ceade8619d27b28ed5d09c4e274e3c929e3d6df42c4ff6713ef00b23e1a3dfd6c6"
         }
       ],
       "licenses": [
@@ -7119,14 +7119,14 @@
       ]
     },
     {
-      "bom-ref": "brace-expansion@2.1.2",
+      "bom-ref": "brace-expansion@2.1.4",
       "type": "library",
       "name": "brace-expansion",
-      "version": "2.1.2",
+      "version": "2.1.4",
       "scope": "optional",
       "author": "Julian Gruber",
       "description": "Brace expansion as known from sh/bash",
-      "purl": "pkg:npm/brace-expansion@2.1.2",
+      "purl": "pkg:npm/brace-expansion@2.1.4",
       "properties": [
         {
           "name": "cdx:npm:package:development",
@@ -7136,7 +7136,7 @@
       "externalReferences": [
         {
           "type": "distribution",
-          "url": "https://registry.npmjs.org/brace-expansion/-/brace-expansion-2.1.2.tgz"
+          "url": "https://registry.npmjs.org/brace-expansion/-/brace-expansion-2.1.4.tgz"
         },
         {
           "type": "vcs",
@@ -7150,7 +7150,7 @@
       "hashes": [
         {
           "alg": "SHA-512",
-          "content": "c3925970a81d8433a03b09bc1fe2a06e8b28a4732e19c97aa9bba5c23b73dd233b23b3f7c96d5e023ccc3cbac813e350f6f8e000d28759e3079eb4f43975b5a0"
+          "content": "8467d5ccfc6d85b7f7fb6ca383f441b3ad1c074161a814bfcef755ff8c27e3f0663746cd30c1cf73857f05b1627aa7f54ca0061801e76387928da8c29747f65e"
         }
       ],
       "licenses": [
@@ -13751,7 +13751,7 @@
       ]
     },
     {
-      "ref": "brace-expansion@5.0.7",
+      "ref": "brace-expansion@5.0.9",
       "dependsOn": [
         "balanced-match@4.0.4"
       ]
@@ -14078,7 +14078,7 @@
       "dependsOn": []
     },
     {
-      "ref": "brace-expansion@2.1.2",
+      "ref": "brace-expansion@2.1.4",
       "dependsOn": [
         "balanced-match@1.0.2"
       ]
@@ -14086,7 +14086,7 @@
     {
       "ref": "minimatch@9.0.9",
       "dependsOn": [
-        "brace-expansion@2.1.2"
+        "brace-expansion@2.1.4"
       ]
     },
     {
@@ -14323,7 +14323,7 @@
     {
       "ref": "minimatch@10.2.5",
       "dependsOn": [
-        "brace-expansion@5.0.7"
+        "brace-expansion@5.0.9"
       ]
     },
     {
