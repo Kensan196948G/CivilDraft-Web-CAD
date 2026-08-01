@@ -76,6 +76,7 @@ export function QuantitySummaryPage({ onNavigate }: QuantitySummaryPageProps = {
   const storeApi = useEditorStoreApi()
   // 全配列は常時購読せず件数のみ購読（§8.2）。算出はボタン押下時のスナップショットに対して行う。
   const geometryCount = useEditorStore((s) => s.geometries.length)
+  const highlightedGeometryIds = useEditorStore((s) => s.highlightedGeometryIds)
 
   const [summary, setSummary] = useState<QuantitySummary | null>(null)
   const [computedAtCount, setComputedAtCount] = useState<number | null>(null)
@@ -88,6 +89,16 @@ export function QuantitySummaryPage({ onNavigate }: QuantitySummaryPageProps = {
     () => items.find((item) => item.id === selectedItemId) ?? null,
     [items, selectedItemId],
   )
+  // Issue #42 第二弾: CAD編集で選択中の図形（highlightedGeometryIds）を根拠に含む明細を導出する。
+  const highlightedItemIds = useMemo(() => {
+    if (highlightedGeometryIds.length === 0) return new Set<QuantityItemId>()
+    const geometryIdSet = new Set(highlightedGeometryIds)
+    return new Set(
+      items
+        .filter((item) => item.sources.some((source) => geometryIdSet.has(source.geometryId)))
+        .map((item) => item.id),
+    )
+  }, [items, highlightedGeometryIds])
 
   const lengthTotal = useMemo(() => totalRoundedByUnit(items, 'm'), [items])
   const areaTotal = useMemo(() => totalRoundedByUnit(items, 'm2'), [items])
@@ -216,6 +227,20 @@ export function QuantitySummaryPage({ onNavigate }: QuantitySummaryPageProps = {
                 ⚠️ 図面が変更されました。「現在の図面から数量を算出」で再算出してください。
               </div>
             )}
+            {highlightedItemIds.size > 0 && (
+              <div
+                role="status"
+                style={{
+                  padding: '9px 18px',
+                  fontSize: 12,
+                  color: '#8A5A12',
+                  background: '#FFF3D6',
+                  borderBottom: '1px solid var(--line2)',
+                }}
+              >
+                🔗 図面で選択中の根拠図形を含む明細 {highlightedItemIds.size} 件をハイライト中（Issue #42）
+              </div>
+            )}
 
             <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 12.5 }}>
               <thead>
@@ -256,7 +281,15 @@ export function QuantitySummaryPage({ onNavigate }: QuantitySummaryPageProps = {
                       <tr
                         key={item.id}
                         onClick={() => setSelectedItemId(item.id)}
-                        style={{ cursor: 'pointer', background: selected ? 'var(--hover)' : undefined }}
+                        data-highlighted={highlightedItemIds.has(item.id) ? 'true' : 'false'}
+                        style={{
+                          cursor: 'pointer',
+                          background: highlightedItemIds.has(item.id)
+                            ? '#FDEFE0'
+                            : selected
+                              ? 'var(--hover)'
+                              : undefined,
+                        }}
                       >
                         <td style={tdStyle}>{item.workType ?? '—'}</td>
                         <td style={{ ...tdStyle, color: 'var(--muted)' }}>—</td>

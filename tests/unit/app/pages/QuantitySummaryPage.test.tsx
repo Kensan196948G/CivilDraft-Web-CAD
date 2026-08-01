@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
-import { render, screen, within } from '@testing-library/react'
+import { render, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { QuantitySummaryPage } from '@/app/pages/QuantitySummaryPage'
 import { CSV_CONTEXT, computeQuantitySummary } from '@/app/pages/quantitySummaryModel'
@@ -143,6 +143,23 @@ describe('QuantitySummaryPage / 根拠の可視化', () => {
     expect(onNavigate).toHaveBeenCalledWith('editor')
     expect(store.getState().highlightedGeometryIds).toEqual(['ln-1', 'ln-2'])
     expect(screen.getByText(/根拠図形 2 件を図面でハイライトしました/)).toBeInTheDocument()
+  })
+
+  it('CAD編集で選択中の根拠図形を含む明細をハイライトする（#42 第二弾）', async () => {
+    const store = storeWith([line('ln-1'), line('ln-2')])
+    renderPage(store)
+    await userEvent.click(screen.getByRole('button', { name: '現在の図面から数量を算出' }))
+
+    store.getState().setHighlightedGeometryIds(['ln-1' as GeometryId])
+    await waitFor(() =>
+      expect(screen.getByText(/図面で選択中の根拠図形を含む明細 1 件をハイライト中/)).toBeInTheDocument(),
+    )
+    const table = screen.getByRole('table')
+    const rows = within(table).getAllByRole('row')
+    expect(rows.some((row) => row.getAttribute('data-highlighted') === 'true')).toBe(true)
+
+    store.getState().setHighlightedGeometryIds([])
+    await waitFor(() => expect(screen.queryByText(/ハイライト中/)).not.toBeInTheDocument())
   })
 })
 
