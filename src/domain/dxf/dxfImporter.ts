@@ -510,12 +510,16 @@ function extractEntitiesFallback(content: string): FallbackEntity[] {
 }
 
 /** 生 DXF の TABLES > LAYER テーブルからレイヤー定義を抽出する（fallback 経路用）。 */
-function extractLayerTable(content: string): Map<string, { name: string; color?: number }> {
+function extractLayerTable(
+  content: string,
+): Map<string, { name: string; color?: number; lineTypeName?: string; flags?: number }> {
   const groups = parseDxfGroups(content)
-  const layers = new Map<string, { name: string; color?: number }>()
+  const layers = new Map<string, { name: string; color?: number; lineTypeName?: string; flags?: number }>()
   let inLayerTable = false
   let curName: string | null = null
   let curColor: number | undefined
+  let curLineType: string | undefined
+  let curFlags: number | undefined
   for (let i = 0; i < groups.length - 1; i++) {
     const g = groups[i]
     const next = groups[i + 1]
@@ -525,21 +529,29 @@ function extractLayerTable(content: string): Map<string, { name: string; color?:
       continue
     }
     if (inLayerTable && g.code === 0 && g.value === 'ENDTAB') {
-      if (curName) layers.set(curName, { name: curName, color: curColor })
+      if (curName) layers.set(curName, { name: curName, color: curColor, lineTypeName: curLineType, flags: curFlags })
       inLayerTable = false
       curName = null
       curColor = undefined
+      curLineType = undefined
+      curFlags = undefined
       continue
     }
     if (!inLayerTable) continue
     if (g.code === 0 && g.value === 'LAYER') {
-      if (curName) layers.set(curName, { name: curName, color: curColor })
+      if (curName) layers.set(curName, { name: curName, color: curColor, lineTypeName: curLineType, flags: curFlags })
       curName = null
       curColor = undefined
+      curLineType = undefined
+      curFlags = undefined
     } else if (g.code === 2 && curName === null) {
       curName = g.value
     } else if (g.code === 62) {
       curColor = parseInt(g.value, 10)
+    } else if (g.code === 6) {
+      curLineType = g.value
+    } else if (g.code === 70) {
+      curFlags = parseInt(g.value, 10)
     }
   }
   return layers
@@ -554,15 +566,50 @@ function newLayerId(ctx: GeometryCreationContext): LayerId {
   return ctx.newId() as unknown as LayerId
 }
 
+/** DXF の linetype 名を内部 lineType へ写像する（不明・未指定は continuous）。 */
+function mapDxfLineTypeName(name: string | undefined): GeometryStyle['lineType'] {
+  const upper = name?.trim().toUpperCase()
+  switch (upper) {
+    case 'CONTINUOUS':
+      return 'continuous'
+    case 'DASHED':
+    case 'DOTTED':
+      return 'dashed'
+    case 'DASHDOT':
+    case 'DASH_DOT':
+    case 'DASHDOTX2':
+      return 'dashDot'
+    default:
+      return 'continuous'
+  }
+}
+
+/** LAYER フラグ（group 70）: bit1/2=frozen、bit4=locked。 */
+function layerFlagsToVisibility(flags: number | undefined): boolean | undefined {
+  if (flags === undefined) return undefined
+  return (flags & 0b0011) === 0
+}
+
 /** レイヤー色(ACI)から図形/レイヤーの既定 GeometryStyle を合成する。 */
-function synthesizeStyle(aci: number): GeometryStyle {
+function synthesizeStyle(aci: number, lineTypeName?: string): GeometryStyle {
   return {
     strokeColor: aciToHex(aci),
     strokeWidth: 1,
-    lineType: 'continuous',
+    lineType: mapDxfLineTypeName(lineTypeName),
     opacity: 1,
     printable: true,
   }
+}
+
+interface DxfLayerSource {
+  readonly name?: string
+  readonly color?: number
+  readonly lineTypeName?: string
+  readonly flags?: number
+  /** dxf-parser が color の符号から判定した可視性。 */
+  readonly visible?: boolean
+  /** dxf-parser が layer フラグ(70) から判定した凍結状態。 */
+  readonly frozen?: boolean
 }
 
 interface BuiltLayers {
@@ -571,7 +618,7 @@ interface BuiltLayers {
 }
 
 function buildLayers(
-  dxfLayers: Record<string, { name?: string; color?: number }>,
+  dxfLayers: Record<string, DxfLayerSource>,
   ctx: GeometryCreationContext,
 ): BuiltLayers {
   const layers: DrawingLayer[] = []
@@ -584,10 +631,11 @@ function buildLayers(
       id: newLayerId(ctx),
       name: src.name ?? name,
       order: order++, // DXF LAYER テーブルの出現順を order とする（DXF 側に順序フィールドが無いため）。
-      visible: true, // DXF layer 可視/フラグ(70) は未解析。既定表示。
-      locked: false, // DXF layer lock フラグ(70 bit4) は未解析。既定非ロック。
+      // 可視性: dxf-parser の判定（color符号/凍結）→ 生テーブルのフラグ(70) → 既定 true の順で採用。
+      visible: (src.frozen === true ? false : src.visible ?? true) && (layerFlagsToVisibility(src.flags) ?? true),
+      locked: ((src.flags ?? 0) & 0b0100) !== 0, // フラグ(70) bit4 = ロック。
       printable: true, // DXF layer plot フラグは未解析。既定印刷可。
-      defaultStyle: synthesizeStyle(src.color ?? 7), // 色欠落時は ACI 7（白/既定）。
+      defaultStyle: synthesizeStyle(src.color ?? 7, src.lineTypeName), // 色欠落時は ACI 7（白/既定）。
     }
     layers.push(layer)
     byName.set(name, layer)
@@ -652,7 +700,12 @@ interface DxfDocument {
   entities?: DxfEntity[]
   tables?: {
     // dxf-parser は ACI を colorIndex に、解決済みRGB(24bit整数)を color に格納する。
-    layer?: { layers?: Record<string, { name?: string; colorIndex?: number; color?: number }> }
+    layer?: {
+      layers?: Record<
+        string,
+        { name?: string; colorIndex?: number; color?: number; visible?: boolean; frozen?: boolean }
+      >
+    }
   }
 }
 
@@ -1087,9 +1140,21 @@ export function importDxf(
   // ほぼ全レイヤーが #000000 になる潜在バグがあった（ACIテストが color にACI値を注入して隠蔽）。
   // 新実装では ACI を colorIndex から読む。生テキストfallback経路は group 62(ACI)を用いるため整合する。
   const parsedLayers = dxf.tables?.layer?.layers ?? {}
-  const normalizedLayers: Record<string, { name?: string; color?: number }> = {}
+  const normalizedLayers: Record<string, DxfLayerSource> = {}
   for (const [k, v] of Object.entries(parsedLayers)) {
-    normalizedLayers[k] = { name: v.name, color: v.colorIndex }
+    normalizedLayers[k] = { name: v.name, color: v.colorIndex, visible: v.visible, frozen: v.frozen }
+  }
+  // dxf-parser は layer の linetype(6)・lock フラグ(70 bit4) を保持しないため、
+  // 生テキストの LAYER テーブルから補完する（線種の DXF 往復を実現、Issue #40 残）。
+  const rawLayerTable = extractLayerTable(content)
+  for (const [k, raw] of rawLayerTable) {
+    const existing = normalizedLayers[k]
+    normalizedLayers[k] = {
+      ...(existing ?? { name: raw.name }),
+      color: existing?.color ?? raw.color,
+      lineTypeName: raw.lineTypeName,
+      flags: raw.flags,
+    }
   }
   const built = buildLayers(normalizedLayers, ctx)
   buildFromParsed(dxf.entities ?? [], built, toMm, ctx, geometries, issues)
