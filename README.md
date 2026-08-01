@@ -598,6 +598,7 @@ timeline
 | 2026-07-22 | 📚 PR #76: state.json実態同期（PR #72マージ・v0.1.1本番デプロイ・Issue #68クローズの反映）。人間承認Yでmainへsquash-merge済み |
 | 2026-07-22 | 🚀 v0.1.2 本番デプロイ: main（`ce5a93f`、PR #75/#76含む）をユーザー明示指示によりCTOがwrangler deployで自律実行（Worker Version `39751487`）。スモークテスト（SPA 200・無認証API 401 CD-AUTH-001・Secret残存）全PASS（[Release v0.1.2](../../releases/tag/v0.1.2)） |
 | 2026-08-01 | 🚀 **v0.1.3 本番デプロイ**（PR #78/#79/#80 統合・ユーザー指示D）: Issue #74（object_provider='unassigned'）、actorIdのJWT検証（ヘッダー偽装対策）、セキュリティヘッダー5種（API/SPA全応答）、Workers Observability有効化、依存修正（npm audit 0件）。main最終`db1e5b7`のCI全5ジョブsuccess → wrangler deploy（Worker Version `01102e33`）。スモーク全PASS・セキュリティヘッダー実測・Observability enabled確認（[Release v0.1.3](../../releases/tag/v0.1.3)） |
+| 2026-08-01 | 🚀 **v0.1.4 本番デプロイ**（PR #81/#82・ユーザー承認Y）: 監査ログhash chain実装（`entry_hash=SHA-256(previous_hash|canonical payload)`・`GET /api/v1/audit-logs/verify`・レガシー前方互換）。main最終`3f93cb1`のCI全5ジョブsuccess → wrangler deploy（Worker Version `9fdf812b`）。スモーク全PASS（[Release v0.1.4](../../releases/tag/v0.1.4)） |
 
 ### 🛠️ 次に閉じるべき実務ワークフロー
 
@@ -646,6 +647,8 @@ timeline
 | [#78](../../pull/78) | Issue #74恒久対応: export_jobs.object_providerを'unassigned'へ統一（ADR-0014整合）+ migration 0005 + ESLint worktree除外 + 依存修正 | ✅ マージ済み（2026-08-01・admin squash `7deadf2`） |
 | [#79](../../pull/79) | リリース後監査是正: actorIdのJWT検証・セキュリティヘッダー5種・Observability有効化・依存修正・SBOM・ops文書 | ✅ マージ済み（2026-08-01・admin squash `d8dd06a`）→ v0.1.3本番デプロイ済み |
 | [#80](../../pull/80) | PR #77マージ実態・Issue #74設計判断をREADME/state.jsonへ同期 | ✅ マージ済み（2026-08-01・admin squash `db1e5b7`） |
+| [#81](../../pull/81) | v0.1.3統合・本番デプロイ実態をREADME/state.jsonへ同期 | ✅ マージ済み（2026-08-01・admin squash `96a6945`） |
+| [#82](../../pull/82) | **v0.1.4**: 監査ログhash chain実装（Issue #61）: `auditChain.ts`・persistAuditLog連鎖計算・`GET /api/v1/audit-logs/verify`・テスト1227件 | ✅ マージ済み（2026-08-01・admin squash `3f93cb1`）→ v0.1.4本番デプロイ済み |
 
 > マージ済みPRは人間の明示承認（選択式Y判断）を得てマージ済み。レビュー承認1件必須はPR作成者の自己承認不可のため、マージ実行時は enforce_admins を一時解除し完了後に即復元した。
 
