@@ -125,4 +125,35 @@ describe('CivilDraftApiClient', () => {
     expect(result.error.message).toContain('CIVILDRAFT_NEON_CONNECTION')
     expect(result.error.message).toContain('binding')
   })
+
+  it('listAuditLogs で監査ログ一覧を取得できる（Issue #61）', async () => {
+    const env: WorkerEnv = { CIVILDRAFT_API_MODE: 'memory', CIVILDRAFT_DEV_STORE: createMemoryStore() }
+    const client = makeClient(env)
+
+    const created = await client.createProject({
+      projectNumber: 'P-AUDIT-CLIENT',
+      name: '監査一覧クライアントテスト',
+    })
+    expect(created.ok).toBe(true)
+
+    const result = await client.listAuditLogs({ limit: 100 })
+    expect(result.ok).toBe(true)
+    if (!result.ok) return
+    expect(result.value.length).toBeGreaterThan(0)
+    expect(result.value.some((log) => log.eventName === 'project.created')).toBe(true)
+    expect(result.value[0]?.actorId).toBe('engineer@example.test')
+  })
+
+  it('verifyAuditChain でチェーン検証結果を取得できる（Issue #61）', async () => {
+    const env: WorkerEnv = { CIVILDRAFT_API_MODE: 'memory', CIVILDRAFT_DEV_STORE: createMemoryStore() }
+    const client = makeClient(env)
+
+    const result = await client.verifyAuditChain()
+    expect(result.ok).toBe(true)
+    if (!result.ok) return
+    // メモリストアは hash 無し（レガシー）のため valid=true で検証対象外として扱う
+    expect(result.value.valid).toBe(true)
+    expect(result.value.hashedCount).toBe(0)
+    expect(result.value.checkedCount).toBe(0)
+  })
 })
