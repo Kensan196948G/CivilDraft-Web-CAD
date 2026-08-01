@@ -614,6 +614,7 @@ timeline
 | 2026-08-02 | 🚀 **v0.1.13 本番デプロイ**（PR #100/#101・ユーザー承認Y）: バックアップのリストア検証（Neon restore-check: 最新backup-*の実データ検証+SQL可読性チェック・毎週実行）。main最終`f019644`のCI全5ジョブsuccess → wrangler deploy（Worker Version `be59e5b3`）。スモーク全PASS（[Release v0.1.13](../../releases/tag/v0.1.13)） |
 | 2026-08-02 | 🚀 **v0.1.14 本番デプロイ**（PR #102/#103・ユーザー承認Y）: 線種のDXF往復強化（#40残）: LAYERテーブルのlinetype(6)・lock/frozenフラグ(70)を取込・生テーブル補完で往復成立。main最終`170190d`のCI全5ジョブsuccess → wrangler deploy（Worker Version `00e7d5e3`）。スモーク全PASS（[Release v0.1.14](../../releases/tag/v0.1.14)） |
 | 2026-08-02 | 🚀 **v0.1.15 本番デプロイ**（PR #104/#105・事前承認）: 図面健全性チェック（Issue #59第一弾）: 不明レイヤー/用紙外（回転矩形対応）/非表示レイヤー検出+対象図形ID表示。main最終`677c6ca`のCI全5ジョブsuccess → wrangler deploy（Worker Version `12cdda13`）。スモーク全PASS（[Release v0.1.15](../../releases/tag/v0.1.15)） |
+| 2026-08-02 | 🚀 **v0.1.16 本番デプロイ**（PR #106/#107・事前承認）: キーボードショートカット（Ctrl/Cmd+Z=Undo・Ctrl/Cmd+Y=Redo・Esc=取消/選択解除）+ ツールバーA11y（role/aria-label）。main最終`35802bf`のCI全5ジョブsuccess → wrangler deploy（Worker Version `39e2e95d`）。スモーク全PASS（[Release v0.1.16](../../releases/tag/v0.1.16)） |
 
 ### 🛠️ 次に閉じるべき実務ワークフロー
 
@@ -686,6 +687,8 @@ timeline
 | [#103](../../pull/103) | v0.1.13デプロイ・リストア検証の実態をREADME/state.jsonへ同期 | ✅ マージ済み（2026-08-02・admin squash `170190d`） |
 | [#104](../../pull/104) | **v0.1.15**: 図面健全性チェック（Issue #59第一弾）: 不明レイヤー/用紙外/非表示レイヤー検出 | ✅ マージ済み（2026-08-02・admin squash `6e3655b`）→ v0.1.15本番デプロイ済み |
 | [#105](../../pull/105) | v0.1.14デプロイ・DXF往復強化の実態をREADME/state.jsonへ同期 | ✅ マージ済み（2026-08-02・admin squash `677c6ca`） |
+| [#106](../../pull/106) | v0.1.15デプロイ・図面健全性チェックの実態をREADME/state.jsonへ同期 | ✅ マージ済み（2026-08-02・admin squash `8a2b61b`） |
+| [#107](../../pull/107) | **v0.1.16**: キーボードショートカット（Ctrl/Cmd+Z/Y・Esc）+ ツールバーA11y（#47の一部） | ✅ マージ済み（2026-08-02・admin squash `35802bf`）→ v0.1.16本番デプロイ済み |
 
 > マージ済みPRは人間の明示承認（選択式Y判断）を得てマージ済み。レビュー承認1件必須はPR作成者の自己承認不可のため、マージ実行時は enforce_admins を一時解除し完了後に即復元した。
 
