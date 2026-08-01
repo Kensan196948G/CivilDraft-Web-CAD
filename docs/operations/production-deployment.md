@@ -43,6 +43,18 @@ flowchart TB
 | 静的SPA | `dist/` を Static Assets として配信（ブラウザ内CAD） | ✅ デプロイ済み（`ASSETS` binding確認、`civildraft-web-cad.mirai-dx-platform.com` でHTTP 200確認） |
 | Workers API | `src/workers/index.ts`（18経路のP0縦線） | ✅ デプロイ済み（`main` エントリ有効化済み）。書き込み系9ルート（GET以外の全経路）は、(a) migration 0003 本番適用 と (b) persistX配線実装 の両方が完了するまでfail-closed（503、ADR-0014）。GET系読み取りには影響しない |
 
+### 1.1 セキュリティヘッダーと Observability（2026-08-01 リリース後監査）
+
+| 項目 | 内容 | 状態 |
+| --- | --- | --- |
+| セキュリティヘッダー | `X-Content-Type-Options: nosniff` / `X-Frame-Options: SAMEORIGIN` / `Referrer-Policy: no-referrer` / `Permissions-Policy` / `Strict-Transport-Security` を全応答（API・SPA配信）に付与 | コード実装済み（PR）。`assets.run_worker_first: true` で SPA 配信にも適用。デプロイ後ヘッダー確認 |
+| Workers Observability | `observability: { enabled: true, head_sampling_rate: 1 }` | `wrangler.jsonc` 設定済み（PR）。デプロイ後に `settings.observability` が有効になる |
+| CSP | Content-Security-Policy は未導入。フロント検証後に zone レベル Transform Rules で導入を判断 | 未実施（人間決裁事項） |
+
+> `run_worker_first: true` のため、API 以外の全リクエストは Worker から
+> `env.ASSETS.fetch(request)` へ転送される（`src/workers/index.ts` の default export）。
+> API 経路（`/api/*`）は従来どおり認証 → ルーティングの順で処理される。
+
 ---
 
 ## 🔑 2. 必要な環境変数・Secret 一覧
