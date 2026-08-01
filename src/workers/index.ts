@@ -54,7 +54,14 @@ export interface WorkerEnv {
   CIVILDRAFT_NEON_CONNECTION?: string
   /** R2 バケット binding（任意。図面内容は Neon 直接格納のため共有ストレージ用途でのみ使用）。 */
   CIVILDRAFT_R2_BUCKET?: R2BucketBinding
+  /** Static Assets binding（run_worker_first 時に SPA 配信を worker 経由で行う）。 */
+  ASSETS?: AssetFetcher
   [key: string]: unknown
+}
+
+/** Workers Static Assets binding の最小インターフェース。 */
+export interface AssetFetcher {
+  fetch(request: Request): Promise<Response>
 }
 
 export interface ExecutionContext {
@@ -65,6 +72,32 @@ export interface ExecutionContext {
 const ACCESS_JWT_HEADER = 'Cf-Access-Jwt-Assertion'
 const ACCESS_USER_HEADER = 'Cf-Access-Authenticated-User-Email'
 const CORRELATION_ID_HEADER = 'X-Correlation-Id'
+
+// 全レスポンス（API・SPA配信とも）に付与するセキュリティヘッダー（2026-08-01 監査）。
+// Content-Security-Policy は zone レベル（Cloudflare Transform Rules）で導入予定のため
+// ここでは最小限のハードニングに留める（docs/operations/production-deployment.md 参照）。
+const SECURITY_RESPONSE_HEADERS: Readonly<Record<string, string>> = {
+  'X-Content-Type-Options': 'nosniff',
+  'X-Frame-Options': 'SAMEORIGIN',
+  'Referrer-Policy': 'no-referrer',
+  'Permissions-Policy': 'camera=(), microphone=(), geolocation=(), payment=(), usb=()',
+  'Strict-Transport-Security': 'max-age=31536000',
+}
+
+/** 既存ヘッダーを上書きせずセキュリティヘッダーを付与した Response を返す。 */
+function withSecurityHeaders(response: Response): Response {
+  const headers = new Headers(response.headers)
+  for (const [name, value] of Object.entries(SECURITY_RESPONSE_HEADERS)) {
+    if (!headers.has(name)) {
+      headers.set(name, value)
+    }
+  }
+  return new Response(response.body, {
+    status: response.status,
+    statusText: response.statusText,
+    headers,
+  })
+}
 
 const ERROR_CODES = {
   unauthenticated: 'CD-AUTH-001',
@@ -281,12 +314,16 @@ function nowIso(): string {
 }
 
 function jsonResponse(status: number, body: unknown, correlationId: string): Response {
+  const headers = new Headers({
+    'Content-Type': 'application/json',
+    [CORRELATION_ID_HEADER]: correlationId,
+  })
+  for (const [name, value] of Object.entries(SECURITY_RESPONSE_HEADERS)) {
+    headers.set(name, value)
+  }
   return new Response(JSON.stringify(body), {
     status,
-    headers: {
-      'Content-Type': 'application/json',
-      [CORRELATION_ID_HEADER]: correlationId,
-    },
+    headers,
   })
 }
 
@@ -1510,14 +1547,20 @@ export async function handleRequest(request: Request, env: WorkerEnv = {}): Prom
   // 二次防御（#36）: Access設定があればJWT署名・iss/aud/expを検証する。
   // 検証失敗の詳細はログのみに残し、クライアントへは理由を漏らさない。
   const accessConfig = resolveAccessJwtConfig(env)
+  // JWT 検証済みペイロードの email（署名検証済みのため信頼できる）。
+  // Cf-Access-Authenticated-User-Email ヘッダーは Access プロキシが付与するが、
+  // workers.dev 等への直接到達時に任意値で偽装できるため、Access 設定ありの本番
+  // モードでは必ず JWT 内の identity を actorId として採用する（2026-08-01 監査）。
+  let verifiedIdentityEmail: string | undefined
   if (accessConfig) {
     // Defense in depth: verifyAccessJwt is written to fail closed, but wrap it
     // so any unexpected throw still becomes a clean 401 (never a bare 500 that
     // would bypass the audit/correlation path).
     let verificationReason = 'verification-error'
     let verified = false
+    let verification: Awaited<ReturnType<typeof verifyAccessJwt>> | undefined
     try {
-      const verification = await verifyAccessJwt(accessJwt, accessConfig, {
+      verification = await verifyAccessJwt(accessJwt, accessConfig, {
         injectedJwks: env.CIVILDRAFT_ACCESS_JWKS,
       })
       verified = verification.ok
@@ -1539,6 +1582,12 @@ export async function handleRequest(request: Request, env: WorkerEnv = {}): Prom
         correlationId,
       )
     }
+    if (verification?.ok) {
+      const payloadEmail = verification.payload?.['email']
+      if (typeof payloadEmail === 'string' && payloadEmail.trim() !== '') {
+        verifiedIdentityEmail = payloadEmail.trim()
+      }
+    }
   }
 
   const matched = matchRouteWithParams(request.method, url.pathname)
@@ -1547,7 +1596,10 @@ export async function handleRequest(request: Request, env: WorkerEnv = {}): Prom
   }
 
   const ctx: RequestContext = {
-    actorId: request.headers.get(ACCESS_USER_HEADER) ?? 'unknown-access-user',
+    actorId:
+      verifiedIdentityEmail ??
+      request.headers.get(ACCESS_USER_HEADER)?.trim() ??
+      'unknown-access-user',
     correlationId,
     url,
     pendingAudits: [],
@@ -1686,6 +1738,18 @@ async function dispatchApiRoute(
 
 export default {
   fetch(request: Request, env: WorkerEnv, _ctx: ExecutionContext): Promise<Response> {
+    // run_worker_first（assets.run_worker_first=true）時は全リクエストがここへ到達する。
+    // API 以外（SPA・静的アセット・404 フォールバック）は ASSETS binding へ転送し、
+    // セキュリティヘッダーを付与して返す。認証チェックは API 経路のみに適用する。
+    const url = new URL(request.url)
+    if (!url.pathname.startsWith('/api/')) {
+      if (env.ASSETS) {
+        return env.ASSETS.fetch(request).then(withSecurityHeaders)
+      }
+      return Promise.resolve(
+        new Response('Not Found', { status: 404, headers: SECURITY_RESPONSE_HEADERS }),
+      )
+    }
     return handleRequest(request, env)
   },
 }

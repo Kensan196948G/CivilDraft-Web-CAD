@@ -20,7 +20,17 @@
   "assets": {
     "directory": "./dist",
     "not_found_handling": "single-page-application",
-    "binding": "ASSETS"
+    "binding": "ASSETS",
+    // セキュリティヘッダー付与（X-Content-Type-Options / HSTS 等）のため worker を先に実行する。
+    // API 以外の全リクエストは env.ASSETS.fetch() へ転送される（src/workers/index.ts）。
+    "run_worker_first": true
+  },
+
+  // Workers Observability（ログ・例外・CPU時間の保持・照会）。2026-08-01 監査時点で
+  // 未有効（settings.observability=null）だったため有効化する。
+  "observability": {
+    "enabled": true,
+    "head_sampling_rate": 1
   },
 
   // R2 バケット — 共有保存に必要。現状はブラウザ内IndexedDB + ローカルDLで代替。
