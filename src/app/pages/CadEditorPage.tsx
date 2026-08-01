@@ -1016,6 +1016,11 @@ export function CadEditorPage({
                 style={{ fontSize: 12.5, color: healthSeverityColor(issue.severity) }}
               >
                 {issue.severity === 'error' ? '🚨' : issue.severity === 'warning' ? '⚠️' : 'ℹ️'} {issue.message}
+                {issue.geometryIds.length > 0 && (
+                  <div style={{ marginTop: 2, fontFamily: "'IBM Plex Mono', monospace", fontSize: 11 }}>
+                    対象図形 ID: {issue.geometryIds.join(', ')}
+                  </div>
+                )}
               </div>
             ))
           )}

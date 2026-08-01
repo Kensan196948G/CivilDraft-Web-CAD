@@ -90,6 +90,50 @@ describe('checkDrawingHealth（図面健全性チェック / Issue #59）', () =
     expect(issue?.message).toContain('A3')
   })
 
+  it('回転した矩形は回転後の AABB で用紙外判定する（CodeRabbit #104）', () => {
+    const rotatedRectangle: Geometry = {
+      ...base,
+      id: id('g-rot'),
+      layerId: 'layer-1' as LayerId,
+      type: 'rectangle',
+      // 回転前 bbox（y=300〜400）は A3 landscape（420×297）の外に見えるが、
+      // 270°回転後は y=200〜300 に収まり、実際には用紙に一部重なる。
+      origin: { x: 0, y: 300 },
+      width: 100,
+      height: 50,
+      rotationDeg: 270,
+    }
+    const result = checkDrawingHealth(
+      doc([rotatedRectangle], [layer('layer-1')]),
+      { paperSize: 'A3', paperOrientation: 'landscape' },
+    )
+    // 回転考慮なし（shapeBBox）なら誤検出することを確認
+    const unrotated = checkDrawingHealth(
+      doc([{ ...rotatedRectangle, rotationDeg: 0 }], [layer('layer-1')]),
+      { paperSize: 'A3', paperOrientation: 'landscape' },
+    )
+    expect(unrotated.healthy).toBe(false)
+    expect(result.healthy).toBe(true)
+  })
+
+  it('回転していない矩形は従来どおり shapeBBox で判定する', () => {
+    const plainRectangle: Geometry = {
+      ...base,
+      id: id('g-rect'),
+      layerId: 'layer-1' as LayerId,
+      type: 'rectangle',
+      origin: { x: 0, y: 0 },
+      width: 100,
+      height: 100,
+      rotationDeg: 0,
+    }
+    const result = checkDrawingHealth(
+      doc([plainRectangle], [layer('layer-1')]),
+      { paperSize: 'A3', paperOrientation: 'landscape' },
+    )
+    expect(result.healthy).toBe(true)
+  })
+
   it('非表示レイヤー上の図形を info で検出する', () => {
     const result = checkDrawingHealth(
       doc([line('g-1', 'layer-hidden', 0, 100)], [layer('layer-hidden', false)]),

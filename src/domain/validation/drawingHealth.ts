@@ -42,6 +42,34 @@ export interface DrawingHealthOptions {
 /** 結果に列挙する図形 ID の上限（メッセージは件数で全量を伝える）。 */
 const MAX_LISTED_IDS = 20
 
+/** 矩形の回転（rotationDeg・原点基準）を考慮した AABB を計算する。 */
+function rotatedRectangleBBox(geometry: Extract<DocumentState['geometries'][number], { type: 'rectangle' }>) {
+  const rad = (geometry.rotationDeg * Math.PI) / 180
+  const cos = Math.cos(rad)
+  const sin = Math.sin(rad)
+  const corners = [
+    { x: geometry.origin.x, y: geometry.origin.y },
+    { x: geometry.origin.x + geometry.width, y: geometry.origin.y },
+    { x: geometry.origin.x + geometry.width, y: geometry.origin.y + geometry.height },
+    { x: geometry.origin.x, y: geometry.origin.y + geometry.height },
+  ]
+  let minX = Infinity
+  let minY = Infinity
+  let maxX = -Infinity
+  let maxY = -Infinity
+  for (const corner of corners) {
+    const dx = corner.x - geometry.origin.x
+    const dy = corner.y - geometry.origin.y
+    const rx = geometry.origin.x + dx * cos - dy * sin
+    const ry = geometry.origin.y + dx * sin + dy * cos
+    minX = Math.min(minX, rx)
+    minY = Math.min(minY, ry)
+    maxX = Math.max(maxX, rx)
+    maxY = Math.max(maxY, ry)
+  }
+  return { minX, minY, maxX, maxY }
+}
+
 export function checkDrawingHealth(
   document: DocumentState,
   options: DrawingHealthOptions = {},
@@ -60,7 +88,11 @@ export function checkDrawingHealth(
     if (!layerIds.has(geometry.layerId)) {
       unknownLayer.push(geometry.id)
     }
-    const bbox = shapeBBox(geometry)
+    // 矩形は描画が rotationDeg を適用するため、回転後の AABB で用紙判定する（CodeRabbit #104）。
+    const bbox =
+      geometry.type === 'rectangle' && geometry.rotationDeg !== 0
+        ? rotatedRectangleBBox(geometry)
+        : shapeBBox(geometry)
     if (bbox !== null && (bbox.maxX < 0 || bbox.minX > paper.w || bbox.maxY < 0 || bbox.minY > paper.h)) {
       offPaper.push(geometry.id)
     }

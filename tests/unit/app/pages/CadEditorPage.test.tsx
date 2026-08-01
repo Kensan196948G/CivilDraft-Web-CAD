@@ -363,5 +363,6 @@ describe('CadEditorPage レイヤーパネル', () => {
     expect(
       screen.getByText(/用紙（A3・landscape）の外に配置された図形が 1 件あります/),
     ).toBeInTheDocument()
+    expect(screen.getByText(/対象図形 ID: g-far/)).toBeInTheDocument()
   })
 })
