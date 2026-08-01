@@ -67,7 +67,12 @@ const UNIT_LABELS: Record<QuantityUnit, string> = {
 
 const fieldLabelStyle: CSSProperties = { fontSize: 11, color: 'var(--muted)', fontWeight: 600 }
 
-export function QuantitySummaryPage() {
+export interface QuantitySummaryPageProps {
+  /** CAD編集画面への遷移コールバック（数量根拠の図面ハイライト連動、Issue #42）。 */
+  readonly onNavigate?: (view: string) => void
+}
+
+export function QuantitySummaryPage({ onNavigate }: QuantitySummaryPageProps = {}) {
   const storeApi = useEditorStoreApi()
   // 全配列は常時購読せず件数のみ購読（§8.2）。算出はボタン押下時のスナップショットに対して行う。
   const geometryCount = useEditorStore((s) => s.geometries.length)
@@ -75,6 +80,7 @@ export function QuantitySummaryPage() {
   const [summary, setSummary] = useState<QuantitySummary | null>(null)
   const [computedAtCount, setComputedAtCount] = useState<number | null>(null)
   const [selectedItemId, setSelectedItemId] = useState<QuantityItemId | null>(null)
+  const [linkMessage, setLinkMessage] = useState<string | null>(null)
 
   // summary 不変時は参照を安定させ、下流 useMemo の再計算を避ける。
   const items = useMemo(() => summary?.items ?? [], [summary])
@@ -110,6 +116,15 @@ export function QuantitySummaryPage() {
     anchor.download = 'quantities.csv'
     anchor.click()
     URL.revokeObjectURL(url)
+  }
+
+  /** 選択明細の根拠図形を CAD 編集画面でハイライトする（Issue #42）。 */
+  const handleShowInDrawing = () => {
+    if (selectedItem === null) return
+    const geometryIds = selectedItem.sources.map((source) => source.geometryId)
+    storeApi.getState().setHighlightedGeometryIds(geometryIds)
+    setLinkMessage(`根拠図形 ${geometryIds.length} 件を図面でハイライトしました`)
+    onNavigate?.('editor')
   }
 
   const hasGeometries = geometryCount > 0
@@ -278,6 +293,21 @@ export function QuantitySummaryPage() {
                   <>
                     <div style={{ fontSize: 12.5, color: 'var(--ink)', fontWeight: 600 }}>
                       根拠図形: {selectedItem.sources.length}件
+                    </div>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
+                      <button
+                        type="button"
+                        style={primaryButtonStyle}
+                        onClick={handleShowInDrawing}
+                        disabled={selectedItem.sources.length === 0}
+                      >
+                        図面で確認
+                      </button>
+                      {linkMessage !== null && (
+                        <span role="status" style={{ fontSize: 11.5, color: '#1F8255' }}>
+                          {linkMessage}
+                        </span>
+                      )}
                     </div>
                     <div
                       aria-label="根拠図形ID一覧"

@@ -57,10 +57,10 @@ function storeWith(geometries: readonly Geometry[]): EditorStore {
   return store
 }
 
-function renderPage(store: EditorStore) {
+function renderPage(store: EditorStore, onNavigate?: (view: string) => void) {
   return render(
     <EditorStoreProvider store={store}>
-      <QuantitySummaryPage />
+      <QuantitySummaryPage onNavigate={onNavigate} />
     </EditorStoreProvider>,
   )
 }
@@ -128,6 +128,21 @@ describe('QuantitySummaryPage / 根拠の可視化', () => {
     const sourceList = screen.getByLabelText('根拠図形ID一覧')
     expect(within(sourceList).getByText('ln-1')).toBeInTheDocument()
     expect(within(sourceList).getByText('ln-2')).toBeInTheDocument()
+  })
+
+  it('「図面で確認」で根拠図形をハイライトしCAD編集へ遷移する（Issue #42）', async () => {
+    const store = storeWith([line('ln-1'), line('ln-2')])
+    const onNavigate = vi.fn()
+    renderPage(store, onNavigate)
+    await userEvent.click(screen.getByRole('button', { name: '現在の図面から数量を算出' }))
+
+    const methodCell = screen.getByRole('cell', { name: '延長' })
+    await userEvent.click(methodCell.closest('tr') as HTMLElement)
+    await userEvent.click(screen.getByRole('button', { name: '図面で確認' }))
+
+    expect(onNavigate).toHaveBeenCalledWith('editor')
+    expect(store.getState().highlightedGeometryIds).toEqual(['ln-1', 'ln-2'])
+    expect(screen.getByText(/根拠図形 2 件を図面でハイライトしました/)).toBeInTheDocument()
   })
 })
 

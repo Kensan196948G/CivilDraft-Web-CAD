@@ -286,3 +286,16 @@ describe('EditorStore / 複数インスタンス独立性（Issue #7）', () => 
     expect(s2.getState().zoom).toBe(10)
   })
 })
+
+describe('EditorStore / 数量根拠ハイライト（Issue #42）', () => {
+  it('highlightedGeometryIds を設定・クリアできる', () => {
+    const store = createEditorStore()
+    expect(store.getState().highlightedGeometryIds).toEqual([])
+
+    store.getState().setHighlightedGeometryIds(['g-1', 'g-2'])
+    expect(store.getState().highlightedGeometryIds).toEqual(['g-1', 'g-2'])
+
+    store.getState().clearHighlightedGeometryIds()
+    expect(store.getState().highlightedGeometryIds).toEqual([])
+  })
+})
