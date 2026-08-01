@@ -1,0 +1,37 @@
+name: Neon Backup
+
+on:
+  schedule:
+    # 毎週日曜 00:30 JST（土曜 15:30 UTC）
+    - cron: '30 15 * * 6'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  actions: write
+
+jobs:
+  backup:
+    name: Create Neon backup branch
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 25
+          cache: npm
+
+      - run: npm ci
+
+      - name: Create backup branch
+        run: node scripts/neon-backup.mjs
+        env:
+          NEON_API_KEY: ${{ secrets.NEON_API_KEY }}
+          NEON_PROJECT_ID: ${{ vars.NEON_PROJECT_ID }}
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: neon-backup-summary
+          path: backup-summary.json
+          retention-days: 90

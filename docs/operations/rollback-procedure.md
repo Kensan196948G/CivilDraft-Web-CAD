@@ -99,10 +99,11 @@ flowchart TB
 
 ## 📋 4. データ（DB）ロールバックについて
 
-> ✅ **現時点: 本番DB未適用。**
+> ✅ **現時点: 本番 DB 適用済み（migration 0001〜0004 / v0.1.0 以降）。**
 >
-> Workers API は開発/テスト用インメモリストアで契約を固定済みだが、Neon main ブランチには自動適用しない。
-> 本番適用前の DB ロールバックは不要で、dev ブランチ上の検証失敗は migration の前進修正で扱う。
+> Workers API は Neon main ブランチへ接続中（fail-closed は Access 設定待ち）。
+> データロールバックは §4.1 のブランチ/PITR 方針に従い、破壊的な down migration は行わない。
+> バックアップは §4.3 の週次ブランチ方式で自動取得する。
 
 | 保存先 | Phase 1 での扱い | ロールバック |
 | --- | --- | --- |
@@ -133,6 +134,24 @@ Neon PostgreSQL 導入後は、以下の方針でデータ保護と切り戻し�
 | 本番適用直後にアプリ互換問題 | APIを前バージョンへ切り戻すか、前進修正migrationを作成。データ削除を伴う down は避ける |
 | データ破損が疑われる | 直ちに書き込みを停止し、Neon PITR/ブランチ復旧点を人間が選択。CTOは復旧案と影響範囲を提示 |
 | 監査ログ不整合 | `audit_logs.entry_hash` / `previous_hash` の検証結果を保存し、削除せず追補ログで是正する |
+
+### 4.3 自動バックアップ（週次・ブランチ方式・2026-08-01 導入）
+
+GitHub Actions（`.github/workflows/backup.yml`）が毎週日曜 00:30 JST に、Neon API で
+`backup-YYYYMMDD-HHMM` 形式の **copy-on-write ブランチ**を作成する（手動実行 `workflow_dispatch` 可）。
+
+| 項目 | 内容 |
+| --- | --- |
+| 実行契機 | cron（毎週日曜 00:30 JST）+ 手動 dispatch |
+| 実行内容 | `node scripts/neon-backup.mjs`（NEON_API_KEY のみで実行・接続文字列不要） |
+| 成果物 | `backup-summary.json`（branch id/name/createdAt）を Artifacts に 90 日保存 |
+| データ影響 | 本番データを変更しない（分岐のみ）。バックアップブランチは実体を持たない copy-on-write |
+| リストア手順 | Neon コンソール/API でバックアップブランチからデータを取り出す（PITR と同等） |
+| 保持・削除 | 🚫 **バックアップブランチの削除は人間判断**（データ削除に準ずる）。手動実行で保持数を確認してから削除する |
+| ドライラン | `node scripts/neon-backup.mjs --dry-run` でブランチ名の検証のみ実行 |
+
+> 本番 DB の接続文字列を GitHub Secrets に登録しない設計（API キーのみ）のため、
+> シークレット流出時の影響範囲が「バックアップブランチ作成」に限定される。
 
 ---
 
