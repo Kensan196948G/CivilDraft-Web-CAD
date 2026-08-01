@@ -31,6 +31,7 @@ import {
   type ToolType,
 } from '@/domain/tools/draftGeometry'
 import type { EditingToolType } from '@/domain/tools/editGeometry'
+import { findLayerTemplate } from '@/domain/catalog/layerTemplates'
 const REPEAT_EDITING_TOOLS: ReadonlySet<EditingToolType> = new Set([
   'rotate',
   'mirror',
@@ -122,6 +123,8 @@ export interface LayerSlice {
   updateLayerName: (id: LayerId, name: string) => void
   updateLayerLineWidth: (id: LayerId, lineWidth: number) => void
   reorderLayer: (id: LayerId, direction: 'up' | 'down') => void
+  /** 工種別レイヤーテンプレートを適用する（同名レイヤーは残し、不足分のみ追加、Issue #40）。 */
+  applyLayerTemplate: (templateId: string) => void
 }
 
 export interface SelectionSlice {
@@ -447,6 +450,37 @@ export function createEditorStore(ctx: GeometryCreationContext = defaultCreation
         })
         return { layers: swapped }
       }),
+    applyLayerTemplate: (templateId) => {
+      const template = findLayerTemplate(templateId)
+      if (template === undefined) return
+      const current = get().layers
+      const existingNames = new Set(current.map((l) => l.name))
+      let order = current.reduce((m, l) => Math.max(m, l.order), -1) + 1
+      const additions: DrawingLayer[] = []
+      for (const templateLayer of template.layers) {
+        if (existingNames.has(templateLayer.name)) continue
+        additions.push({
+          id: crypto.randomUUID() as LayerId,
+          name: templateLayer.name,
+          order,
+          visible: true,
+          locked: false,
+          printable: templateLayer.printable,
+          defaultStyle: {
+            ...DEFAULT_LAYER_STYLE,
+            strokeColor: templateLayer.strokeColor,
+            lineType: templateLayer.lineType,
+            strokeWidth: templateLayer.lineWidth,
+          },
+        })
+        order += 1
+        existingNames.add(templateLayer.name)
+      }
+      if (additions.length === 0) return
+      set({ layers: [...current, ...additions] })
+      const first = additions[0]
+      if (first !== undefined) set({ activeLayerId: first.id })
+    },
 
     // --- SelectionSlice ---
     selectedIds: [],

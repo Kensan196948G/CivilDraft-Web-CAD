@@ -333,4 +333,18 @@ describe('CadEditorPage レイヤーパネル', () => {
     const stored = store.getState().geometries.find((g) => g.id === geometry.id)
     expect(stored?.style.strokeColor).toBe(originalColor)
   })
+
+  it('レイヤーテンプレートを選択して適用すると不足レイヤーが追加される（Issue #40）', async () => {
+    const store = createEditorStore()
+    const cloudApiClient: CloudSaveClient = { saveDraft: vi.fn(), getRevisionContent: vi.fn() }
+    renderPage(store, cloudApiClient)
+    const before = store.getState().layers.length
+
+    await userEvent.selectOptions(screen.getByLabelText('レイヤーテンプレート'), 'survey')
+    await userEvent.click(screen.getByRole('button', { name: 'テンプレート適用' }))
+
+    expect(store.getState().layers.length).toBe(before + 4)
+    expect(store.getState().layers.some((l) => l.name === '測点')).toBe(true)
+    expect(store.getState().layers.some((l) => l.name === '地形')).toBe(true)
+  })
 })

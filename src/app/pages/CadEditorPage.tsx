@@ -23,6 +23,7 @@ import { createAddGeometryCommand, createUpdateGeometryCommand } from '@/domain/
 import { DEFAULT_CONSTRUCTION_STEPS } from '@/domain/construction-steps'
 import type { ToolType } from '@/domain/tools/draftGeometry'
 import { EDITING_TOOLS, PARAM_EDITING_TOOLS, SELECTION_REQUIRED_TOOLS } from '@/domain/tools/editGeometry'
+import { LAYER_TEMPLATES } from '@/domain/catalog/layerTemplates'
 import { defaultCreationContext } from '@/domain/geometry/geometryFactory'
 import type { AutosaveStore } from '@/infrastructure/autosave/autosaveStore'
 import { scheduleAutosave } from '@/infrastructure/autosave/autosaveScheduler'
@@ -686,6 +687,7 @@ export function CadEditorPage({
   const [cloudSaving, setCloudSaving] = useState(false)
   const [lastCloudRevisionId, setLastCloudRevisionId] = useState<string | null>(null)
   const [editNotice, setEditNotice] = useState<string | null>(null)
+  const [selectedTemplateId, setSelectedTemplateId] = useState<string>(LAYER_TEMPLATES[0]?.id ?? '')
 
   const [textInputValue, setTextInputValue] = useState('')
   const [textFontSize, setTextFontSize] = useState(14)
@@ -1097,6 +1099,26 @@ export function CadEditorPage({
                 onClick={() => storeApi.getState().addLayer(`レイヤー${layers.length + 1}`)}
               >
                 + 新規
+              </button>
+            </div>
+            <div style={{ display: 'flex', gap: 4, alignItems: 'center', marginBottom: 8 }}>
+              <select
+                aria-label="レイヤーテンプレート"
+                value={selectedTemplateId}
+                onChange={(e) => setSelectedTemplateId(e.target.value)}
+                style={miniSelectStyle}
+              >
+                {LAYER_TEMPLATES.map((template) => (
+                  <option key={template.id} value={template.id}>
+                    {template.name}
+                  </option>
+                ))}
+              </select>
+              <button
+                style={{ ...ghostButtonStyle, padding: '2px 8px', fontSize: 11 }}
+                onClick={() => storeApi.getState().applyLayerTemplate(selectedTemplateId)}
+              >
+                テンプレート適用
               </button>
             </div>
             {[...layers].sort((a, b) => a.order - b.order).map((layer) => (

@@ -299,3 +299,32 @@ describe('EditorStore / 数量根拠ハイライト（Issue #42）', () => {
     expect(store.getState().highlightedGeometryIds).toEqual([])
   })
 })
+
+describe('EditorStore / レイヤーテンプレート適用（Issue #40）', () => {
+  it('applyLayerTemplate は同名レイヤーを残し不足分のみ追加し、アクティブを先頭追加レイヤーへ切替える', () => {
+    const store = createEditorStore()
+    const initialCount = store.getState().layers.length
+    const initialActive = store.getState().activeLayerId
+
+    store.getState().applyLayerTemplate('survey')
+
+    const layers = store.getState().layers
+    expect(layers.length).toBe(initialCount + 4) // 基準線・測点・地形・注記
+    expect(layers.some((l) => l.name === '測点')).toBe(true)
+    expect(layers.some((l) => l.name === '地形')).toBe(true)
+    expect(layers.find((l) => l.name === '測点')?.defaultStyle.strokeColor).toBe('#7A5FA0')
+    expect(layers.find((l) => l.name === '補助線')).toBeUndefined()
+    expect(store.getState().activeLayerId).not.toBe(initialActive)
+
+    // 再適用しても重複しない
+    store.getState().applyLayerTemplate('survey')
+    expect(store.getState().layers.length).toBe(initialCount + 4)
+  })
+
+  it('未知テンプレートIDは無視される', () => {
+    const store = createEditorStore()
+    const count = store.getState().layers.length
+    store.getState().applyLayerTemplate('unknown')
+    expect(store.getState().layers.length).toBe(count)
+  })
+})
