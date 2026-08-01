@@ -25,6 +25,7 @@ import type {
   RevisionRecord,
   WorkflowActionRecord,
 } from './apiStore'
+import { computeEntryHash } from './auditChain'
 
 // ---------------------------------------------------------------------------
 // SQL client type — compatible with `neon()` return
@@ -336,6 +337,8 @@ function rowToAuditLog(row: AuditLogRow): AuditLogRecord {
     result: row.result as 'success' | 'failure',
     correlationId: row.correlation_id,
     detail: row.detail ?? undefined,
+    previousHash: row.previous_hash ?? undefined,
+    entryHash: row.entry_hash ?? undefined,
   }
 }
 
@@ -686,11 +689,18 @@ export class NeonApiStore implements ApiStore {
     // detail は任意 JSON（配列を含む）のため JSON.stringify + ::jsonb で確定させる。
     // 未指定は SQL NULL（jsonb 'null' ではなく列 NULL）として格納する。
     const detailJson = log.detail === undefined ? null : JSON.stringify(log.detail)
+    // hash chain（Issue #61 / ADR-0009）: 直前レコード（時系列ロード済みの末尾）の
+    // entry_hash を previous_hash として entry_hash を計算する。書き込みが直列化される
+    // 前提（同一 store インスタンス内の逐次 flush）でチェーンを維持する。
+    const previousRecord = this.auditLogs.length > 0 ? this.auditLogs[this.auditLogs.length - 1] : undefined
+    const previousHash = previousRecord?.entryHash
+    const entryHash = await computeEntryHash(previousHash, log)
+    const hashedLog: AuditLogRecord = { ...log, previousHash, entryHash }
     await this.#sql`
       INSERT INTO audit_logs (id, occurred_at, event_name, actor_id, project_id, entity_type, entity_id, result, correlation_id, detail, previous_hash, entry_hash, hash_algorithm)
-      VALUES (${log.id}, ${log.occurredAt}, ${log.eventName}, ${log.actorId}, ${log.projectId ?? null}, ${log.entityType ?? null}, ${log.entityId ?? null}, ${log.result}, ${log.correlationId}, ${detailJson}::jsonb, null, null, 'sha256')
+      VALUES (${hashedLog.id}, ${hashedLog.occurredAt}, ${hashedLog.eventName}, ${hashedLog.actorId}, ${hashedLog.projectId ?? null}, ${hashedLog.entityType ?? null}, ${hashedLog.entityId ?? null}, ${hashedLog.result}, ${hashedLog.correlationId}, ${detailJson}::jsonb, ${hashedLog.previousHash ?? null}, ${hashedLog.entryHash}, 'sha256')
     `
-    this.auditLogs.push(log)
+    this.auditLogs.push(hashedLog)
   }
 
   // -----------------------------------------------------------------------

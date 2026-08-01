@@ -791,6 +791,26 @@ describe('NeonApiStore', () => {
     expect(sql).toHaveBeenCalled()
     expect(store.auditLogs).toHaveLength(1)
     expect(store.auditLogs[0]?.eventName).toBe('drawing.created')
+    // Issue #61: 先頭レコードは previous_hash なしで entry_hash が計算される
+    expect(store.auditLogs[0]?.previousHash).toBeUndefined()
+    expect(store.auditLogs[0]?.entryHash).toMatch(/^[0-9a-f]{64}$/)
+
+    // 2件目は直前の entry_hash を previous_hash として連結する
+    const secondLog: AuditLogRecord = {
+      id: 'audit-new-2',
+      occurredAt: now,
+      eventName: 'revision.approved',
+      actorId: 'user@test',
+      projectId: 'proj-1',
+      entityType: 'revision',
+      entityId: 'rev-1',
+      result: 'success',
+      correlationId: 'corr-2',
+    }
+    await store.persistAuditLog(secondLog)
+    expect(store.auditLogs).toHaveLength(2)
+    expect(store.auditLogs[1]?.previousHash).toBe(store.auditLogs[0]?.entryHash)
+    expect(store.auditLogs[1]?.entryHash).toMatch(/^[0-9a-f]{64}$/)
   })
 
   it('initialize is idempotent — calling twice does not duplicate data', async () => {
