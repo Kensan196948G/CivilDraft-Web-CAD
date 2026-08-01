@@ -615,6 +615,7 @@ timeline
 | 2026-08-02 | 🚀 **v0.1.14 本番デプロイ**（PR #102/#103・ユーザー承認Y）: 線種のDXF往復強化（#40残）: LAYERテーブルのlinetype(6)・lock/frozenフラグ(70)を取込・生テーブル補完で往復成立。main最終`170190d`のCI全5ジョブsuccess → wrangler deploy（Worker Version `00e7d5e3`）。スモーク全PASS（[Release v0.1.14](../../releases/tag/v0.1.14)） |
 | 2026-08-02 | 🚀 **v0.1.15 本番デプロイ**（PR #104/#105・事前承認）: 図面健全性チェック（Issue #59第一弾）: 不明レイヤー/用紙外（回転矩形対応）/非表示レイヤー検出+対象図形ID表示。main最終`677c6ca`のCI全5ジョブsuccess → wrangler deploy（Worker Version `12cdda13`）。スモーク全PASS（[Release v0.1.15](../../releases/tag/v0.1.15)） |
 | 2026-08-02 | 🚀 **v0.1.16 本番デプロイ**（PR #106/#107・事前承認）: キーボードショートカット（Ctrl/Cmd+Z=Undo・Ctrl/Cmd+Y=Redo・Esc=取消/選択解除）+ ツールバーA11y（role/aria-label）。main最終`35802bf`のCI全5ジョブsuccess → wrangler deploy（Worker Version `39e2e95d`）。スモーク全PASS（[Release v0.1.16](../../releases/tag/v0.1.16)） |
+| 2026-08-02 | 🚀 **v0.1.17 本番デプロイ**（PR #110/#111・事前承認）: コマンドパレット（Ctrl/Cmd+K・ファジー検索・↑/↓/Enter/Esc・WAI-ARIA combobox/listbox/option・#47）、Delete/Backspace選択削除（Undo可）、数字キー1-8ツール切替。併せて合成監視workflowのpush誤トリガー真因（`--body`複数行文字列のインデント崩れによるYAML構文エラー）を修正し、CIにworkflow YAML検証（`scripts/validate-workflows.py`）を追加。main最終`7679c7b`のCI全5ジョブsuccess → wrangler deploy（Worker Version `b6ae0a7f`）。スモーク全PASS・テスト113ファイル/1287件（[Release v0.1.17](../../releases/tag/v0.1.17)） |
 
 ### 🛠️ 次に閉じるべき実務ワークフロー
 
@@ -689,6 +690,10 @@ timeline
 | [#105](../../pull/105) | v0.1.14デプロイ・DXF往復強化の実態をREADME/state.jsonへ同期 | ✅ マージ済み（2026-08-02・admin squash `677c6ca`） |
 | [#106](../../pull/106) | v0.1.15デプロイ・図面健全性チェックの実態をREADME/state.jsonへ同期 | ✅ マージ済み（2026-08-02・admin squash `8a2b61b`） |
 | [#107](../../pull/107) | **v0.1.16**: キーボードショートカット（Ctrl/Cmd+Z/Y・Esc）+ ツールバーA11y（#47の一部） | ✅ マージ済み（2026-08-02・admin squash `35802bf`）→ v0.1.16本番デプロイ済み |
+| [#108](../../pull/108) | **v0.1.17**: 合成監視workflow再登録（health-check.yml → synthetic-monitoring.yml） | ✅ マージ済み（2026-08-02・admin squash `96985c2`） |
+| [#109](../../pull/109) | v0.1.16デプロイ・A11y改善の実態をREADME/state.jsonへ同期 | ✅ マージ済み（2026-08-02・admin squash `8dbb6bb`） |
+| [#110](../../pull/110) | **v0.1.17**: 合成監視workflowのYAML構文エラー修正＋workflow検証をCIへ追加（push誤トリガーの真因対応） | ✅ マージ済み（2026-08-02・admin squash `6742016`）→ v0.1.17本番デプロイ済み |
+| [#111](../../pull/111) | **v0.1.17**: コマンドパレット・Delete削除・数字キーツール切替（#47） | ✅ マージ済み（2026-08-02・admin squash `7679c7b`）→ v0.1.17本番デプロイ済み |
 
 > マージ済みPRは人間の明示承認（選択式Y判断）を得てマージ済み。レビュー承認1件必須はPR作成者の自己承認不可のため、マージ実行時は enforce_admins を一時解除し完了後に即復元した。
 
