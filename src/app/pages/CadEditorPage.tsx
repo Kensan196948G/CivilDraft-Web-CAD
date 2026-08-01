@@ -15,11 +15,16 @@
 import { useEffect, useMemo, useState } from 'react'
 import type { CSSProperties } from 'react'
 import { CanvasStage } from '../canvas/CanvasStage'
+import { CommandPalette, type CommandPaletteItem } from '../components/CommandPalette'
 import type { AppView } from '../layout/Sidebar'
 import { createDefaultLayer } from '../store/editorStore'
 import { useEditorStore, useEditorStoreApi } from '../store/useEditorStore'
 import { getCategories, SYMBOL_CATALOG } from '@/domain/catalog/symbolCatalog'
-import { createAddGeometryCommand, createUpdateGeometryCommand } from '@/domain/commands/geometryCommands'
+import {
+  createAddGeometryCommand,
+  createDeleteGeometriesCommand,
+  createUpdateGeometryCommand,
+} from '@/domain/commands/geometryCommands'
 import { DEFAULT_CONSTRUCTION_STEPS } from '@/domain/construction-steps'
 import type { ToolType } from '@/domain/tools/draftGeometry'
 import { EDITING_TOOLS, PARAM_EDITING_TOOLS, SELECTION_REQUIRED_TOOLS } from '@/domain/tools/editGeometry'
@@ -691,6 +696,7 @@ export function CadEditorPage({
   const [selectedTemplateId, setSelectedTemplateId] = useState<string>(LAYER_TEMPLATES[0]?.id ?? '')
   const [healthOpen, setHealthOpen] = useState(false)
   const [healthResult, setHealthResult] = useState<DrawingHealthResult | null>(null)
+  const [commandPaletteOpen, setCommandPaletteOpen] = useState(false)
 
   const [textInputValue, setTextInputValue] = useState('')
   const [textFontSize, setTextFontSize] = useState(14)
@@ -739,9 +745,10 @@ export function CadEditorPage({
     }
   }, [storeApi, autosaveStore])
 
-  // キーボードショートカット（#47 の一部 / アクセシビリティ）:
-  // Ctrl/Cmd+Z=Undo、Ctrl/Cmd+Y・Ctrl/Cmd+Shift+Z=Redo、Esc=ドラフト取消/選択解除。
-  // 入力欄フォーカス中は奪わない。
+  // キーボードショートカット（#47 / アクセシビリティ）:
+  // Ctrl/Cmd+Z=Undo、Ctrl/Cmd+Y・Ctrl/Cmd+Shift+Z=Redo、Ctrl/Cmd+K=コマンドパレット、
+  // Delete/Backspace=選択削除（Undo可能）、1-8=作図ツール切替、Esc=ドラフト取消/選択解除。
+  // 入力欄フォーカス中は奪わない（コマンドパレット入力中の誤発火も防ぐ）。
   useEffect(() => {
     const handleKeyDown = (event: KeyboardEvent) => {
       const target = event.target
@@ -756,6 +763,11 @@ export function CadEditorPage({
       }
       const state = storeApi.getState()
       const mod = event.ctrlKey || event.metaKey
+      if (mod && event.key.toLowerCase() === 'k') {
+        event.preventDefault()
+        setCommandPaletteOpen(true)
+        return
+      }
       if (mod && event.key.toLowerCase() === 'z') {
         event.preventDefault()
         if (event.shiftKey) {
@@ -768,6 +780,22 @@ export function CadEditorPage({
       if (mod && event.key.toLowerCase() === 'y') {
         event.preventDefault()
         if (state.redoStack.length > 0) state.redo()
+        return
+      }
+      if ((event.key === 'Delete' || event.key === 'Backspace') && state.selectedIds.length > 0) {
+        event.preventDefault()
+        state.dispatchCommand(
+          createDeleteGeometriesCommand(
+            { geometries: state.geometries, layers: state.layers },
+            state.selectedIds,
+          ),
+        )
+        return
+      }
+      const numIndex = Number.parseInt(event.key, 10)
+      if (numIndex >= 1 && numIndex <= REAL_TOOLS.length) {
+        event.preventDefault()
+        storeApi.getState().activateTool(REAL_TOOLS[numIndex - 1]!.tool)
         return
       }
       if (event.key === 'Escape') {
@@ -936,6 +964,108 @@ export function CadEditorPage({
     }
   }
 
+  /** コマンドパレット候補（#47）。実在する操作だけを列挙し、状態に応じて無効化する。 */
+  const paletteState = storeApi.getState()
+  const paletteItems: readonly CommandPaletteItem[] = [
+    ...REAL_TOOLS.map(({ tool, icon, label }, index) => ({
+      id: `tool-${tool}`,
+      label: `ツール: ${label}`,
+      keywords: [tool],
+      icon,
+      shortcut: String(index + 1),
+      run: () => storeApi.getState().activateTool(tool),
+    })),
+    ...EDITING_TOOLS.map(({ tool, icon, label }) => ({
+      id: `edit-${tool}`,
+      label: `編集: ${label}`,
+      keywords: [tool],
+      icon,
+      disabled: SELECTION_REQUIRED_TOOLS.has(tool) && paletteState.selectedIds.length === 0,
+      run: () => storeApi.getState().activateEditingTool(tool),
+    })),
+    {
+      id: 'undo',
+      label: '元に戻す',
+      keywords: ['undo'],
+      icon: '↩',
+      shortcut: 'Ctrl+Z',
+      disabled: paletteState.undoStack.length === 0,
+      run: () => storeApi.getState().undo(),
+    },
+    {
+      id: 'redo',
+      label: 'やり直す',
+      keywords: ['redo'],
+      icon: '↪',
+      shortcut: 'Ctrl+Y',
+      disabled: paletteState.redoStack.length === 0,
+      run: () => storeApi.getState().redo(),
+    },
+    {
+      id: 'clear-selection',
+      label: '選択を解除',
+      keywords: ['selection', 'clear', 'deselect'],
+      icon: '◇',
+      disabled: paletteState.selectedIds.length === 0,
+      run: () => storeApi.getState().clearSelection(),
+    },
+    {
+      id: 'delete-selection',
+      label: '選択を削除',
+      keywords: ['delete', 'remove'],
+      icon: '🗑',
+      shortcut: 'Delete',
+      disabled: paletteState.selectedIds.length === 0,
+      run: () => {
+        const s = storeApi.getState()
+        s.dispatchCommand(
+          createDeleteGeometriesCommand(
+            { geometries: s.geometries, layers: s.layers },
+            s.selectedIds,
+          ),
+        )
+      },
+    },
+    {
+      id: 'toggle-grid',
+      label: paletteState.gridVisible ? 'グリッドを非表示' : 'グリッドを表示',
+      keywords: ['grid', 'gridVisible'],
+      icon: '▦',
+      run: () => storeApi.getState().setGridVisible(!storeApi.getState().gridVisible),
+    },
+    {
+      id: 'health-check',
+      label: '図面健全性チェック',
+      keywords: ['health', 'check', 'audit'],
+      icon: '🩺',
+      run: () => {
+        const s = storeApi.getState()
+        setHealthResult(checkDrawingHealth({ geometries: s.geometries, layers: s.layers }))
+        setHealthOpen(true)
+      },
+    },
+    {
+      id: 'cloud-save',
+      label: '共有保存',
+      keywords: ['save', 'cloud', 'upload'],
+      icon: '☁',
+      disabled: paletteState.geometries.length === 0,
+      run: () => {
+        void runCloudSave()
+      },
+    },
+    {
+      id: 'cloud-reload',
+      label: '共有再読込',
+      keywords: ['reload', 'load', 'download'],
+      icon: '⟲',
+      disabled: lastCloudRevisionId === null,
+      run: () => {
+        void runCloudReload()
+      },
+    },
+  ]
+
   return (
     <div style={pageRootStyle}>
       <header style={headerBarStyle}>
@@ -967,6 +1097,14 @@ export function CadEditorPage({
           onClick={() => storeApi.getState().redo()}
         >
           ↷
+        </button>
+        <button
+          title="コマンドパレット（Ctrl+K）"
+          aria-label="コマンドパレットを開く"
+          style={ghostButtonStyle}
+          onClick={() => setCommandPaletteOpen(true)}
+        >
+          ⌘K
         </button>
         <span style={{ flex: 1 }} />
         <select
@@ -1507,6 +1645,9 @@ export function CadEditorPage({
           </div>
         </aside>
       </div>
+      {commandPaletteOpen && (
+        <CommandPalette open onClose={() => setCommandPaletteOpen(false)} items={paletteItems} />
+      )}
     </div>
   )
 }

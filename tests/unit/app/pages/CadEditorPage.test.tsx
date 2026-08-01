@@ -398,6 +398,47 @@ describe('CadEditorPage キーボードショートカットとA11y（#47）', (
     expect(store.getState().selectedIds).toEqual([])
   })
 
+  it('Ctrl+K でコマンドパレットが開き、Esc で閉じる', () => {
+    const store = createEditorStore()
+    renderPage(store, makeCloudClient())
+
+    fireEvent.keyDown(window, { key: 'k', ctrlKey: true })
+    expect(screen.getByRole('dialog', { name: 'コマンドパレット' })).toBeInTheDocument()
+    const paletteInput = screen.getByPlaceholderText(/コマンドを入力/)
+    expect(paletteInput).toBeInTheDocument()
+
+    fireEvent.keyDown(paletteInput, { key: 'Escape' })
+    expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
+  })
+
+  it('Delete で選択図形を削除し、Ctrl+Z で復元できる', () => {
+    const store = createEditorStore()
+    store.getState().dispatchCommand(createAddGeometryCommand(line('g-1'), defaultCreationContext))
+    store.getState().select(['g-1' as GeometryId])
+    renderPage(store, makeCloudClient())
+
+    fireEvent.keyDown(window, { key: 'Delete' })
+    expect(store.getState().geometries).toHaveLength(0)
+    expect(store.getState().selectedIds).toEqual([])
+
+    fireEvent.keyDown(window, { key: 'z', ctrlKey: true })
+    expect(store.getState().geometries).toHaveLength(1)
+  })
+
+  it('数字キー 1-8 で作図ツールを切り替えられる', () => {
+    const store = createEditorStore()
+    renderPage(store, makeCloudClient())
+
+    fireEvent.keyDown(window, { key: '2' })
+    expect(store.getState().activeTool).toBe('line')
+
+    fireEvent.keyDown(window, { key: '8' })
+    expect(store.getState().activeTool).toBe('hatch')
+
+    fireEvent.keyDown(window, { key: '1' })
+    expect(store.getState().activeTool).toBe('select')
+  })
+
   it('ツールバーに role/aria-label が付与され、アイコンボタンにアクセシブル名がある', async () => {
     const store = createEditorStore()
     renderPage(store, makeCloudClient())
