@@ -33,6 +33,9 @@ jobs:
 
       - run: npm run migrations:check
 
+      - name: Validate workflow YAML
+        run: python3 scripts/validate-workflows.py
+
       - run: npm test
 
       - run: npm run build

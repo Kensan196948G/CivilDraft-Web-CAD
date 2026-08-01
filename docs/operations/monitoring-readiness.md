@@ -38,8 +38,14 @@ CivilDraft は 2026-07-22 に v0.1.2 として本番公開済み（civildraft-we
 | Object Storage | PUT/GET失敗、署名URL失敗、容量 | Provider metrics | ☐ |
 | アプリ監査 | 保存、承認、出力、認証、設定変更 | `audit_logs` ハッシュチェーン永続化 + `GET /api/v1/audit-logs/verify` による改ざん検知（Issue #61） | ☐（本番デプロイ後に確認） |
 | CI/CD | quality/e2e/security/compliance失敗 | GitHub branch protection + required checks | ☐ |
-| 本番合成監視 | SPA 200 / API 401 CD-AUTH-001 / セキュリティヘッダー | GitHub Actions `synthetic-monitoring.yml`（30分毎）+ 失敗時 Issue アラート | ✅ 導入済み（2026-08-01・2026-08-02 再登録） |
+| 本番合成監視 | SPA 200 / API 401 CD-AUTH-001 / セキュリティヘッダー | GitHub Actions `synthetic-monitoring.yml`（30分毎）+ 失敗時 Issue アラート | ✅ 導入済み（2026-08-01・2026-08-02 再登録・2026-08-02 真因修正） |
 | DB バックアップ | 週次バックアップブランチ作成 | GitHub Actions `backup.yml`（毎週日曜 00:30 JST）+ Artifacts 90日 | ✅ 導入済み（2026-08-01） |
+
+> **2026-08-02 障害記録**: `synthetic-monitoring.yml`（旧 `health-check.yml`）が push 誤トリガーで
+> 0 秒失敗を繰り返していた事象は、GitHub Actions 側バグではなく、`--body` の複数行文字列の
+> インデント崩れによる **YAML 構文エラー**が原因だった（workflow 名がパス名にフォールバックし、
+> トリガー登録が破綻）。インデント修正に加え、CI に `scripts/validate-workflows.py`（全 workflow
+> YAML の構文・必須キー検証）を追加し再発を防止する。
 
 ## 3. アラート基準案
 
