@@ -603,6 +603,7 @@ timeline
 | 2026-08-01 | 🚀 **v0.1.4 本番デプロイ**（PR #81/#82・ユーザー承認Y）: 監査ログhash chain実装（`entry_hash=SHA-256(previous_hash|canonical payload)`・`GET /api/v1/audit-logs/verify`・レガシー前方互換）。main最終`3f93cb1`のCI全5ジョブsuccess → wrangler deploy（Worker Version `9fdf812b`）。スモーク全PASS（[Release v0.1.4](../../releases/tag/v0.1.4)） |
 | 2026-08-01 | 🚀 **v0.1.5 本番デプロイ**（PR #83/#84・ユーザー承認Y）: 監査画面のAPI接続（`listAuditLogs`/`verifyAuditChain`・hash chain検証表示・API未接続時サンプルフォールバック）で **Issue #61 完了**。main最終`801e771`のCI全5ジョブsuccess → wrangler deploy（Worker Version `ea7fa2d4`）。スモーク全PASS（[Release v0.1.5](../../releases/tag/v0.1.5)） |
 | 2026-08-01 | 🚀 **v0.1.6 本番デプロイ**（PR #86/#87・ユーザー承認Y）: ロック済みレイヤーの編集禁止を全経路で強制（§6.3 / Issue #40）: 編集コマンド除外・trim/extend対象ロック拒否・作図拒否・UI通知。main最終`f233bdf`のCI全5ジョブsuccess → wrangler deploy（Worker Version `0d0fcd4f`）。スモーク全PASS（[Release v0.1.6](../../releases/tag/v0.1.6)） |
+| 2026-08-01 | 🚀 **v0.1.7 本番デプロイ**（PR #88/#89・ユーザー承認Y）: 数量⇔図形連動第一弾（Issue #42）: 明細「図面で確認」→根拠図形をCAD編集でオレンジ破線ハイライト。main最終`5ee5d51`のCI全5ジョブsuccess → wrangler deploy（Worker Version `e7a1b053`）。スモーク全PASS（[Release v0.1.7](../../releases/tag/v0.1.7)） |
 
 ### 🛠️ 次に閉じるべき実務ワークフロー
 
@@ -657,6 +658,8 @@ timeline
 | [#84](../../pull/84) | **v0.1.5**: 監査画面のAPI接続（Issue #61完了）: `listAuditLogs`/`verifyAuditChain`・hash chain検証表示・サンプルフォールバック | ✅ マージ済み（2026-08-01・admin squash `801e771`）→ v0.1.5本番デプロイ済み |
 | [#86](../../pull/86) | v0.1.5デプロイ・Issue #61完了の実態をREADME/state.jsonへ同期 | ✅ マージ済み（2026-08-01・admin squash `d8c29f6`） |
 | [#87](../../pull/87) | **v0.1.6**: ロック済みレイヤーの編集禁止を全経路で強制（Issue #40 / §6.3） | ✅ マージ済み（2026-08-01・admin squash `f233bdf`）→ v0.1.6本番デプロイ済み |
+| [#88](../../pull/88) | **v0.1.7**: 数量⇔図形連動第一弾（Issue #42）: 明細「図面で確認」→根拠図形をCAD編集でハイライト | ✅ マージ済み（2026-08-01・admin squash `5daf63c`）→ v0.1.7本番デプロイ済み |
+| [#89](../../pull/89) | v0.1.6デプロイ・ロックレイヤー強制（Issue #40）の実態をREADME/state.jsonへ同期 | ✅ マージ済み（2026-08-01・admin squash `5ee5d51`） |
 
 > マージ済みPRは人間の明示承認（選択式Y判断）を得てマージ済み。レビュー承認1件必須はPR作成者の自己承認不可のため、マージ実行時は enforce_admins を一時解除し完了後に即復元した。
 
