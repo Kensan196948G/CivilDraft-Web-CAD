@@ -8,6 +8,14 @@ import type {
   GeometryId,
   GeometryStyle,
   LayerId,
+  QuantityItem,
+  QuantityItemId,
+  QuantityMethod,
+  QuantityStatus,
+  QuantityUnit,
+  RevisionId,
+  RoundingRule,
+  ValidationIssue,
 } from '@/shared/types'
 
 const style: GeometryStyle = {
@@ -147,4 +155,98 @@ describe('checkDrawingHealth（図面健全性チェック / Issue #59）', () =
     const result = checkDrawingHealth(doc([], [layer('layer-1')]))
     expect(result.healthy).toBe(true)
   })
+
+  it('根拠図形が存在しない数量明細を error で検出する（#59 第二弾）', () => {
+    const result = checkDrawingHealth(doc([line('g-1', 'layer-1', 0, 100)], [layer('layer-1')]), {}, {
+      quantities: [quantityItem('q-1', 'g-missing')],
+    })
+    const issue = result.issues.find((i) => i.code === 'unlinked-quantity')
+    expect(issue?.severity).toBe('error')
+    expect(issue?.count).toBe(1)
+    expect(issue?.geometryIds).toContain(id('g-missing'))
+  })
+
+  it('根拠図形0件の数量明細も unlinked-quantity として検出する', () => {
+    const result = checkDrawingHealth(doc([], [layer('layer-1')]), {}, {
+      quantities: [quantityItem('q-1', undefined)],
+    })
+    const issue = result.issues.find((i) => i.code === 'unlinked-quantity')
+    expect(issue?.count).toBe(1)
+  })
+
+  it('stale/invalid の数量明細を warning で検出する', () => {
+    const result = checkDrawingHealth(doc([line('g-1', 'layer-1', 0, 100)], [layer('layer-1')]), {}, {
+      quantities: [quantityItem('q-stale', 'g-1', 'stale'), quantityItem('q-invalid', 'g-1', 'invalid')],
+    })
+    const issue = result.issues.find((i) => i.code === 'stale-quantity')
+    expect(issue?.severity).toBe('warning')
+    expect(issue?.count).toBe(2)
+  })
+
+  it('正常な数量明細は unlinked/stale を出さない', () => {
+    const result = checkDrawingHealth(doc([line('g-1', 'layer-1', 0, 100)], [layer('layer-1')]), {}, {
+      quantities: [quantityItem('q-1', 'g-1')],
+    })
+    expect(result.issues.find((i) => i.code === 'unlinked-quantity')).toBeUndefined()
+    expect(result.issues.find((i) => i.code === 'stale-quantity')).toBeUndefined()
+  })
+
+  it('DXF取込の未対応要素・単位を warning で検出する（#59 第二弾）', () => {
+    const dxfIssues: ValidationIssue[] = [
+      { code: 'dxf-unsupported-entity', severity: 'warning', message: '3DFACE は未対応' },
+      { code: 'dxf-unsupported-unit', severity: 'warning', message: '単位コード 999 は未対応' },
+      { code: 'dxf-ok', severity: 'info', message: 'その他の通知' },
+    ]
+    const result = checkDrawingHealth(doc([], [layer('layer-1')]), {}, { dxfIssues })
+    const issue = result.issues.find((i) => i.code === 'unsupported-dxf')
+    expect(issue?.severity).toBe('warning')
+    expect(issue?.count).toBe(2)
+  })
+
+  it('デフォルトレイヤー「0」上の図形を info で検出する（#59 第二弾）', () => {
+    const defaultLayerObj = { ...layer('layer-0'), name: '0' }
+    const result = checkDrawingHealth(
+      doc([line('g-1', 'layer-0', 0, 100), line('g-2', 'layer-1', 0, 100)], [defaultLayerObj, layer('layer-1')]),
+    )
+    const issue = result.issues.find((i) => i.code === 'default-layer')
+    expect(issue?.severity).toBe('info')
+    expect(issue?.count).toBe(1)
+    expect(issue?.geometryIds).toContain(id('g-1'))
+  })
+
+  it('未承認改訂を warning で検出する（#59 第二弾）', () => {
+    const result = checkDrawingHealth(doc([], [layer('layer-1')]), {}, { unapprovedRevisionCount: 2 })
+    const issue = result.issues.find((i) => i.code === 'unapproved-revision')
+    expect(issue?.severity).toBe('warning')
+    expect(issue?.count).toBe(2)
+    expect(issue?.message).toContain('照査・承認')
+  })
+
+  it('コンテキスト未指定の既存呼び出しは従来どおり動作する', () => {
+    const result = checkDrawingHealth(doc([line('g-1', 'layer-1', 0, 100)], [layer('layer-1')]))
+    expect(result.healthy).toBe(true)
+  })
 })
+
+function quantityItem(
+  qid: string,
+  sourceGeometryId: string | undefined,
+  status: QuantityStatus = 'valid',
+): QuantityItem {
+  const revisionId = 'revision-1' as RevisionId
+  const roundingRule: RoundingRule = { mode: 'halfUp', decimalPlaces: 3 }
+  const method: QuantityMethod = 'length'
+  const unit: QuantityUnit = 'm'
+  return {
+    id: qid as QuantityItemId,
+    revisionId,
+    groupKey: 'group-1',
+    method,
+    unit,
+    rawValue: 100,
+    roundedValue: 100,
+    roundingRule,
+    sources: sourceGeometryId === undefined ? [] : [{ geometryId: id(sourceGeometryId), contributionRaw: 100 }],
+    status,
+  }
+}

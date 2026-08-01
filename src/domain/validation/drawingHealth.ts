@@ -5,16 +5,26 @@
  * - unknown-layer : 存在しないレイヤーを参照する図形（error）
  * - off-paper     : 用紙領域の外に完全に配置された図形（warning）
  * - hidden-layer  : 非表示レイヤー上の図形（info）
- *
- * 将来拡張: 未接続数量・未対応DXF要素・未承認改訂は、それぞれ quantities / dxf /
- * revisions ドメインが図面へ結線された段階で追加する。
+ * - unlinked-quantity : 根拠図形が存在しない（または0件の）数量明細（error）
+ * - stale-quantity    : 再計算待ち（stale）または算出不能（invalid）の数量明細（warning）
+ * - unsupported-dxf   : DXF取込時に未対応として記録された要素・単位（warning）
+ * - default-layer     : デフォルトレイヤー（既定 "0"）上の図形（info）
+ * - unapproved-revision : 未承認の改訂が存在する（warning）
  */
 import { getPaperSizeMm, type PaperOrientation, type PaperSize } from '@/domain/canvas/paperSize'
 import { shapeBBox } from '@/domain/geometry/shapeBBox'
 import type { DocumentState } from '@/domain/commands/editorCommand'
-import type { GeometryId } from '@/shared/types'
+import type { GeometryId, QuantityItem, ValidationIssue } from '@/shared/types'
 
-export type DrawingHealthIssueCode = 'unknown-layer' | 'off-paper' | 'hidden-layer'
+export type DrawingHealthIssueCode =
+  | 'unknown-layer'
+  | 'off-paper'
+  | 'hidden-layer'
+  | 'unlinked-quantity'
+  | 'stale-quantity'
+  | 'unsupported-dxf'
+  | 'default-layer'
+  | 'unapproved-revision'
 export type DrawingHealthSeverity = 'error' | 'warning' | 'info'
 
 export interface DrawingHealthIssue {
@@ -39,8 +49,30 @@ export interface DrawingHealthOptions {
   readonly paperOrientation?: PaperOrientation
 }
 
+/**
+ * 図面に紐づく周辺ドメインの状態（Issue #59 第二弾）。
+ * 呼び出し側（エディタ・クラウド読込・DXF取込画面）が持っている情報だけを渡し、
+ * 渡されないチェックは結果に含めない（既存呼び出しの互換性を保つ）。
+ */
+export interface DrawingHealthContext {
+  /** 数量明細（未接続・stale/invalid 検出）。 */
+  readonly quantities?: readonly QuantityItem[]
+  /** DXF 取込時の ValidationIssue（未対応要素・単位の検出）。 */
+  readonly dxfIssues?: readonly ValidationIssue[]
+  /** 未承認の改訂件数（呼び出し側で改訂状態から集計）。 */
+  readonly unapprovedRevisionCount?: number
+  /** デフォルトレイヤーとして扱うレイヤー名（既定 "0"、Jw_cad互換）。 */
+  readonly defaultLayerName?: string
+}
+
 /** 結果に列挙する図形 ID の上限（メッセージは件数で全量を伝える）。 */
 const MAX_LISTED_IDS = 20
+
+/** DXF 取込で「未対応」として記録される ValidationIssue コード群。 */
+const UNSUPPORTED_DXF_CODES: ReadonlySet<string> = new Set([
+  'dxf-unsupported-entity',
+  'dxf-unsupported-unit',
+])
 
 /** 矩形の回転（rotationDeg・原点基準）を考慮した AABB を計算する。 */
 function rotatedRectangleBBox(geometry: Extract<DocumentState['geometries'][number], { type: 'rectangle' }>) {
@@ -73,20 +105,27 @@ function rotatedRectangleBBox(geometry: Extract<DocumentState['geometries'][numb
 export function checkDrawingHealth(
   document: DocumentState,
   options: DrawingHealthOptions = {},
+  context: DrawingHealthContext = {},
 ): DrawingHealthResult {
   const { geometries, layers } = document
   const { paperSize = 'A3', paperOrientation = 'landscape' } = options
+  const { quantities = [], dxfIssues = [], unapprovedRevisionCount = 0, defaultLayerName = '0' } = context
   const paper = getPaperSizeMm(paperSize, paperOrientation)
   const layerIds = new Set(layers.map((layer) => layer.id))
   const hiddenLayerIds = new Set(layers.filter((layer) => !layer.visible).map((layer) => layer.id))
+  const layerNameById = new Map(layers.map((layer) => [layer.id, layer.name]))
 
   const unknownLayer: GeometryId[] = []
   const offPaper: GeometryId[] = []
   const hiddenLayer: GeometryId[] = []
+  const defaultLayer: GeometryId[] = []
 
   for (const geometry of geometries) {
     if (!layerIds.has(geometry.layerId)) {
       unknownLayer.push(geometry.id)
+    }
+    if (layerNameById.get(geometry.layerId) === defaultLayerName) {
+      defaultLayer.push(geometry.id)
     }
     // 矩形は描画が rotationDeg を適用するため、回転後の AABB で用紙判定する（CodeRabbit #104）。
     const bbox =
@@ -127,6 +166,73 @@ export function checkDrawingHealth(
       message: `非表示レイヤー上の図形が ${hiddenLayer.length} 件あります`,
       geometryIds: hiddenLayer.slice(0, MAX_LISTED_IDS),
       count: hiddenLayer.length,
+    })
+  }
+
+  // --- 数量明細（Issue #59 第二弾） ---
+  const geometryIdSet = new Set<GeometryId>(geometries.map((g) => g.id))
+  const unlinkedQuantityItems: QuantityItem[] = []
+  const staleQuantityItems: QuantityItem[] = []
+  for (const item of quantities) {
+    const hasMissingSource = item.sources.length === 0 || item.sources.some((s) => !geometryIdSet.has(s.geometryId))
+    if (hasMissingSource) unlinkedQuantityItems.push(item)
+    if (item.status === 'stale' || item.status === 'invalid') staleQuantityItems.push(item)
+  }
+  if (unlinkedQuantityItems.length > 0) {
+    const missingIds = [
+      ...new Set(
+        unlinkedQuantityItems.flatMap((item) => item.sources.map((s) => s.geometryId).filter((id) => !geometryIdSet.has(id))),
+      ),
+    ]
+    issues.push({
+      code: 'unlinked-quantity',
+      severity: 'error',
+      message: `根拠図形が存在しない数量明細が ${unlinkedQuantityItems.length} 件あります（再計算が必要です）`,
+      geometryIds: missingIds.slice(0, MAX_LISTED_IDS),
+      count: unlinkedQuantityItems.length,
+    })
+  }
+  if (staleQuantityItems.length > 0) {
+    issues.push({
+      code: 'stale-quantity',
+      severity: 'warning',
+      message: `再計算待ちまたは算出不能の数量明細が ${staleQuantityItems.length} 件あります`,
+      geometryIds: [],
+      count: staleQuantityItems.length,
+    })
+  }
+
+  // --- DXF 取込時の未対応要素・単位（Issue #59 第二弾） ---
+  const unsupportedDxf = dxfIssues.filter((issue) => UNSUPPORTED_DXF_CODES.has(issue.code))
+  if (unsupportedDxf.length > 0) {
+    issues.push({
+      code: 'unsupported-dxf',
+      severity: 'warning',
+      message: `DXF取込時に未対応として記録された要素・単位が ${unsupportedDxf.length} 件あります`,
+      geometryIds: [],
+      count: unsupportedDxf.length,
+    })
+  }
+
+  // --- デフォルトレイヤー（Issue #59 第二弾） ---
+  if (defaultLayer.length > 0) {
+    issues.push({
+      code: 'default-layer',
+      severity: 'info',
+      message: `デフォルトレイヤー「${defaultLayerName}」上の図形が ${defaultLayer.length} 件あります`,
+      geometryIds: defaultLayer.slice(0, MAX_LISTED_IDS),
+      count: defaultLayer.length,
+    })
+  }
+
+  // --- 未承認改訂（Issue #59 第二弾） ---
+  if (unapprovedRevisionCount > 0) {
+    issues.push({
+      code: 'unapproved-revision',
+      severity: 'warning',
+      message: `承認済みでない改訂が ${unapprovedRevisionCount} 件あります（提出前に照査・承認が必要です）`,
+      geometryIds: [],
+      count: unapprovedRevisionCount,
     })
   }
 
