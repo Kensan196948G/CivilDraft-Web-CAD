@@ -610,6 +610,7 @@ timeline
 | 2026-08-01 | 🚀 **v0.1.11 本番デプロイ**（PR #96/#97・ユーザー承認Y）: Neon週次バックアップ自動化（ブランチ方式・接続文字列不要・毎週日曜cron+手動dispatch・Artifacts90日）。main最終`61ca8ce`のCI全5ジョブsuccess → wrangler deploy（Worker Version `9add959a`）。スモーク全PASS（[Release v0.1.11](../../releases/tag/v0.1.11)） |
 | 2026-08-01 | 🚀 **v0.1.12 本番デプロイ**（PR #98/#99・ユーザー承認Y）: 本番合成監視（30分毎ヘルスチェック・失敗時Issueアラート・SLO草案: 可用性99.5%等）。main最終`d75945e`のCI全5ジョブsuccess → wrangler deploy（Worker Version `3cefe8e4`）。スモーク全PASS（[Release v0.1.12](../../releases/tag/v0.1.12)） |
 | 2026-08-02 | 🚀 **v0.1.13 本番デプロイ**（PR #100/#101・ユーザー承認Y）: バックアップのリストア検証（Neon restore-check: 最新backup-*の実データ検証+SQL可読性チェック・毎週実行）。main最終`f019644`のCI全5ジョブsuccess → wrangler deploy（Worker Version `be59e5b3`）。スモーク全PASS（[Release v0.1.13](../../releases/tag/v0.1.13)） |
+| 2026-08-02 | 🚀 **v0.1.14 本番デプロイ**（PR #102/#103・ユーザー承認Y）: 線種のDXF往復強化（#40残）: LAYERテーブルのlinetype(6)・lock/frozenフラグ(70)を取込・生テーブル補完で往復成立。main最終`170190d`のCI全5ジョブsuccess → wrangler deploy（Worker Version `00e7d5e3`）。スモーク全PASS（[Release v0.1.14](../../releases/tag/v0.1.14)） |
 
 ### 🛠️ 次に閉じるべき実務ワークフロー
 
@@ -678,6 +679,8 @@ timeline
 | [#99](../../pull/99) | v0.1.11デプロイ・バックアップ自動化の実態をREADME/state.jsonへ同期 | ✅ マージ済み（2026-08-01・admin squash `d75945e`） |
 | [#100](../../pull/100) | **v0.1.13**: バックアップのリストア検証（Neon restore-check: 実データ検証+SQL可読性チェック） | ✅ マージ済み（2026-08-02・admin squash `b25cefb`）→ v0.1.13本番デプロイ済み |
 | [#101](../../pull/101) | v0.1.12デプロイ・合成監視の実態をREADME/state.jsonへ同期 | ✅ マージ済み（2026-08-02・admin squash `f019644`） |
+| [#102](../../pull/102) | **v0.1.14**: 線種のDXF往復強化（#40残）: linetype(6)・lock/frozenフラグ(70)取込 | ✅ マージ済み（2026-08-02・admin squash `e9541f1`）→ v0.1.14本番デプロイ済み |
+| [#103](../../pull/103) | v0.1.13デプロイ・リストア検証の実態をREADME/state.jsonへ同期 | ✅ マージ済み（2026-08-02・admin squash `170190d`） |
 
 > マージ済みPRは人間の明示承認（選択式Y判断）を得てマージ済み。レビュー承認1件必須はPR作成者の自己承認不可のため、マージ実行時は enforce_admins を一時解除し完了後に即復元した。
 
