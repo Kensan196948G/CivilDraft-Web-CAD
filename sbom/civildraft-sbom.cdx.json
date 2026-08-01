@@ -21,7 +21,7 @@
     "component": {
       "bom-ref": "civildraft-web-cad@0.1.0",
       "type": "application",
-      "name": "audit-20260801",
+      "name": "CivilDraft-Web-CAD",
       "version": "0.1.0",
       "scope": "required",
       "description": "CivilDraft — 土木施工図向けWebベース2D CAD",
