@@ -107,6 +107,15 @@ export interface CloudAuditChainVerification {
   readonly tailHash?: string
 }
 
+/** 監査ログ一覧の1ページ分（Issue #85）。 */
+export interface CloudAuditLogPage {
+  readonly auditLogs: readonly CloudAuditLog[]
+  /** フィルタ適用後の総件数（ページング前）。 */
+  readonly total: number
+  /** 次ページ取得用カーソル。最終ページでは undefined。 */
+  readonly nextCursor?: string
+}
+
 export interface CloudSaveDraftResult {
   readonly project: CloudProject
   readonly drawing: CloudDrawing
@@ -266,13 +275,26 @@ export class CivilDraftApiClient {
     return asRecord(body.value.exportJob, 'exportJob') as Result<CloudExportJob, ValidationIssue>
   }
 
-  /** 監査ログ一覧を取得する（Issue #61）。 */
+  /** 監査ログ一覧を取得する（Issue #61 / #85: フィルタ+カーソルページング）。 */
   async listAuditLogs(
-    params: { readonly projectId?: string; readonly limit?: number } = {},
-  ): Promise<Result<CloudAuditLog[], ValidationIssue>> {
+    params: {
+      readonly projectId?: string
+      readonly limit?: number
+      readonly from?: string
+      readonly to?: string
+      readonly eventName?: string
+      readonly actorId?: string
+      readonly cursor?: string
+    } = {},
+  ): Promise<Result<CloudAuditLogPage, ValidationIssue>> {
     const search = new URLSearchParams()
     if (params.projectId !== undefined) search.set('projectId', params.projectId)
     if (params.limit !== undefined) search.set('limit', String(Math.min(Math.max(Math.trunc(params.limit), 1), 500)))
+    if (params.from !== undefined) search.set('from', params.from)
+    if (params.to !== undefined) search.set('to', params.to)
+    if (params.eventName !== undefined) search.set('eventName', params.eventName)
+    if (params.actorId !== undefined) search.set('actorId', params.actorId)
+    if (params.cursor !== undefined) search.set('cursor', params.cursor)
     const query = search.toString()
     const response = await this.request(`/api/v1/audit-logs${query === '' ? '' : `?${query}`}`)
     if (!response.ok) return response
@@ -282,7 +304,15 @@ export class CivilDraftApiClient {
     if (!Array.isArray(logs)) {
       return fail('CLOUD_API_SCHEMA', 'auditLogs が配列ではありません', 'auditLogs')
     }
-    return ok(logs as CloudAuditLog[])
+    const totalValue = (body.value as Record<string, unknown>).total
+    const nextCursorValue = (body.value as Record<string, unknown>).nextCursor
+    const total = typeof totalValue === 'number' && Number.isFinite(totalValue) ? totalValue : 0
+    const nextCursor = typeof nextCursorValue === 'string' ? nextCursorValue : undefined
+    return ok({
+      auditLogs: logs as CloudAuditLog[],
+      total,
+      ...(nextCursor === undefined ? {} : { nextCursor }),
+    })
   }
 
   /** 監査ハッシュチェーンの完全性を検証する（Issue #61）。 */

@@ -5,7 +5,7 @@
  * API 未接続時（Access未設定の fail-closed 等）は従来のサンプル表示へフォールバックする。
  * CSV/PDF/HTMLとしてローカルエクスポートできる。
  */
-import { useEffect, useState } from 'react'
+import { useCallback, useEffect, useState } from 'react'
 import { createCivilDraftApiClient, type CloudAuditChainVerification } from '@/infrastructure/cloud/civilDraftApiClient'
 import {
   ghostButtonStyle,
@@ -22,6 +22,18 @@ import {
   thStyle,
   tdStyle,
 } from './pageStyles'
+import type { CSSProperties } from 'react'
+
+const filterInputStyle: CSSProperties = {
+  font: 'inherit',
+  fontSize: 12,
+  padding: '6px 8px',
+  border: '1px solid var(--line)',
+  borderRadius: 6,
+  background: 'var(--surface)',
+  color: 'var(--ink)',
+  minWidth: 120,
+}
 
 const AUDIT_ROWS = [
   {
@@ -187,35 +199,87 @@ export function AuditLogPage() {
   )
   const [chain, setChain] = useState<CloudAuditChainVerification | null>(null)
   const [apiConnected, setApiConnected] = useState(false)
+  const [from, setFrom] = useState('')
+  const [to, setTo] = useState('')
+  const [eventName, setEventName] = useState('')
+  const [actorIdFilter, setActorIdFilter] = useState('')
+  const [total, setTotal] = useState(0)
+  const [nextCursor, setNextCursor] = useState<string | undefined>(undefined)
+  const [cursorHistory, setCursorHistory] = useState<string[]>([])
 
-  useEffect(() => {
-    let cancelled = false
-    const client = createCivilDraftApiClient()
-    void (async () => {
+  const loadLogs = useCallback(
+    async (
+      cursor?: string,
+      filterOverride?: { readonly from?: string; readonly to?: string; readonly eventName?: string; readonly actorId?: string },
+    ) => {
+      const client = createCivilDraftApiClient()
       try {
-        const [logsResult, chainResult] = await Promise.all([
-          client.listAuditLogs({ limit: 200 }),
-          client.verifyAuditChain(),
-        ])
-        if (cancelled) return
-        if (logsResult.ok && chainResult.ok) {
-          setRows(apiRowsToDisplay(logsResult.value))
+        const filters = filterOverride ?? { from, to, eventName, actorId: actorIdFilter }
+        const logsResult = await client.listAuditLogs({
+          limit: 100,
+          from: filters.from?.trim() === '' ? undefined : filters.from?.trim(),
+          to: filters.to?.trim() === '' ? undefined : filters.to?.trim(),
+          eventName: filters.eventName?.trim() === '' ? undefined : filters.eventName?.trim(),
+          actorId: filters.actorId?.trim() === '' ? undefined : filters.actorId?.trim(),
+          cursor,
+        })
+      if (!logsResult.ok) {
+        setMessage('⚠️ 監査APIに接続できないためサンプルを表示しています（Access設定後に本番ログへ切替）')
+        return
+      }
+      const page = logsResult.value
+      setRows(apiRowsToDisplay([...page.auditLogs].reverse()))
+      setTotal(page.total)
+      setNextCursor(page.nextCursor)
+      setCursorHistory((history) => (cursor === undefined ? [] : [...history, cursor]))
+      setMessage(null)
+      if (cursor === undefined) {
+        const chainResult = await client.verifyAuditChain()
+        if (chainResult.ok) {
           setChain(chainResult.value)
           setApiConnected(true)
-          setMessage(null)
         } else {
-          setMessage('⚠️ 監査APIに接続できないためサンプルを表示しています（Access設定後に本番ログへ切替）')
-        }
-      } catch {
-        if (!cancelled) {
-          setMessage('⚠️ 監査APIに接続できないためサンプルを表示しています（Access設定後に本番ログへ切替）')
+          setApiConnected(false)
         }
       }
-    })()
+      } catch {
+        setMessage('⚠️ 監査APIに接続できないためサンプルを表示しています（Access設定後に本番ログへ切替）')
+      }
+    },
+    [from, to, eventName, actorIdFilter],
+  )
+
+  useEffect(() => {
+    // 初回マウント時の読み込みのみ（フィルタ変更は「適用」ボタンで明示的に再取得する）
+    let cancelled = false
+    const timer = setTimeout(() => {
+      if (!cancelled) void loadLogs(undefined)
+    }, 0)
     return () => {
       cancelled = true
+      clearTimeout(timer)
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
+
+  const applyFilters = () => {
+    void loadLogs(undefined)
+  }
+
+  const resetFilters = () => {
+    setFrom('')
+    setTo('')
+    setEventName('')
+    setActorIdFilter('')
+    void loadLogs(undefined, { from: '', to: '', eventName: '', actorId: '' })
+  }
+
+  const goNewer = () => {
+    if (cursorHistory.length === 0) return
+    const previous = cursorHistory[cursorHistory.length - 2]
+    setCursorHistory((history) => history.slice(0, -1))
+    void loadLogs(previous)
+  }
 
   const runExport = async (type: 'csv' | 'pdf' | 'html') => {
     try {
@@ -267,6 +331,42 @@ export function AuditLogPage() {
               </span>
             )}
           </div>
+          <div
+            style={{
+              display: 'flex',
+              gap: 8,
+              flexWrap: 'wrap',
+              alignItems: 'center',
+              padding: '10px 18px',
+              borderBottom: '1px solid var(--line2)',
+            }}
+          >
+            <input type="date" aria-label="開始日" value={from} onChange={(e) => setFrom(e.target.value)} style={filterInputStyle} />
+            <span style={{ fontSize: 12, color: 'var(--muted)' }}>〜</span>
+            <input type="date" aria-label="終了日" value={to} onChange={(e) => setTo(e.target.value)} style={filterInputStyle} />
+            <input
+              type="text"
+              aria-label="イベント名"
+              placeholder="イベント名"
+              value={eventName}
+              onChange={(e) => setEventName(e.target.value)}
+              style={filterInputStyle}
+            />
+            <input
+              type="text"
+              aria-label="操作者"
+              placeholder="操作者（email）"
+              value={actorIdFilter}
+              onChange={(e) => setActorIdFilter(e.target.value)}
+              style={filterInputStyle}
+            />
+            <button style={primaryButtonStyle} onClick={applyFilters}>
+              適用
+            </button>
+            <button style={ghostButtonStyle} onClick={resetFilters}>
+              リセット
+            </button>
+          </div>
           <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 12.5 }}>
             <thead>
               <tr>
@@ -299,6 +399,39 @@ export function AuditLogPage() {
               ))}
             </tbody>
           </table>
+          <div
+            style={{
+              display: 'flex',
+              alignItems: 'center',
+              gap: 10,
+              padding: '10px 18px',
+              borderTop: '1px solid var(--line2)',
+              fontSize: 12,
+              color: 'var(--muted)',
+            }}
+          >
+            <button
+              style={ghostButtonStyle}
+              onClick={goNewer}
+              disabled={cursorHistory.length === 0}
+            >
+              ← 新しい記録
+            </button>
+            <button
+              style={ghostButtonStyle}
+              onClick={() => {
+                if (nextCursor !== undefined) void loadLogs(nextCursor)
+              }}
+              disabled={nextCursor === undefined}
+            >
+              さらに古い記録 →
+            </button>
+            <span style={{ marginLeft: 'auto' }}>
+              {apiConnected
+                ? `フィルタ該当 ${total} 件・表示 ${rows.length} 件`
+                : 'サンプル表示（API未接続）'}
+            </span>
+          </div>
         </div>
       </main>
     </div>

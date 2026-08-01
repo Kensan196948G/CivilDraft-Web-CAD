@@ -1512,25 +1512,47 @@ function listAuditLogs(store: ApiStore, ctx: RequestContext): Response {
   const projectId = ctx.url.searchParams.get('projectId') ?? undefined
   const limit = Number(ctx.url.searchParams.get('limit') ?? '100')
   const safeLimit = Number.isFinite(limit) ? Math.min(Math.max(Math.trunc(limit), 1), 500) : 100
+  // Issue #85: 期間・イベント種別・actor フィルタと cursor ページング
+  const from = ctx.url.searchParams.get('from') ?? undefined
+  const to = ctx.url.searchParams.get('to') ?? undefined
+  const eventName = ctx.url.searchParams.get('eventName') ?? undefined
+  const actorId = ctx.url.searchParams.get('actorId') ?? undefined
+  const cursor = ctx.url.searchParams.get('cursor') ?? undefined
 
+  let filtered: readonly AuditLogRecord[]
   if (projectId) {
     const denied = authorizeProject(store, ctx, projectId, 'view')
     if (denied) return denied
-    const auditLogs = store.auditLogs.filter((entry) => entry.projectId === projectId).slice(-safeLimit)
-    return jsonResponse(200, { auditLogs }, ctx.correlationId)
+    filtered = store.auditLogs.filter((entry) => entry.projectId === projectId)
+  } else {
+    // projectId省略時は listProjects と同じ基準（閲覧可能ロールを持つメンバーシップ）で
+    // 自身が参照可能な案件の監査ログのみに限定し、テナント越境閲覧を防ぐ。
+    const viewableProjectIds = new Set(
+      [...store.projectMembers.values()]
+        .filter((member) => member.userId === ctx.actorId && roleCanView(member.role))
+        .map((member) => member.projectId),
+    )
+    filtered = store.auditLogs.filter(
+      (entry) => entry.projectId !== undefined && viewableProjectIds.has(entry.projectId),
+    )
   }
 
-  // projectId省略時は listProjects と同じ基準（閲覧可能ロールを持つメンバーシップ）で
-  // 自身が参照可能な案件の監査ログのみに限定し、テナント越境閲覧を防ぐ。
-  const viewableProjectIds = new Set(
-    [...store.projectMembers.values()]
-      .filter((member) => member.userId === ctx.actorId && roleCanView(member.role))
-      .map((member) => member.projectId),
-  )
-  const auditLogs = store.auditLogs
-    .filter((entry) => entry.projectId !== undefined && viewableProjectIds.has(entry.projectId))
-    .slice(-safeLimit)
-  return jsonResponse(200, { auditLogs }, ctx.correlationId)
+  if (from !== undefined) filtered = filtered.filter((entry) => entry.occurredAt >= from)
+  if (to !== undefined) filtered = filtered.filter((entry) => entry.occurredAt <= to)
+  if (eventName !== undefined) filtered = filtered.filter((entry) => entry.eventName === eventName)
+  if (actorId !== undefined) filtered = filtered.filter((entry) => entry.actorId === actorId)
+
+  const total = filtered.length
+  let page = filtered
+  if (cursor !== undefined) {
+    const cursorIndex = filtered.findIndex((entry) => `${entry.occurredAt}|${entry.id}` === cursor)
+    page = cursorIndex >= 0 ? filtered.slice(cursorIndex + 1) : []
+  }
+  const auditLogs = page.slice(0, safeLimit)
+  const hasMore = page.length > safeLimit
+  const last = auditLogs[auditLogs.length - 1]
+  const nextCursor = hasMore && last !== undefined ? `${last.occurredAt}|${last.id}` : undefined
+  return jsonResponse(200, { auditLogs, total, nextCursor }, ctx.correlationId)
 }
 
 /**
