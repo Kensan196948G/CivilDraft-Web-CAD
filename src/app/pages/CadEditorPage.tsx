@@ -739,6 +739,49 @@ export function CadEditorPage({
     }
   }, [storeApi, autosaveStore])
 
+  // キーボードショートカット（#47 の一部 / アクセシビリティ）:
+  // Ctrl/Cmd+Z=Undo、Ctrl/Cmd+Y・Ctrl/Cmd+Shift+Z=Redo、Esc=ドラフト取消/選択解除。
+  // 入力欄フォーカス中は奪わない。
+  useEffect(() => {
+    const handleKeyDown = (event: KeyboardEvent) => {
+      const target = event.target
+      if (
+        target instanceof HTMLElement &&
+        (target.tagName === 'INPUT' ||
+          target.tagName === 'TEXTAREA' ||
+          target.tagName === 'SELECT' ||
+          target.isContentEditable)
+      ) {
+        return
+      }
+      const state = storeApi.getState()
+      const mod = event.ctrlKey || event.metaKey
+      if (mod && event.key.toLowerCase() === 'z') {
+        event.preventDefault()
+        if (event.shiftKey) {
+          if (state.redoStack.length > 0) state.redo()
+        } else if (state.undoStack.length > 0) {
+          state.undo()
+        }
+        return
+      }
+      if (mod && event.key.toLowerCase() === 'y') {
+        event.preventDefault()
+        if (state.redoStack.length > 0) state.redo()
+        return
+      }
+      if (event.key === 'Escape') {
+        if (state.draftPoints.length > 0) {
+          state.cancelDraft()
+        } else {
+          state.clearSelection()
+        }
+      }
+    }
+    window.addEventListener('keydown', handleKeyDown)
+    return () => window.removeEventListener('keydown', handleKeyDown)
+  }, [storeApi])
+
   const activeLayer = resolveActiveLayer(layers, activeLayerId)
   const selectedGeometries = geometries.filter((g) => selectedIds.includes(g.id))
   const selected = selectedGeometries.length === 1 ? (selectedGeometries[0] ?? null) : null
@@ -1031,11 +1074,16 @@ export function CadEditorPage({
         <aside style={toolPanelStyle}>
           <div style={{ marginBottom: 20 }}>
             <div style={sectionLabelStyle}>作図・編集</div>
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 6 }}>
+            <div
+              role="toolbar"
+              aria-label="作図ツール"
+              style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 6 }}
+            >
               {REAL_TOOLS.map(({ tool, icon, label }) => (
                 <button
                   key={tool}
                   title={label}
+                  aria-label={label}
                   aria-pressed={activeTool === tool}
                   style={activeTool === tool ? toolButtonActiveStyle : toolButtonStyle}
                   onClick={() => storeApi.getState().activateTool(tool)}
@@ -1048,7 +1096,11 @@ export function CadEditorPage({
 
           <div style={{ marginBottom: 20 }}>
             <div style={sectionLabelStyle}>編集</div>
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 6 }}>
+            <div
+              role="toolbar"
+              aria-label="編集ツール"
+              style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 6 }}
+            >
               {EDITING_TOOLS.map(({ tool, icon, label }) => {
                 const isActive = activeEditingTool === tool
                 const needsSelection = SELECTION_REQUIRED_TOOLS.has(tool)
@@ -1057,6 +1109,7 @@ export function CadEditorPage({
                   <button
                     key={tool}
                     title={label}
+                    aria-label={label}
                     aria-pressed={isActive}
                     disabled={disabled}
                     style={
