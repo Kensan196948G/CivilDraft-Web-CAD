@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from 'vitest'
-import { render, screen, waitFor } from '@testing-library/react'
+import { fireEvent, render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { CadEditorPage, type CloudDraftSession, type CloudSaveClient } from '@/app/pages/CadEditorPage'
 import { EditorStoreProvider } from '@/app/store/EditorStoreContext'
@@ -313,5 +313,24 @@ describe('CadEditorPage レイヤーパネル', () => {
 
     await userEvent.click(printBtn)
     expect(store.getState().layers[0]?.printable).toBe(false)
+  })
+
+  it('ロック済みレイヤーの図形はプロパティ変更できない（§6.3 / Issue #40）', async () => {
+    const store = createEditorStore()
+    const originalColor = store.getState().layers[0]?.defaultStyle.strokeColor ?? '#000000'
+    const layerId = store.getState().addLayer('LOCK')
+    store.getState().toggleLayerLock(layerId)
+    const geometry = { ...line('g-1'), layerId }
+    store.getState().addGeometries([geometry])
+    store.getState().select([geometry.id])
+    const cloudApiClient: CloudSaveClient = { saveDraft: vi.fn(), getRevisionContent: vi.fn() }
+    renderPage(store, cloudApiClient)
+
+    const colorInput = screen.getByDisplayValue(originalColor) as HTMLInputElement
+    fireEvent.change(colorInput, { target: { value: '#ff0000' } })
+
+    expect(screen.getByText(/ロックされたレイヤーの図形は変更できません/)).toBeInTheDocument()
+    const stored = store.getState().geometries.find((g) => g.id === geometry.id)
+    expect(stored?.style.strokeColor).toBe(originalColor)
   })
 })

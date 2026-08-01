@@ -67,6 +67,10 @@ function makeDoc(geometries: Geometry[]): DocumentState {
   return { geometries, layers: [layer('layer-1', 'L1')] }
 }
 
+function makeDocWithLayers(geometries: Geometry[], layers: DrawingLayer[]): DocumentState {
+  return { geometries, layers }
+}
+
 function makeInput(
   tool: EditingToolType,
   doc: DocumentState,
@@ -343,6 +347,63 @@ describe('dispatchEditingOperation', () => {
       const input = makeInput('move' as EditingToolType, d, [])
       const badInput = { ...input, tool: 'invalid' as EditingToolType }
       expect(() => dispatchEditingOperation(badInput)).toThrow()
+    })
+  })
+
+  describe('ロック済みレイヤーの編集禁止（§6.3 / Issue #40）', () => {
+    function lockedLayer(lid: string, name: string): DrawingLayer {
+      return { ...layer(lid, name), locked: true }
+    }
+
+    function lineOn(
+      gid: string,
+      lid: string,
+      start: Point = { x: 0, y: 0 },
+      end: Point = { x: 1000, y: 0 },
+    ): Geometry {
+      return { ...base, id: id(gid), layerId: lid as LayerId, type: 'line', start, end }
+    }
+
+    it('移動: ロック済みレイヤーの図形のみ選択時はコマンドを生成しない', () => {
+      const doc = makeDocWithLayers([lineOn('g-1', 'layer-locked')], [lockedLayer('layer-locked', 'LOCK')])
+      const result = dispatchEditingOperation(
+        makeInput('move', doc, [id('g-1')], { clickPoint: { x: 500, y: 500 } }),
+      )
+      expect(result).toBeNull()
+    })
+
+    it('回転: ロックと非ロックが混在する選択では非ロックのみを対象にする', () => {
+      const doc = makeDocWithLayers(
+        [lineOn('g-1', 'layer-1'), lineOn('g-2', 'layer-locked')],
+        [layer('layer-1', 'L1'), lockedLayer('layer-locked', 'LOCK')],
+      )
+      const result = dispatchEditingOperation(makeInput('rotate', doc, [id('g-1'), id('g-2')]))
+      expect(result).not.toBeNull()
+      const payload = result?.payload as { pairs: readonly { before: Geometry }[] }
+      expect(payload.pairs.map((p) => p.before.id)).toEqual([id('g-1')])
+    })
+
+    it('トリム: 対象がロック済みレイヤーの場合はコマンドを生成しない', () => {
+      const doc = makeDocWithLayers(
+        [
+          lineOn('g-1', 'layer-locked', { x: 0, y: 0 }, { x: 1000, y: 0 }),
+          lineOn('g-2', 'layer-1', { x: 2000, y: -500 }, { x: 2000, y: 500 }),
+        ],
+        [layer('layer-1', 'L1'), lockedLayer('layer-locked', 'LOCK')],
+      )
+      const result = dispatchEditingOperation(makeInput('trim', doc, [], { clickPoint: { x: 500, y: 0 } }))
+      expect(result).toBeNull()
+    })
+
+    it('フィレット: 対象の片方がロック済みレイヤーならコマンドを生成しない', () => {
+      const doc = makeDocWithLayers(
+        [lineOn('g-1', 'layer-1'), lineOn('g-2', 'layer-locked')],
+        [layer('layer-1', 'L1'), lockedLayer('layer-locked', 'LOCK')],
+      )
+      const result = dispatchEditingOperation(
+        makeInput('fillet', doc, [id('g-1'), id('g-2')], { filletRadius: 50 }),
+      )
+      expect(result).toBeNull()
     })
   })
 })

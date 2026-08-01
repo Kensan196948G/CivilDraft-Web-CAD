@@ -80,9 +80,28 @@ export interface EditingOperationInput {
   readonly ctx: GeometryCreationContext
 }
 
+/**
+ * ロック済みレイヤーの図形は変更不可（詳細設計仕様書 §6.3 / Issue #40）。
+ * 選択表示はできるが、編集コマンドの対象から除外する。
+ */
+function isLayerLocked(document: DocumentState, geometry: Geometry): boolean {
+  const layer = document.layers.find((l) => l.id === geometry.layerId)
+  return layer?.locked === true
+}
+
+/** 編集対象（選択かつロックレイヤーでない図形）のみを抽出する。 */
+function editableSelected(
+  document: DocumentState,
+  selectedIds: readonly GeometryId[],
+): Geometry[] {
+  return document.geometries.filter(
+    (g) => selectedIds.includes(g.id) && !isLayerLocked(document, g),
+  )
+}
+
 export function dispatchEditingOperation(input: EditingOperationInput): EditorCommand | null {
   const { tool, document, selectedIds, clickPoint, offsetDistance, filletRadius, chamferDist, ctx } = input
-  const selected = document.geometries.filter((g) => selectedIds.includes(g.id))
+  const selected = editableSelected(document, selectedIds)
 
   switch (tool) {
     case 'move':
@@ -166,6 +185,7 @@ function dispatchTrim(
   if (clickPoint === null) return null
   const target = findClosestLine(document.geometries, clickPoint)
   if (target === null) return null
+  if (isLayerLocked(document, target)) return null
   const cuttingShapes = document.geometries.filter((g) => g.id !== target.id)
   const result = trimLine(target, cuttingShapes, clickPoint, ctx)
   if (result === null || result.length === 0) return null
@@ -180,6 +200,7 @@ function dispatchExtend(
   if (clickPoint === null) return null
   const target = findClosestLine(document.geometries, clickPoint)
   if (target === null) return null
+  if (isLayerLocked(document, target)) return null
   const boundaries = document.geometries.filter((g) => g.id !== target.id)
   const extended = extendLine(target, boundaries, clickPoint, ctx)
   if (extended === null) return null

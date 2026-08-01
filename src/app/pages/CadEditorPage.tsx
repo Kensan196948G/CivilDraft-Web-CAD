@@ -685,6 +685,7 @@ export function CadEditorPage({
   } | null>(null)
   const [cloudSaving, setCloudSaving] = useState(false)
   const [lastCloudRevisionId, setLastCloudRevisionId] = useState<string | null>(null)
+  const [editNotice, setEditNotice] = useState<string | null>(null)
 
   const [textInputValue, setTextInputValue] = useState('')
   const [textFontSize, setTextFontSize] = useState(14)
@@ -739,11 +740,21 @@ export function CadEditorPage({
 
   const commitGeometryUpdate = (next: Geometry) => {
     if (selected === null) return
+    if (layers.find((l) => l.id === selected.layerId)?.locked === true) {
+      setEditNotice('ロックされたレイヤーの図形は変更できません（§6.3 / Issue #40）')
+      return
+    }
+    setEditNotice(null)
     storeApi.getState().dispatchCommand(createUpdateGeometryCommand(selected, next))
   }
 
   const commitStyleUpdate = (patch: Partial<GeometryStyle>) => {
     if (selected === null) return
+    if (layers.find((l) => l.id === selected.layerId)?.locked === true) {
+      setEditNotice('ロックされたレイヤーの図形は変更できません（§6.3 / Issue #40）')
+      return
+    }
+    setEditNotice(null)
     const next = withUpdatedAt(selected, { style: { ...selected.style, ...patch } })
     storeApi.getState().dispatchCommand(createUpdateGeometryCommand(selected, next))
   }
@@ -751,6 +762,11 @@ export function CadEditorPage({
   const handlePlaceText = () => {
     const point = draftPoints[0]
     if (point === undefined || textInputValue.trim() === '') return
+    if (activeLayer.locked) {
+      setEditNotice('アクティブレイヤーがロックされています（§6.3 / Issue #40）')
+      return
+    }
+    setEditNotice(null)
     const ctx = defaultCreationContext
     const timestamp = ctx.now()
     const textGeom: Geometry = {
@@ -780,6 +796,11 @@ export function CadEditorPage({
 
   const handleApplyHatch = () => {
     if (selected === null) return
+    if (activeLayer.locked) {
+      setEditNotice('アクティブレイヤーがロックされています（§6.3 / Issue #40）')
+      return
+    }
+    setEditNotice(null)
     const boundaryPoints = getBoundaryPoints(selected)
     if (boundaryPoints === null) return
     const ctx = defaultCreationContext
@@ -1199,6 +1220,22 @@ export function CadEditorPage({
 
         <aside style={propsPanelStyle}>
           <div style={sectionLabelStyle}>選択図形</div>
+          {editNotice !== null && (
+            <div
+              role="status"
+              style={{
+                fontSize: 12,
+                color: '#A15C00',
+                background: '#FFF3D6',
+                border: '1px solid #F0D9A8',
+                borderRadius: 8,
+                padding: '8px 10px',
+                marginBottom: 8,
+              }}
+            >
+              {editNotice}
+            </div>
+          )}
           {selectedGeometries.length === 0 && (
             <div style={{ color: 'var(--muted)', fontSize: 12.5 }}>図形を選択すると詳細が表示されます。</div>
           )}
