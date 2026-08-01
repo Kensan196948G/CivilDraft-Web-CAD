@@ -35,3 +35,30 @@ jobs:
           name: neon-backup-summary
           path: backup-summary.json
           retention-days: 90
+
+  restore-check:
+    name: Verify latest backup branch (restore drill)
+    needs: backup
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 25
+          cache: npm
+
+      - run: npm ci
+
+      - name: Run restore check
+        run: node scripts/neon-restore-check.mjs
+        env:
+          NEON_API_KEY: ${{ secrets.NEON_API_KEY }}
+          NEON_PROJECT_ID: ${{ vars.NEON_PROJECT_ID }}
+
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: neon-restore-check-summary
+          path: restore-check-summary.json
+          retention-days: 90
