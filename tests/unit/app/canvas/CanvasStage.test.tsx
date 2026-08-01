@@ -95,4 +95,17 @@ describe('CanvasStage', () => {
       ),
     ).not.toThrow()
   })
+
+  it('数量根拠ハイライト（Issue #42）を持つstoreでも例外なく描画される', () => {
+    const store = createEditorStore()
+    store.getState().addGeometries([circle('a', 0, 0, 50), circle('b', 100, 100, 50)])
+    store.getState().setHighlightedGeometryIds(['a' as GeometryId])
+    expect(() =>
+      render(
+        <EditorStoreProvider store={store}>
+          <CanvasStage />
+        </EditorStoreProvider>,
+      ),
+    ).not.toThrow()
+  })
 })

@@ -66,7 +66,7 @@ function AppShell() {
       drawingSettings: <DrawingSettingsPage />,
       survey: <SurveyPointsPage />,
       parts: <PartsPalettePage onOpenEditor={() => openEditor()} />,
-      quantity: <QuantitySummaryPage />,
+      quantity: <QuantitySummaryPage onNavigate={(view) => setView(view as AppView)} />,
       section: <CrossSectionPage />,
       steps: <ConstructionStepsPage />,
       compare: <DrawingComparePage autosaveStore={autosaveStore} />,

@@ -127,10 +127,14 @@ export interface LayerSlice {
 export interface SelectionSlice {
   readonly selectedIds: readonly GeometryId[]
   readonly hoveredId: GeometryId | null
+  /** 数量根拠などの連動ハイライト（Issue #42）。選択とは独立した一時表示。 */
+  readonly highlightedGeometryIds: readonly GeometryId[]
   select: (ids: readonly GeometryId[]) => void
   toggleSelect: (id: GeometryId) => void
   clearSelection: () => void
   setHovered: (id: GeometryId | null) => void
+  setHighlightedGeometryIds: (ids: readonly GeometryId[]) => void
+  clearHighlightedGeometryIds: () => void
 }
 
 /**
@@ -447,6 +451,7 @@ export function createEditorStore(ctx: GeometryCreationContext = defaultCreation
     // --- SelectionSlice ---
     selectedIds: [],
     hoveredId: null,
+    highlightedGeometryIds: [],
     select: (ids) => set({ selectedIds: [...ids] }),
     toggleSelect: (id) =>
       set((s) => ({
@@ -456,6 +461,8 @@ export function createEditorStore(ctx: GeometryCreationContext = defaultCreation
       })),
     clearSelection: () => set({ selectedIds: [], hoveredId: null }),
     setHovered: (hoveredId) => set({ hoveredId }),
+    setHighlightedGeometryIds: (ids) => set({ highlightedGeometryIds: [...ids] }),
+    clearHighlightedGeometryIds: () => set({ highlightedGeometryIds: [] }),
 
     // --- StepSlice（仕様書§18: 施工ステップ表示） ---
     currentStepId: null,

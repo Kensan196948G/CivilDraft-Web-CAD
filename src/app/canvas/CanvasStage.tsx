@@ -54,6 +54,8 @@ const GRID_MINOR_OPACITY = 0.35
 const GRID_MAJOR_OPACITY = 0.7
 /** 選択BBox枠の色。 */
 const SELECTION_BBOX_COLOR = '#3b82f6'
+/** 数量根拠連動ハイライトの色（Issue #42）。選択枠と区別する。 */
+const HIGHLIGHT_BBOX_COLOR = '#E08A2B'
 
 export function CanvasStage({ paperSize = 'A3', paperOrientation = 'landscape' }: CanvasStageProps) {
   const containerRef = useRef<HTMLDivElement>(null)
@@ -67,6 +69,7 @@ export function CanvasStage({ paperSize = 'A3', paperOrientation = 'landscape' }
   const geometries = useEditorStore((s) => s.geometries)
   const layers = useEditorStore((s) => s.layers)
   const selectedIds = useEditorStore((s) => s.selectedIds)
+  const highlightedGeometryIds = useEditorStore((s) => s.highlightedGeometryIds)
   const currentStepId = useEditorStore((s) => s.currentStepId)
   const activeTool = useEditorStore((s) => s.activeTool)
   const draftPoints = useEditorStore((s) => s.draftPoints)
@@ -278,6 +281,12 @@ export function CanvasStage({ paperSize = 'A3', paperOrientation = 'landscape' }
     .map((g) => ({ id: g.id, bbox: shapeBBox(g) }))
     .filter((entry): entry is { id: (typeof entry)['id']; bbox: NonNullable<(typeof entry)['bbox']> } => entry.bbox !== null)
 
+  const highlightedSet = new Set(highlightedGeometryIds)
+  const highlightBBoxes = geometries
+    .filter((g) => highlightedSet.has(g.id))
+    .map((g) => ({ id: g.id, bbox: shapeBBox(g) }))
+    .filter((entry): entry is { id: (typeof entry)['id']; bbox: NonNullable<(typeof entry)['bbox']> } => entry.bbox !== null)
+
   return (
     <div
       ref={containerRef}
@@ -329,6 +338,19 @@ export function CanvasStage({ paperSize = 'A3', paperOrientation = 'landscape' }
               stroke={SELECTION_BBOX_COLOR}
               strokeWidth={1 / zoom}
               dash={[4 / zoom, 4 / zoom]}
+              listening={false}
+            />
+          ))}
+          {highlightBBoxes.map(({ id, bbox }) => (
+            <Rect
+              key={`hl-${id}`}
+              x={bbox.minX}
+              y={bbox.minY}
+              width={bbox.maxX - bbox.minX}
+              height={bbox.maxY - bbox.minY}
+              stroke={HIGHLIGHT_BBOX_COLOR}
+              strokeWidth={2 / zoom}
+              dash={[8 / zoom, 5 / zoom]}
               listening={false}
             />
           ))}
