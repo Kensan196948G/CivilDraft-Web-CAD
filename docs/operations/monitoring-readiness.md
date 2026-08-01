@@ -16,6 +16,7 @@ CivilDraft は 2026-07-22 に v0.1.2 として本番公開済み（civildraft-we
 | 本番疎通 | SPA 200 / 無認証API 401 CD-AUTH-001（fail-closed） | スモークテスト（本番URL直接確認） |
 | 本番エラー率 | Workers Invocations（GraphQL Analytics） | 直近48h エラー0件（2026-08-01 確認） |
 | 本番DB整合 | Neon 全テーブル・FK孤立/重複・監査列・索引 | read-only SQL（2026-08-01 確認、全0件） |
+| 監査完全性 | 監査ログ hash chain（entry_hash=SHA-256連鎖）と `GET /api/v1/audit-logs/verify` | Issue #61（2026-08-01 実装） |
 
 ## 1.1 リリース後監査で判明した未適用事項（2026-08-01）
 
@@ -35,7 +36,7 @@ CivilDraft は 2026-07-22 に v0.1.2 として本番公開済み（civildraft-we
 | Cloudflare Access | 認証失敗、許可外アクセス、ポリシー変更 | Access logs / Audit logs | ☐ |
 | Neon PostgreSQL | 接続数、クエリ時間、エラー、ストレージ使用量 | Neon Metrics / slow query review | ☐ |
 | Object Storage | PUT/GET失敗、署名URL失敗、容量 | Provider metrics | ☐ |
-| アプリ監査 | 保存、承認、出力、認証、設定変更 | `audit_logs` ハッシュチェーン永続化 | ☐ |
+| アプリ監査 | 保存、承認、出力、認証、設定変更 | `audit_logs` ハッシュチェーン永続化 + `GET /api/v1/audit-logs/verify` による改ざん検知（Issue #61） | ☐（本番デプロイ後に確認） |
 | CI/CD | quality/e2e/security/compliance失敗 | GitHub branch protection + required checks | ☐ |
 
 ## 3. アラート基準案

@@ -148,6 +148,10 @@ export interface AuditLogRecord {
   readonly result: 'success' | 'failure'
   readonly correlationId: string
   readonly detail?: unknown
+  /** hash chain（ADR-0009 / Issue #61）: 直前レコードの entryHash。 */
+  readonly previousHash?: string
+  /** hash chain: SHA-256(previousHash | canonical payload)。 */
+  readonly entryHash?: string
 }
 
 export interface ApiStore {

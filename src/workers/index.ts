@@ -13,6 +13,7 @@
 
 import { revisionTransitionTarget } from '../domain/revisions'
 import { resolveAccessJwtConfig, verifyAccessJwt } from './accessJwt'
+import { verifyAuditChain } from './auditChain'
 import { createMemoryStore } from './apiStore'
 import { createNeonApiStore, inspectProductionPersistenceReadiness, resolvePersistenceMode } from './persistence'
 import type { R2BucketBinding } from './r2ContentStore'
@@ -233,6 +234,7 @@ export const API_ROUTES: readonly ApiRoute[] = [
   route('POST', '/api/v1/revisions/{revisionId}/exports', '出力作成'),
   route('GET', '/api/v1/exports/{exportId}', '出力状態・取得情報'),
   route('GET', '/api/v1/audit-logs', '監査検索'),
+  route('GET', '/api/v1/audit-logs/verify', '監査ハッシュチェーン検証'),
 ]
 
 const moduleStore = createMemoryStore()
@@ -1531,6 +1533,16 @@ function listAuditLogs(store: ApiStore, ctx: RequestContext): Response {
   return jsonResponse(200, { auditLogs }, ctx.correlationId)
 }
 
+/**
+ * 監査ハッシュチェーンの完全性検証（Issue #61 / ADR-0009）。
+ * ログ本文は返さず、チェーン全体の妥当性・件数・末尾ハッシュのみを返す。
+ * 認証済み利用者であれば誰でも確認できる（改ざん検知は閲覧権限と独立した監査機能）。
+ */
+async function verifyAuditLogs(store: ApiStore, ctx: RequestContext): Promise<Response> {
+  const verification = await verifyAuditChain(store.auditLogs)
+  return jsonResponse(200, { auditChain: verification }, ctx.correlationId)
+}
+
 export async function handleRequest(request: Request, env: WorkerEnv = {}): Promise<Response> {
   const correlationId = resolveCorrelationId(request)
   const url = new URL(request.url)
@@ -1726,6 +1738,8 @@ async function dispatchApiRoute(
       return getExportJob(store, ctx, requireParam(matched.params, 'exportId'))
     case 'GET /api/v1/audit-logs':
       return listAuditLogs(store, ctx)
+    case 'GET /api/v1/audit-logs/verify':
+      return await verifyAuditLogs(store, ctx)
     default:
       return errorResponse(
         501,

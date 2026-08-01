@@ -186,8 +186,9 @@ describe('§25.1 共通ヘッダー検証', () => {
   it('neon-r2 モードで全ルート（読み書き）が接続不能時に 503 fail-closed（#66 配線後も無言フォールバックしない）', async () => {
     // #66 で書き込み系の一時停止ゲート（isPersistedWriteRoute）は撤去済み。
     // 撤去後も「アダプタ未接続で成功を偽装しない」性質は維持されることを、
-    // 18 経路全数で確認する（『一時停止』応答が残っていないことも見る）。
-    expect(API_ROUTES).toHaveLength(18)
+    // 19 経路全数で確認する（『一時停止』応答が残っていないことも見る）。
+    // ※19経路目は GET /api/v1/audit-logs/verify（Issue #61 監査チェーン検証）。
+    expect(API_ROUTES).toHaveLength(19)
 
     for (const r of API_ROUTES) {
       const res = await handleRequest(
@@ -212,8 +213,9 @@ describe('§25.1 共通ヘッダー検証', () => {
 })
 
 describe('§25.2 ルーティング', () => {
-  it('エンドポイント一覧が仕様の18経路を網羅する', () => {
-    expect(API_ROUTES).toHaveLength(18)
+  it('エンドポイント一覧が仕様の18経路+監査チェーン検証（計19経路）を網羅する', () => {
+    expect(API_ROUTES).toHaveLength(19)
+    expect(API_ROUTES.some((r) => r.template === '/api/v1/audit-logs/verify')).toBe(true)
   })
 
   it('P0縦線: Project作成 → Drawing作成 → Revision作成 → Content/数量保存 → 承認 → Export → Audit記録', async () => {
@@ -1182,5 +1184,19 @@ describe('#66 永続化フック配線（persistX wiring）', () => {
     expect(denied.status).toBe(403)
     expect(store.persistAuditLog).toHaveBeenCalledTimes(1)
     expect(store.auditLogs.at(-1)?.eventName).toBe('authorization.view.denied')
+  })
+
+  it('監査チェーン検証エンドポイントがチェーン状態を返す（Issue #61）', async () => {
+    const res = await handleRequest(
+      authedRequest('GET', '/api/v1/audit-logs/verify'),
+      testEnv(),
+    )
+    expect(res.status).toBe(200)
+    const body = await json<{
+      auditChain: { valid: boolean; checkedCount: number; legacyCount: number }
+    }>(res)
+    expect(body.auditChain.valid).toBe(true)
+    expect(body.auditChain.checkedCount).toBe(0)
+    expect(body.auditChain.legacyCount).toBe(0)
   })
 })
