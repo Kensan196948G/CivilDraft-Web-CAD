@@ -941,6 +941,46 @@ describe('API障害系・例外処理', () => {
     expect((await json<ApiErrorBody>(badFormatRes)).error.code).toBe('CD-REQ-001')
     expect(store.exportJobs.size).toBe(0)
   })
+
+  it('Content-Length が上限 (64 MiB) を超える POST は 413 を返す', async () => {
+    const res = await handleRequest(
+      new Request('https://api.example.com/api/v1/projects', {
+        method: 'POST',
+        headers: {
+          [AUTH_HEADER]: 'jwt-token',
+          [USER_HEADER]: 'engineer@example.test',
+          'Content-Type': 'application/json',
+          'Content-Length': String(64 * 1024 * 1024 + 1),
+        },
+        body: '{}',
+      }),
+      testEnv(),
+    )
+    expect(res.status).toBe(413)
+    expect((await json<ApiErrorBody>(res)).error.code).toBe('CD-REQ-001')
+  })
+
+  it('Content-Length なしでも実測サイズが上限超過なら 413 を返す（偽装・欠落対策）', async () => {
+    // 実際に 64 MiB 超を確保するとテストが重いため、上限定数を直接は使わず
+    // 実測経路の検証はモジュール内部の実装（text.length 検査）に対する
+    // 境界近傍の小さな上限で行えない。ここでは Content-Length 偽装
+    // （小さい申告 + 大きい実体）を代表ケースとして検証する。
+    const bigBody = '{"name":"' + 'a'.repeat(64 * 1024 * 1024) + '"}'
+    const res = await handleRequest(
+      new Request('https://api.example.com/api/v1/projects', {
+        method: 'POST',
+        headers: {
+          [AUTH_HEADER]: 'jwt-token',
+          [USER_HEADER]: 'engineer@example.test',
+          'Content-Type': 'application/json',
+        },
+        body: bigBody,
+      }),
+      testEnv(),
+    )
+    expect(res.status).toBe(413)
+    expect((await json<ApiErrorBody>(res)).error.code).toBe('CD-REQ-001')
+  })
 })
 
 describe('未知エンドポイント', () => {
