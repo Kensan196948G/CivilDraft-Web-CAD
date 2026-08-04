@@ -695,8 +695,9 @@ timeline
 | [#109](../../pull/109) | v0.1.16デプロイ・A11y改善の実態をREADME/state.jsonへ同期 | ✅ マージ済み（2026-08-02・admin squash `8dbb6bb`） |
 | [#110](../../pull/110) | **v0.1.17**: 合成監視workflowのYAML構文エラー修正＋workflow検証をCIへ追加（push誤トリガーの真因対応） | ✅ マージ済み（2026-08-02・admin squash `6742016`）→ v0.1.17本番デプロイ済み |
 | [#111](../../pull/111) | **v0.1.17**: コマンドパレット・Delete削除・数字キーツール切替（#47） | ✅ マージ済み（2026-08-02・admin squash `7679c7b`）→ v0.1.17本番デプロイ済み |
+| [#121](../../pull/121) | Issue #59第二弾: 未接続数量／stale数量／未対応DXF要素／デフォルトレイヤー配置／未承認改訂の5チェック（`DrawingHealthContext`）+ CadEditorPage配線バグ修正 | ✅ マージ済み（2026-08-04・squash `506be8c`、admin bypassなしの通常マージ経路）→ 本番デプロイはCLOUDFLARE_API_TOKEN権限不足（Workers Scripts:Edit欠如）でBLOCKED |
 
-> マージ済みPRは人間の明示承認（選択式Y判断）を得てマージ済み。レビュー承認1件必須はPR作成者の自己承認不可のため、マージ実行時は enforce_admins を一時解除し完了後に即復元した。
+> マージ済みPRは人間の明示承認（選択式Y判断）を得てマージ済み。レビュー承認1件必須はPR作成者の自己承認不可のため、PR #111までは マージ実行時に enforce_admins を一時解除し完了後に即復元していた。PR #121以降は、branch protectionの `required_approving_review_count` を 1→0 へ恒久変更（2026-08-04・人間承認済み、他の保護設定は変更なし）したため、admin bypassを伴わない通常マージ経路を使用する。
 
 進捗の詳細は[GitHub Projects「CivilDraft-Web-CAD 開発司令盤」](../../projects)、Issue一覧は[Issues](../../issues)を参照してください。
 
