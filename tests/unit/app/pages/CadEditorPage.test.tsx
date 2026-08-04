@@ -367,6 +367,20 @@ describe('CadEditorPage レイヤーパネル', () => {
     ).toBeInTheDocument()
     expect(screen.getByText(/対象図形 ID: g-far/)).toBeInTheDocument()
   })
+
+  it('健全性チェック結果の「対象を選択」をクリックすると該当図形が選択される（Issue #59）', async () => {
+    const store = createEditorStore()
+    const cloudApiClient: CloudSaveClient = { saveDraft: vi.fn(), getRevisionContent: vi.fn() }
+    renderPage(store, cloudApiClient)
+
+    const farLine = { ...line('g-far'), start: { x: 999999, y: 0 }, end: { x: 1000000, y: 10 } }
+    store.getState().addGeometries([farLine])
+    await userEvent.click(screen.getByRole('button', { name: '図面健全性' }))
+
+    expect(store.getState().selectedIds).toEqual([])
+    await userEvent.click(screen.getByRole('button', { name: '対象を選択' }))
+    expect(store.getState().selectedIds).toEqual(['g-far'])
+  })
 })
 
 describe('CadEditorPage キーボードショートカットとA11y（#47）', () => {

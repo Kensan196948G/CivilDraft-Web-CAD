@@ -33,6 +33,7 @@ import { checkDrawingHealth, type DrawingHealthResult } from '@/domain/validatio
 import { defaultCreationContext } from '@/domain/geometry/geometryFactory'
 import type { AutosaveStore } from '@/infrastructure/autosave/autosaveStore'
 import { scheduleAutosave } from '@/infrastructure/autosave/autosaveScheduler'
+import { computeQuantitySummary } from './quantitySummaryModel'
 import {
   createCivilDraftApiClient,
   type CloudContent,
@@ -925,9 +926,16 @@ export function CadEditorPage({
     }
   }
 
-  /** 図面健全性チェックを実行して結果パネルを開く（Issue #59）。 */
+  /**
+   * 図面健全性チェックを実行して結果パネルを開く（Issue #59）。
+   * quantities は都度再計算のため unlinked/stale-quantity は現状発火しない
+   * （sources は常に現存図形を指し、算出明細は常に status: 'valid'。真に検出するには
+   * 数量明細の state 化と invalidateByGeometryChange 連携が要る。follow-up Issueで対応）。
+   */
   const runHealthCheck = () => {
-    setHealthResult(checkDrawingHealth({ geometries, layers }))
+    setHealthResult(
+      checkDrawingHealth({ geometries, layers }, {}, { quantities: computeQuantitySummary(geometries).items }),
+    )
     setHealthOpen(true)
   }
 
@@ -1040,7 +1048,13 @@ export function CadEditorPage({
       icon: '🩺',
       run: () => {
         const s = storeApi.getState()
-        setHealthResult(checkDrawingHealth({ geometries: s.geometries, layers: s.layers }))
+        setHealthResult(
+          checkDrawingHealth(
+            { geometries: s.geometries, layers: s.layers },
+            {},
+            { quantities: computeQuantitySummary(s.geometries).items },
+          ),
+        )
         setHealthOpen(true)
       },
     },
@@ -1198,8 +1212,17 @@ export function CadEditorPage({
               >
                 {issue.severity === 'error' ? '🚨' : issue.severity === 'warning' ? '⚠️' : 'ℹ️'} {issue.message}
                 {issue.geometryIds.length > 0 && (
-                  <div style={{ marginTop: 2, fontFamily: "'IBM Plex Mono', monospace", fontSize: 11 }}>
-                    対象図形 ID: {issue.geometryIds.join(', ')}
+                  <div style={{ marginTop: 2, display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
+                    <span style={{ fontFamily: "'IBM Plex Mono', monospace", fontSize: 11 }}>
+                      対象図形 ID: {issue.geometryIds.join(', ')}
+                    </span>
+                    <button
+                      type="button"
+                      style={{ ...ghostButtonStyle, padding: '2px 8px', fontSize: 11 }}
+                      onClick={() => storeApi.getState().select(issue.geometryIds)}
+                    >
+                      対象を選択
+                    </button>
                   </div>
                 )}
               </div>
