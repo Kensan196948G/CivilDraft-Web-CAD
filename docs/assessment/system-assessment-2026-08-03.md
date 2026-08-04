@@ -10,14 +10,14 @@
 
 | 項目 | ArcSphere Civil Twin | CivilDraft-Web-CAD |
 |---|---|---|
-| 総合得点 | **73 / 100** | **65 / 100** |
+| 総合得点 | **73 / 100** | **66 / 100** |
 | 判定 | 検証・限定運用可。本番前に High 3 件の修正必須 → **本セッションで 3 件修正済み** | デモ/PoC 上位水準。永続化層の再設計が本番の前提 |
 | 完成度 | 約 80% | 約 60% |
 | 競合代替率 | 約 50% | 約 40% |
 | デモ可能か | **Yes** | **Conditional** (CAD 編集はデモ可、DXF 取込に UI なし) |
 | 本番リリース可能か | **Conditional** (修正の本番反映 + 監視整備後) | **No** (High 4 件未解決のまま実運用不可) |
 
-両プロジェクトとも「READMEだけ立派」な типのプロジェクトでは**なく**、テスト・CI・運用文書が実体を伴う。検証実測: ArcSphere backend **pytest 909 件 green** / frontend **vitest 153 件 green**、CivilDraft **vitest 1,287 件 green**、両者 tsc / eslint / build すべて green、secret 混入 0 件。
+両プロジェクトとも「READMEだけ立派」なタイプのプロジェクトでは**なく**、テスト・CI・運用文書が実体を伴う。検証実測: ArcSphere backend **pytest 909 件 green** / frontend **vitest 153 件 green**、CivilDraft **vitest 1,287 件 green (2 skip: Neon 実接続統合テストは接続文字列未設定時 skip)**、両者 tsc / eslint / build すべて green（いずれも改善実装前の初回検証値。改善実装後は ArcSphere 917 / CivilDraft 1,290 passed — §19 参照）、secret 混入 0 件。
 
 一方で、両者とも「実装済みだが本番で成立しない箇所」が要所にあり、それが今回の主要な発見である:
 
@@ -33,7 +33,7 @@
 - **想定ユーザー**: 建設会社・発注者・設計コンサルの PM / 技術者 / 監督員
 - **構成**: FastAPI (Python 3.12, 113 ファイル/14.2k LOC) + React 18/Three.js (88 ファイル/12.3k LOC) + Postgres (Neon) + MinIO/S3 + Redis/ARQ。docker-compose / Helm / systemd の 3 経路
 - **フェーズ**: v1.0 リリース後の本番安定化 (Phase 3)。本番 URL 稼働中 (Cloudflare Access 全面保護)
-- **データ正本**: Neon Postgres (alembic 28→29 migration) + S3 (tileset)。**注意: 本番 DB head (`s9t0u1v2w3x4`) はリポジトリ head より 3 migration 遅れ** (state.json 記載、要本番適用承認)
+- **データ正本**: Neon Postgres (alembic 28→29 migration) + S3 (tileset)。**注意: 本番 DB head は state.json の 2026-08-01 セッション記録時点で `s9t0u1v2w3x4` = 当時のリポジトリ head (`w1x2y3z4a5b6`) より 3 migration 遅れ**。本評価で追加した `x2y3z4a5b6c7` を含めると最大 4 本の追随適用が必要 (S4 反映で一部適用済みの可能性あり — 適用前に `alembic current` で実測すること)
 
 ### CivilDraft-Web-CAD
 - **目的**: 土木向け Web 2D CAD (作図・DXF 入出力・数量計算・帳票・承認ワークフロー)
@@ -56,7 +56,7 @@
 | 依存インストール | ✅ pip (Py3.12 venv) / npm ci | ✅ npm ci |
 | 型チェック | ✅ tsc 0 エラー | ✅ tsc 0 エラー |
 | lint | ✅ ruff 0 / eslint 0 エラー (警告16) | ✅ eslint 0 エラー (警告1) |
-| 単体テスト | ✅ **pytest 909 passed** / **vitest 153 passed** | ✅ **vitest 1,287 passed** (2 skip) |
+| 単体テスト (初回検証時) | ✅ **pytest 909 passed** / **vitest 153 passed** | ✅ **vitest 1,287 passed / 2 skipped / 1,289 total** (skip = Neon 実接続統合 2 件) |
 | ビルド | ✅ vite build 成功 | ✅ tsc -b + vite build 成功 |
 | 依存脆弱性 | ⚠️ FE 4 件 (下記) / BE は CI の pip-audit 依存 | ⚠️ 2 件 (dev 依存 jsdom→undici のみ) |
 | secret 混入 | ✅ grep 精査で実 secret 0 (プレースホルダのみ) | ✅ secret-scan 0 件 |
@@ -89,7 +89,7 @@
 
 *セキュリティ得点は修正後評価。修正前は 6.2 相当 → 総合 72 点。
 
-### CivilDraft-Web-CAD: 65 / 100 — 「デモ/PoC 水準 (上位)」
+### CivilDraft-Web-CAD: 66 / 100 — 「デモ/PoC 水準 (上位)」(内訳合計 66.0 点・小数第1位四捨五入)
 
 | 領域 (配点) | 得点 | 短評 |
 |---|---:|---|
@@ -100,13 +100,13 @@
 | データ・API (8) | 4.4 | SQL 完全パラメータ化・トランザクション使用。**全リクエスト全テーブル SELECT・楽観ロック DB 未強制** |
 | セキュリティ (12) | 7.8* | JWT 検証は模範的・fail-closed 徹底・secret 衛生良好。actorId 偽装 (**修正済**)・ボディ上限 (**修正済**)・レート制限なし残 |
 | テスト・QA (10) | 7.0 | 1,287 件は域内最良。E2E 2 本のみ・Neon 統合常時 skip・カバレッジ閾値なし |
-| CI/CD (8) | 5.8 | 4 ジョブ + SBOM 決定性ゲート + workflow YAML 検証。必須チェック 2/4・action がタグ参照 |
+| CI/CD (8) | 5.8 | 4 ジョブ + SBOM 決定性ゲート + workflow YAML 検証。必須チェック 2/4 (E2E/SBOM が必須外 — **即時の必須化を推奨**)・action がタグ参照 |
 | 運用・信頼性 (8) | 5.6 | 30 分毎合成監視 + 自動 Issue・週次バックアップ + リストア実証は同規模で異例の充実。CSP 未配備 |
 | 性能・コスト (5) | 2.3 | R-tree/カリングは実装済みだが描画パス無メモ化・API が全データ材料化 |
 | ドキュメント・DX (5) | 3.6 | ADR 15 本・runbook 9 本。README が存在しない UI ボタンを記載 (取込📥/出力📤/📄)・ADR 0001–0011 が Proposed のまま |
 | ガバナンス (4) | 2.6 | 監査ハッシュ連鎖 (ADR-0009) は設計良好だが**並行書込みで分岐し改ざん検出が機能不全**。SBOM/ライセンスは強い |
 
-*修正後評価。修正前は 6.6 相当 → 総合 63 点。
+*修正後評価。修正前はセキュリティ 6.6 相当 → 総合 63 点。
 
 **判定原則**: 高得点でも Critical 1 件以上あれば本番不可。両プロジェクトとも Critical (即時の情報漏えい/データ損失が無条件成立) は検出されなかったが、High が残存する CivilDraft は本番非推奨。
 
@@ -125,6 +125,7 @@
 ## 📌 6. 実装済み・部分実装・未実装・未確認の一覧
 
 ### ArcSphere
+
 | 状態 | 項目 |
 |---|---|
 | ✅ 実装済 (検証可) | JWT RS256 + refresh 回転 + 再利用検知 / TOTP 2FA / OAuth (GitHub・Google) / セッション管理 / プロジェクト RBAC (owner/admin/editor/viewer) / 共有リンク + 署名付き tiles proxy / レイヤー・計測・CRS 変換 (pyproj) / Issue + BCF 2.1 入出力 / コメント・視点 / CDE ドキュメント (ISO 19650-lite 状態機械) / PDF 帳票 4 種 (日本語フォント) / 監査 35 アクション + CSV / SSE / webhook (SSRF ピン留め + HMAC) / outbox / 3D Tiles 実ロード |
@@ -133,6 +134,7 @@
 | ❓ 未確認 | 本番実挙動 / 実データでの変換品質 / 負荷特性 (locust は 5 users/30s のみ) |
 
 ### CivilDraft
+
 | 状態 | 項目 |
 |---|---|
 | ✅ 実装済 (検証可) | 描画 8 ツール + 編集 9 操作 (trim/extend/offset/fillet/chamfer 含む) / undo/redo (Command パターン・100 履歴) / レイヤー + 工種テンプレート / R-tree 空間索引 + ビューポートカリング / DXF import (13 エンティティ・単位系・ACI 色) + export / PDF 出力 (pdf-lib・日本語フォント) / 数量計算 (延長/周長/面積/個数/体積) + CSV (数式注入対策) / 図面健全性チェック 3 規則 / コマンドパレット (ARIA 準拠) / Worker API 19 ルート + Access JWT 完全検証 + 監査ハッシュ連鎖 + fail-closed |
@@ -152,7 +154,7 @@
 | CivilDraft: Access JWT 検証 | alg 固定/kid 再取得/iss/aud/exp/nbf/skew — 模範実装 (`accessJwt.ts`) | 認証境界の堅牢性 | JWKS 陳腐化上限の追加 |
 | CivilDraft: 機械検証ゲート文化 | migration validator (破壊 DDL ブロックリスト+waiver 機構)、SBOM 決定性 diff、workflow YAML 検証、合成監視+自動 Issue | 「文書だけの品質」を排除 | カバレッジ閾値を同じ思想で追加 |
 | CivilDraft: CAD ドメインの型設計 | brand ID 型、Result 型、Command パターン、mm/deg/Y-down 基準の一貫適用 | 拡張時の安全性 | 未配線資産 (snap 等) の配線で即機能増 |
-| 両者: テストの量と質 | 実測 909+153 / 1,287 全 green、fail-closed 経路のテスト多数 | 変更容易性 | 本番相当 (PG/Neon) 統合の常時実行化 |
+| 両者: テストの量と質 | 実測 909+153 / 1,287 (unit suite) green、fail-closed 経路のテスト多数 | 変更容易性 | 本番相当 (PG/Neon) 統合の常時実行化 |
 
 ## 📌 8. 弱み・問題
 
@@ -170,7 +172,8 @@
 | CD-1: 全リクエスト全テーブル SELECT | `index.ts:255-274`, `neonApiStore.ts:448-561` (`SELECT *` ×10・無 LIMIT) | データ増に線形比例する全 API 劣化、単独ユーザーで DoS 可能、全テナント内容が毎リクエスト isolate 経由 | **High** | 述語付き SQL への段階置換 (B — 設計変更。Issue 化) |
 | CD-2: 楽観ロックが DB 未強制 | `neonApiStore.ts:568-616` `ON CONFLICT DO UPDATE` に `WHERE version=` なし | 並行編集で silent lost update (428/409 契約が実質無効) | **High** | version 述語 + rowcount 検査 (B — CD-1 と同時に。Issue 化) |
 | CD-3: actorId ヘッダー偽装 | `index.ts:1632-1640` (旧) | service token 保持者が任意ユーザーへなりすまし | **High** | ✅ **修正済** (検証済クレームのみ採用 + テスト 2 件) |
-| CD-4: ボディサイズ・レート制限なし | `index.ts:1203` (旧)、レート制限は全域不在 | 認証済み 1 ユーザーで容量/コスト DoS | **High** | ✅ **ボディ 64 MiB 上限修正済** (413 + テスト 2 件)。レート制限は Workers Rate Limiting binding 要 (C — 課金/インフラ変更) |
+| CD-4a: ボディサイズ上限なし | `index.ts:1203` (旧) | 認証済み 1 ユーザーで容量 DoS | **High** | ✅ **修正済** (64 MiB・413 + テスト 2 件) |
+| CD-4b: レート制限なし | Workers Rate Limiting binding 全域不在 | 認証済み 1 ユーザーでコスト/可用性 DoS | **High** | Workers Rate Limiting binding 導入 (C — 課金/インフラ変更を伴うため人間承認要) |
 | CD-5: 監査ハッシュ連鎖が並行で分岐 | `neonApiStore.ts:688-704` (リクエストローカル tail 参照) | 正常並行トラフィックが「改ざん」と判定され検出機能が無効化 | Medium-High | previous_hash の DB 側直列化 (B) |
 | CD-6: Ctrl+Z 二重発火 | `CanvasStage.tsx:110-139` + `CadEditorPage.tsx:752-810` の二重 window listener | 1 回の undo で 2 コマンド巻戻し。テキスト入力中も図形 undo | Medium (UX 上は High 級) | リスナー統合 (A — 次セッション推奨) |
 | CD-7: README と実 UI の乖離 | README の取込📥/出力📤/📄 ボタン記載 vs `CadEditorPage.tsx` に不存在 | デモ・評価時の信頼毀損 | Medium | README 修正 + DXF 取込 UI 配線 (A/B) |
@@ -179,9 +182,9 @@
 
 ## 📌 9. Critical および High リスク
 
-**Critical: 0 件** (無条件で成立する情報漏えい・データ損失は検出されず。両システムとも Cloudflare Access が外周を保護)
+**Critical: 0 件 (ローカル検証範囲)** — 無条件で成立する情報漏えい・データ損失はコード・設定の静的/動的検証範囲では検出されず。ただし本番実挙動・本番 Access ポリシー・secrets 登録状態 (CivilDraft の ACCESS_TEAM_DOMAIN/AUD 等) は未確認のため、**本番 Access ポリシー・secrets・認証経路の人手確認をリリース条件とする**
 
-**High: 7 件 → 5 件修正済み・2 件残存** (CD-1, CD-2 — いずれも CivilDraft 永続化層の同一根本原因「リクエスト毎全材料化 + メモリ内並行制御」。個別パッチではなく述語付き SQL への設計変更として一括対処すべき)
+**High: 8 件 (AS-1〜3, CD-1〜3, CD-4a/4b) → 5 件修正済み (AS-1〜3, CD-3, CD-4a)・3 件残存 (CD-1, CD-2, CD-4b)** (CD-1, CD-2 は CivilDraft 永続化層の同一根本原因「リクエスト毎全材料化 + メモリ内並行制御」。個別パッチではなく述語付き SQL への設計変更として一括対処すべき)
 
 ## 📌 10. セキュリティ評価 (OWASP ASVS/Top 10 準拠観点)
 
@@ -193,7 +196,7 @@
 | XSS | ○ nonce CSP 実装済みだが SPA 文書に未配達 (AS-4) | ○ シンク不検出 (innerHTML 等ゼロ)。CSP は zone 委譲のまま未適用 |
 | SSRF | ◎ webhook の IP ピン留め + メタデータ遮断は模範実装 | ➖ 外部 URL 取得機能なし |
 | ファイルアップロード | ○ モデル系は堅牢。document は拡張子 allowlist なし (Low) | ➖ サーバー側アップロードなし (ボディ上限は修正済) |
-| レート制限/DoS | △ プロセスローカル・XFF 偽装余地 (K8s) | ✗ 不在 (CD-4 残) + CD-1 増幅 |
+| レート制限/DoS | △ プロセスローカル・XFF 偽装余地 (K8s) | ✗ 不在 (CD-4b 残) + CD-1 増幅 |
 | secrets | ◎ 実 secret 混入なし・prod_check が既定値を FAIL | ◎ 混入なし・scan 自動化 |
 | 監査 | ○ 35 アクション + scrub + strict fail-closed (AS-3 修正済)。改ざん耐性なし | ○ ハッシュ連鎖設計は良いが並行分岐 (CD-5) |
 | 依存 | ○ pip-audit/trivy ブロッキング。BE ロックファイルなし (供給網リスク)・react-router-dom 要更新 | ○ audit ゲートあり。dxf-parser (低活動・攻撃対象ファイル解析) は要監視 |
@@ -268,15 +271,15 @@
 
 | ID | 改善内容 | 優先度 | 効果 | 工数 | 分類 | 完了条件 |
 |---|---|---|---|---|---|---|
-| 1 | AS-1/2/3 セキュリティ修正 | P1 | High 3 件解消 | S | A | ✅ 本セッション完了 (テスト 8 件追加・全 suite green) |
-| 2 | CD-3/4 actorId + ボディ上限 | P1 | High 2 件解消 | S | A | ✅ 本セッション完了 (テスト 4 件追加・全 suite green) |
+| 1 | AS-1/2/3 セキュリティ修正 | P1 | High 3 件解消 | S | A | ✅ 本セッション完了 (テスト 8 件追加・実行済み unit suite 917 件 green。E2E/PG 統合は CI で検証) |
+| 2 | CD-3/4 actorId + ボディ上限 | P1 | High 2 件解消 | S | A | ✅ 本セッション完了 (テスト 4 件追加・実行済み unit suite 1,290 件 green。E2E は CI で検証) |
 | 3 | CD-1/2/5 永続化層再設計 (述語付き SQL + version WHERE + hash 直列化) | P1 | High 2 件 + Medium 1 件解消・性能根治 | L | B | 全リクエストの SELECT が述語付き・並行書込みテスト green |
 | 4 | CD-6 Ctrl+Z 二重発火修正 | P1 | 主要 UX バグ解消 | XS | A | keydown リスナー一本化 + jsdom テスト |
 | 5 | AS-7 アップロードパスのボディ上限免除 | P1 | 500MB アップロード成立 | S | A | multipart パス免除 + DoS テスト維持 |
 | 6 | AS: react-router-dom 更新 / CD: README 実 UI 同期 | P2 | 脆弱性/信頼性 | XS | A | audit green / README 記載と UI 一致 |
 | 7 | AS-4 CSP を SPA 文書へ配布 | P2 | XSS 防御成立 | S | B | curl で CSP ヘッダー確認 |
 | 8 | CD: スナップ配線 + DXF 取込 UI | P2 | 代替率 +18pt | S×2 | B | E2E で取込→編集→出力 |
-| 9 | AS-5 レート制限 Redis 化 / CD-4 残 (Workers Rate Limiting) | P2 | DoS 耐性 | M / C | B/C | 多プロセスで上限一定 |
+| 9 | AS-5 レート制限 Redis 化 / CD-4b (Workers Rate Limiting) | P2 | DoS 耐性 | M / C | B/C | 多プロセスで上限一定 |
 | 10 | AS-8 本番 /docs 無効化・AS: BE ロックファイル導入 | P3 | 露出/供給網 | XS/S | A | — |
 | 11 | AS-9 監査改ざん耐性 / CD-8 メンバー管理 | P3 | ガバナンス | M | B/C | — |
 | 12 | 対応不要: CD の R2 導入 (ADR-0014 で意図的スキップ)・AS の Codecov 復活 (削除理由が正当) | — | — | — | 6 | — |
@@ -285,7 +288,7 @@
 
 - **30 日 (安定化)**: バックログ #3 の設計 + 実装着手、#4/#5/#6 完了、ArcSphere 本番 DB への migration 追随 (3 本 + 今回の `x2y3z4a5b6c7`) を承認プロセス経由で適用、CD 本番 Access secrets 登録確認
 - **60 日 (信頼性)**: #3 完了 + Neon 統合テスト常時実行化、#7/#8 完了、AS メトリクス/アラート MVP、E2E 拡充 (CD: 2→10 本、AS: 認可境界系を追加)
-- **90 日 (成長)**: CD 円弧/ブロック着手、AS 変換パイプライン実運用化 + 実データ E2E、両製品の必須チェック/branch protection をコード化 (rulesets)
+- **90 日 (成長)**: CD 円弧/ブロック着手、AS 変換パイプライン実運用化 + 実データ E2E、(前倒し推奨: 必須チェック全 4 ジョブ化・タグ保護は 30 日以内に実施) rulesets によるコード化
 
 ## 📌 19. 直ちに実装可能な項目 (A 分類) — 本セッション実施分
 

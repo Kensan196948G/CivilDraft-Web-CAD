@@ -385,23 +385,23 @@ async function readJsonObject(request: Request): Promise<Record<string, unknown>
       `Request body exceeds the ${MAX_JSON_BODY_BYTES} byte limit`,
     )
   }
-  let text: string
+  // Content-Length は欠落・偽装し得るため実測でも検査する。UTF-16 コード単位数
+  // (text.length) ではなく実バイト数 (byteLength) で判定する — 多バイト文字を
+  // 含む本文は文字数が上限以下でもバイト数が上限を超え得るため。
+  let bytes: ArrayBuffer
   try {
-    text = await request.text()
+    bytes = await request.arrayBuffer()
   } catch {
     throw new ValidationError('Request body must be valid JSON')
   }
-  // Content-Length は欠落・偽装し得るため実測でも検査する。text.length は
-  // UTF-16 コード単位数で実バイト数の下限 (1 code unit ≥ 1 byte) — DoS 上限
-  // 用途には十分な近似（多バイト文字で最大 2 倍程度の過小評価に留まる）。
-  if (text.length > MAX_JSON_BODY_BYTES) {
+  if (bytes.byteLength > MAX_JSON_BODY_BYTES) {
     throw new PayloadTooLargeError(
       `Request body exceeds the ${MAX_JSON_BODY_BYTES} byte limit`,
     )
   }
   let parsed: unknown
   try {
-    parsed = JSON.parse(text)
+    parsed = JSON.parse(new TextDecoder().decode(bytes))
   } catch {
     throw new ValidationError('Request body must be valid JSON')
   }
