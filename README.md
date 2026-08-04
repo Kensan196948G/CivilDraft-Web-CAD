@@ -10,7 +10,7 @@
 | リポジトリ | `CivilDraft-Web-CAD` |
 | 既存技術資産 | [`Civil-Draw`](https://github.com/Kensan196948G/Civil-Draw) |
 | 開発基盤 | Claude Code on Linux＋GitHub＋Cloudflare＋Neon |
-| 現在の位置付け | **土木特化Web CADの技術プレビュー（v0.1.17）**。ブラウザ内CADコアと土木ドメイン部品は拡充中。Workers APIはP0縦線（Project作成/更新→Drawing作成/更新→Revision作成→Content/数量保存→照査/承認→Export作成→Audit検索）を実装し、本番稼働中（`civildraft-web-cad.mirai-dx-platform.com`）。2026-07-21のv0.1.0でpersistX全9ハンドラのNeon永続化配線・監査ログ永続化が本番反映され、Neon migration 0001〜0004適用済み（0003=Neon直接格納・ADR-0014、0004=ID列text整合・ADR-0015）、書き込み系fail-closed暫定措置は撤去済み。2026-07-22のv0.1.1（PR #72・Issue #68恒久対応）でpersistX複合書き込み5種を単一トランザクションへ統合し本番反映済み。2026-07-22のv0.1.2（PR #75・Issue #73恒久対応）でquantity_items孤立item解消も本番反映済み。以降、監査ログhash chain（Issue #61）・数量⇔図形連動（Issue #42）・レイヤーテンプレート・図面健全性チェック（Issue #59）・キーボードショートカット/コマンドパレット（Issue #47）を段階的に本番反映（v0.1.3〜v0.1.17）。Cloudflare Access Application設定とAccess Secret登録（人間実施）が完了するまでAPIは認証構成fail-closed（401/503）で安全に停止 |
+| 現在の位置付け | **土木特化Web CADの技術プレビュー（v0.1.18）**。ブラウザ内CADコアと土木ドメイン部品は拡充中。Workers APIはP0縦線（Project作成/更新→Drawing作成/更新→Revision作成→Content/数量保存→照査/承認→Export作成→Audit検索）を実装し、本番稼働中（`civildraft-web-cad.mirai-dx-platform.com`）。2026-07-21のv0.1.0でpersistX全9ハンドラのNeon永続化配線・監査ログ永続化が本番反映され、Neon migration 0001〜0004適用済み（0003=Neon直接格納・ADR-0014、0004=ID列text整合・ADR-0015）、書き込み系fail-closed暫定措置は撤去済み。2026-07-22のv0.1.1（PR #72・Issue #68恒久対応）でpersistX複合書き込み5種を単一トランザクションへ統合し本番反映済み。2026-07-22のv0.1.2（PR #75・Issue #73恒久対応）でquantity_items孤立item解消も本番反映済み。以降、監査ログhash chain（Issue #61）・数量⇔図形連動（Issue #42）・レイヤーテンプレート・図面健全性チェック（Issue #59）・キーボードショートカット/コマンドパレット（Issue #47）を段階的に本番反映（v0.1.3〜v0.1.17）。2026-08-04のv0.1.18（PR #113/#121、Worker Version `a959db6f`）でactorId偽装対策・リクエストボディ上限等のセキュリティ強化（PR #113）と図面健全性チェック第二弾（Issue #59・数量連動配線バグ修正）を本番反映。Cloudflare Access Application設定とAccess Secret登録（人間実施）が完了するまでAPIは認証構成fail-closed（401/503）で安全に停止 |
 
 ---
 
@@ -617,6 +617,7 @@ timeline
 | 2026-08-02 | 🚀 **v0.1.15 本番デプロイ**（PR #104/#105・事前承認）: 図面健全性チェック（Issue #59第一弾）: 不明レイヤー/用紙外（回転矩形対応）/非表示レイヤー検出+対象図形ID表示。main最終`677c6ca`のCI全5ジョブsuccess → wrangler deploy（Worker Version `12cdda13`）。スモーク全PASS（[Release v0.1.15](../../releases/tag/v0.1.15)） |
 | 2026-08-02 | 🚀 **v0.1.16 本番デプロイ**（PR #106/#107・事前承認）: キーボードショートカット（Ctrl/Cmd+Z=Undo・Ctrl/Cmd+Y=Redo・Esc=取消/選択解除）+ ツールバーA11y（role/aria-label）。main最終`35802bf`のCI全5ジョブsuccess → wrangler deploy（Worker Version `39e2e95d`）。スモーク全PASS（[Release v0.1.16](../../releases/tag/v0.1.16)） |
 | 2026-08-02 | 🚀 **v0.1.17 本番デプロイ**（PR #110/#111・事前承認）: コマンドパレット（Ctrl/Cmd+K・ファジー検索・↑/↓/Enter/Esc・WAI-ARIA combobox/listbox/option・#47）、Delete/Backspace選択削除（Undo可）、数字キー1-8ツール切替。併せて合成監視workflowのpush誤トリガー真因（`--body`複数行文字列のインデント崩れによるYAML構文エラー）を修正し、CIにworkflow YAML検証（`scripts/validate-workflows.py`）を追加。main最終`7679c7b`のCI全5ジョブsuccess → wrangler deploy（Worker Version `b6ae0a7f`）。スモーク全PASS・テスト113ファイル/1287件（[Release v0.1.17](../../releases/tag/v0.1.17)） |
+| 2026-08-04 | 🚀 **v0.1.18 本番デプロイ**（PR #113/#121/#122・PR #121はユーザー承認Y→通常マージ経路）: 図面健全性チェック第二弾（Issue #59・未接続数量/stale数量/未対応DXF要素/デフォルトレイヤー配置/未承認改訂の5チェック+`DrawingHealthContext`経由の数量連動配線バグ修正、PR #121）、actorId偽装対策・リクエストボディ上限・依存更新（PR #113）、docs実態同期（PR #122）。CLOUDFLARE_API_TOKENローテーション（Workers Scripts:Edit付与）でデプロイBLOCKERを解消し、main最終`4033a44`のCI全チェックsuccess → wrangler deploy（Worker Version `a959db6f`、2026-08-04T13:32:55Z）。スモーク全PASS（SPA 200×2/API 401 CD-AUTH-001/ヘッダー5種）・Observability健全・テスト113ファイル/1300件（[Release v0.1.18](../../releases/tag/v0.1.18)） |
 
 ### 🛠️ 次に閉じるべき実務ワークフロー
 
@@ -695,7 +696,8 @@ timeline
 | [#109](../../pull/109) | v0.1.16デプロイ・A11y改善の実態をREADME/state.jsonへ同期 | ✅ マージ済み（2026-08-02・admin squash `8dbb6bb`） |
 | [#110](../../pull/110) | **v0.1.17**: 合成監視workflowのYAML構文エラー修正＋workflow検証をCIへ追加（push誤トリガーの真因対応） | ✅ マージ済み（2026-08-02・admin squash `6742016`）→ v0.1.17本番デプロイ済み |
 | [#111](../../pull/111) | **v0.1.17**: コマンドパレット・Delete削除・数字キーツール切替（#47） | ✅ マージ済み（2026-08-02・admin squash `7679c7b`）→ v0.1.17本番デプロイ済み |
-| [#121](../../pull/121) | Issue #59第二弾: 未接続数量／stale数量／未対応DXF要素／デフォルトレイヤー配置／未承認改訂の5チェック（`DrawingHealthContext`）+ CadEditorPage配線バグ修正 | ✅ マージ済み（2026-08-04・squash `506be8c`、admin bypassなしの通常マージ経路）→ 本番デプロイはCLOUDFLARE_API_TOKEN権限不足（Workers Scripts:Edit欠如）でBLOCKED |
+| [#121](../../pull/121) | Issue #59第二弾: 未接続数量／stale数量／未対応DXF要素／デフォルトレイヤー配置／未承認改訂の5チェック（`DrawingHealthContext`）+ CadEditorPage配線バグ修正 | ✅ マージ済み（2026-08-04・squash `506be8c`、admin bypassなしの通常マージ経路）→ **v0.1.18本番デプロイ済み**（2026-08-04・Worker Version `a959db6f`、CLOUDFLARE_API_TOKENローテーション後にwrangler deploy） |
+| [#122](../../pull/122) | v0.1.17マージ状態・Issue #59クローズのdocs実態同期（当時デプロイBLOCKEDと記録） | ✅ マージ済み（2026-08-04・`4033a44`）→ v0.1.18に内包し本番反映済み。デプロイBLOCKED記述は本v0.1.18同期で解消 |
 
 > マージ済みPRは人間の明示承認（選択式Y判断）を得てマージ済み。レビュー承認1件必須はPR作成者の自己承認不可のため、PR #111までは マージ実行時に enforce_admins を一時解除し完了後に即復元していた。PR #121以降は、branch protectionの `required_approving_review_count` を 1→0 へ恒久変更（2026-08-04・人間承認済み、他の保護設定は変更なし）したため、admin bypassを伴わない通常マージ経路を使用する。
 
