@@ -177,14 +177,16 @@ describe('actorId の JWT ペイロード採用（ヘッダー偽装対策）', 
     expect(body.project.updatedBy).toBe('engineer@example.test')
   })
 
-  it('JWT に email がない場合はヘッダーへフォールバックする', async () => {
-    const token = await signJwt(validPayload({ email: undefined }))
+  it('JWT に email がない場合でも偽装可能ヘッダーへはフォールバックしない（なりすまし対策）', async () => {
+    // service token JWT（email なし・common_name あり）+ 偽装ヘッダーの組み合わせ。
+    // 修正前はヘッダー値が actorId になり、任意ユーザーへのなりすましが成立していた。
+    const token = await signJwt(validPayload({ email: undefined, common_name: 'ci-bot' }))
     const res = await handleRequest(
       new Request('https://api.example.com/api/v1/projects', {
         method: 'POST',
         headers: {
           [AUTH_HEADER]: token,
-          [USER_HEADER]: 'fallback@example.test',
+          [USER_HEADER]: 'victim@example.test',
           'Content-Type': 'application/json',
         },
         body: JSON.stringify({ projectNumber: 'P-003', name: 'actorフォールバック' }),
@@ -193,6 +195,26 @@ describe('actorId の JWT ペイロード採用（ヘッダー偽装対策）', 
     )
     expect(res.status).toBe(201)
     const body = (await res.json()) as { project: { createdBy: string } }
-    expect(body.project.createdBy).toBe('fallback@example.test')
+    expect(body.project.createdBy).toBe('service-token:ci-bot')
+    expect(body.project.createdBy).not.toBe('victim@example.test')
+  })
+
+  it('email も common_name もない JWT は sub 由来の identity になる（ヘッダー不使用）', async () => {
+    const token = await signJwt(validPayload({ email: undefined, sub: 'user-uuid-123' }))
+    const res = await handleRequest(
+      new Request('https://api.example.com/api/v1/projects', {
+        method: 'POST',
+        headers: {
+          [AUTH_HEADER]: token,
+          [USER_HEADER]: 'victim@example.test',
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ projectNumber: 'P-004', name: 'sub由来identity' }),
+      }),
+      accessConfiguredEnv(),
+    )
+    expect(res.status).toBe(201)
+    const body = (await res.json()) as { project: { createdBy: string } }
+    expect(body.project.createdBy).toBe('subject:user-uuid-123')
   })
 })

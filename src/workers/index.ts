@@ -359,6 +359,16 @@ function matchRouteWithParams(method: string, pathname: string): RouteMatch | un
  */
 class ValidationError extends Error {}
 
+/**
+ * リクエストボディが上限を超過した場合の既知エラー（413 に写像）。
+ * クライアント側の .civil ファイル上限（CIVIL_FILE_LIMITS.maxFileBytes = 64 MiB）と
+ * 整合させる。サーバー側で無制限に受理すると、editor ロール 1 人で
+ * drawing_contents.content jsonb / Worker isolate メモリを枯渇させられる。
+ */
+const MAX_JSON_BODY_BYTES = 64 * 1024 * 1024
+
+class PayloadTooLargeError extends Error {}
+
 function requireParam(params: Readonly<Record<string, string>>, name: string): string {
   const value = params[name]
   if (!value) {
@@ -368,9 +378,30 @@ function requireParam(params: Readonly<Record<string, string>>, name: string): s
 }
 
 async function readJsonObject(request: Request): Promise<Record<string, unknown>> {
+  // Content-Length が付いていれば本文を読む前に安価に拒否する。
+  const declaredLength = Number(request.headers.get('Content-Length') ?? '')
+  if (Number.isFinite(declaredLength) && declaredLength > MAX_JSON_BODY_BYTES) {
+    throw new PayloadTooLargeError(
+      `Request body exceeds the ${MAX_JSON_BODY_BYTES} byte limit`,
+    )
+  }
+  // Content-Length は欠落・偽装し得るため実測でも検査する。UTF-16 コード単位数
+  // (text.length) ではなく実バイト数 (byteLength) で判定する — 多バイト文字を
+  // 含む本文は文字数が上限以下でもバイト数が上限を超え得るため。
+  let bytes: ArrayBuffer
+  try {
+    bytes = await request.arrayBuffer()
+  } catch {
+    throw new ValidationError('Request body must be valid JSON')
+  }
+  if (bytes.byteLength > MAX_JSON_BODY_BYTES) {
+    throw new PayloadTooLargeError(
+      `Request body exceeds the ${MAX_JSON_BODY_BYTES} byte limit`,
+    )
+  }
   let parsed: unknown
   try {
-    parsed = await request.json()
+    parsed = JSON.parse(new TextDecoder().decode(bytes))
   } catch {
     throw new ValidationError('Request body must be valid JSON')
   }
@@ -1620,6 +1651,20 @@ export async function handleRequest(request: Request, env: WorkerEnv = {}): Prom
       const payloadEmail = verification.payload?.['email']
       if (typeof payloadEmail === 'string' && payloadEmail.trim() !== '') {
         verifiedIdentityEmail = payloadEmail.trim()
+      } else {
+        // Access の service token JWT は email を持たず common_name を持つ。
+        // ここでヘッダーへフォールバックすると、有効な service token 保持者が
+        // Cf-Access-Authenticated-User-Email を任意値にして他ユーザーへ
+        // なりすませるため、検証済みクレームのみから identity を導出する。
+        const commonName = verification.payload?.['common_name']
+        const sub = verification.payload?.['sub']
+        if (typeof commonName === 'string' && commonName.trim() !== '') {
+          verifiedIdentityEmail = `service-token:${commonName.trim()}`
+        } else if (typeof sub === 'string' && sub.trim() !== '') {
+          verifiedIdentityEmail = `subject:${sub.trim()}`
+        } else {
+          verifiedIdentityEmail = 'verified-unknown-identity'
+        }
       }
     }
   }
@@ -1630,10 +1675,12 @@ export async function handleRequest(request: Request, env: WorkerEnv = {}): Prom
   }
 
   const ctx: RequestContext = {
-    actorId:
-      verifiedIdentityEmail ??
-      request.headers.get(ACCESS_USER_HEADER)?.trim() ??
-      'unknown-access-user',
+    // Access 検証構成あり: 検証済み JWT クレーム由来の identity のみを採用する
+    // （ヘッダーはクライアント偽装可能なため決して参照しない）。
+    // Access 検証構成なし（memory モード等の開発時のみ）: 従来どおりヘッダーを許容。
+    actorId: accessConfig
+      ? (verifiedIdentityEmail ?? 'verified-unknown-identity')
+      : (request.headers.get(ACCESS_USER_HEADER)?.trim() || 'unknown-access-user'),
     correlationId,
     url,
     pendingAudits: [],
@@ -1660,7 +1707,9 @@ export async function handleRequest(request: Request, env: WorkerEnv = {}): Prom
   try {
     response = await dispatchApiRoute(store, ctx, matched, request)
   } catch (err) {
-    if (err instanceof ValidationError) {
+    if (err instanceof PayloadTooLargeError) {
+      response = errorResponse(413, ERROR_CODES.invalidRequest, err.message, correlationId)
+    } else if (err instanceof ValidationError) {
       response = errorResponse(400, ERROR_CODES.invalidRequest, err.message, correlationId)
     } else {
       // 既知のバリデーション以外（実装バグ等）は詳細をクライアントへ漏らさず、
