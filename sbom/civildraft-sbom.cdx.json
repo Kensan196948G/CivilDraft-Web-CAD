@@ -9800,14 +9800,14 @@
       ]
     },
     {
-      "bom-ref": "postcss@8.5.19",
+      "bom-ref": "postcss@8.5.25",
       "type": "library",
       "name": "postcss",
-      "version": "8.5.19",
+      "version": "8.5.25",
       "scope": "optional",
       "author": "Andrey Sitnik <andrey@sitnik.es>",
       "description": "Tool for transforming styles with JS plugins",
-      "purl": "pkg:npm/postcss@8.5.19",
+      "purl": "pkg:npm/postcss@8.5.25",
       "properties": [
         {
           "name": "cdx:npm:package:development",
@@ -9817,7 +9817,7 @@
       "externalReferences": [
         {
           "type": "distribution",
-          "url": "https://registry.npmjs.org/postcss/-/postcss-8.5.19.tgz"
+          "url": "https://registry.npmjs.org/postcss/-/postcss-8.5.25.tgz"
         },
         {
           "type": "website",
@@ -9831,7 +9831,7 @@
       "hashes": [
         {
           "alg": "SHA-512",
-          "content": "333f126a894c77c9c1f86d775a439173140a1d9fcd138c577afb6424756e1be82ea3dff060a948313280a867449983974768a33e34d8347b2c8b375a55250d75"
+          "content": "0d33f1dd15924a75b2ccbc509e51f4ac93fe116e5e925d7a654e3fa6c6c8840d1ee779097dd81a379bca33ec4fef226d5d5bbe9df75516696014310a01ee0fcb"
         }
       ],
       "licenses": [
@@ -11933,13 +11933,13 @@
       ]
     },
     {
-      "bom-ref": "undici@7.28.0",
+      "bom-ref": "undici@7.29.0",
       "type": "library",
       "name": "undici",
-      "version": "7.28.0",
+      "version": "7.29.0",
       "scope": "optional",
       "description": "An HTTP/1.1 client, written from scratch for Node.js",
-      "purl": "pkg:npm/undici@7.28.0",
+      "purl": "pkg:npm/undici@7.29.0",
       "properties": [
         {
           "name": "cdx:npm:package:development",
@@ -11949,7 +11949,7 @@
       "externalReferences": [
         {
           "type": "distribution",
-          "url": "https://registry.npmjs.org/undici/-/undici-7.28.0.tgz"
+          "url": "https://registry.npmjs.org/undici/-/undici-7.29.0.tgz"
         },
         {
           "type": "vcs",
@@ -11967,7 +11967,7 @@
       "hashes": [
         {
           "alg": "SHA-512",
-          "content": "711658ad30f05b39e59d188f8e08001b16576a7b72e8cf115757dff169b82d65c1a7bfc81bcbf90e73a6ef80ed501a7d38e3692bbe5894f9c88d0a97d1d043b4"
+          "content": "203c5f95e2e699b4ac91f5925004e23759df9f6ac3baf9cc3aa6f909647dda221fa2303451dfae94e000110e7b2cfafdad69acade5327f9970c9aa3eec634d57"
         }
       ],
       "licenses": [
@@ -14219,7 +14219,7 @@
         "saxes@6.0.0",
         "symbol-tree@3.2.4",
         "tough-cookie@6.0.2",
-        "undici@7.28.0",
+        "undici@7.29.0",
         "w3c-xmlserializer@5.0.0",
         "webidl-conversions@8.0.1",
         "whatwg-mimetype@5.0.0",
@@ -14438,7 +14438,7 @@
       "dependsOn": []
     },
     {
-      "ref": "postcss@8.5.19",
+      "ref": "postcss@8.5.25",
       "dependsOn": [
         "nanoid@3.3.16",
         "picocolors@1.1.1",
@@ -14725,7 +14725,7 @@
       ]
     },
     {
-      "ref": "undici@7.28.0",
+      "ref": "undici@7.29.0",
       "dependsOn": []
     },
     {
@@ -14753,7 +14753,7 @@
         "esbuild@0.28.1",
         "fdir@6.5.0",
         "picomatch@4.0.5",
-        "postcss@8.5.19",
+        "postcss@8.5.25",
         "rollup@4.62.2",
         "tinyglobby@0.2.17"
       ]

@@ -941,6 +941,66 @@ describe('API障害系・例外処理', () => {
     expect((await json<ApiErrorBody>(badFormatRes)).error.code).toBe('CD-REQ-001')
     expect(store.exportJobs.size).toBe(0)
   })
+
+  it('Content-Length が上限 (64 MiB) を超える POST は 413 を返す', async () => {
+    const res = await handleRequest(
+      new Request('https://api.example.com/api/v1/projects', {
+        method: 'POST',
+        headers: {
+          [AUTH_HEADER]: 'jwt-token',
+          [USER_HEADER]: 'engineer@example.test',
+          'Content-Type': 'application/json',
+          'Content-Length': String(64 * 1024 * 1024 + 1),
+        },
+        body: '{}',
+      }),
+      testEnv(),
+    )
+    expect(res.status).toBe(413)
+    expect((await json<ApiErrorBody>(res)).error.code).toBe('CD-REQ-001')
+  })
+
+  it('Content-Length なしでも実測サイズが上限超過なら 413 を返す（偽装・欠落対策）', async () => {
+    // Content-Length 偽装（小さい申告 + 大きい実体）を代表ケースとして、
+    // 実測バイト数検査の経路を検証する。
+    const bigBody = '{"name":"' + 'a'.repeat(64 * 1024 * 1024) + '"}'
+    const res = await handleRequest(
+      new Request('https://api.example.com/api/v1/projects', {
+        method: 'POST',
+        headers: {
+          [AUTH_HEADER]: 'jwt-token',
+          [USER_HEADER]: 'engineer@example.test',
+          'Content-Type': 'application/json',
+        },
+        body: bigBody,
+      }),
+      testEnv(),
+    )
+    expect(res.status).toBe(413)
+    expect((await json<ApiErrorBody>(res)).error.code).toBe('CD-REQ-001')
+  })
+
+  it('多バイト UTF-8 で文字数が上限以下でもバイト数が上限超過なら 413 を返す', async () => {
+    // 「あ」は UTF-8 で 3 バイト。文字数 (UTF-16 単位) は 64 MiB 上限の約 1/3 の
+    // 約 22.4M に留まるが、バイト数は約 67 MB で上限を超える。文字数ベースの
+    // 検査（旧実装）ではすり抜けるケースを検出する回帰テスト。
+    const multibyte = 'あ'.repeat(Math.floor((64 * 1024 * 1024) / 3) + 1024)
+    const bigBody = '{"name":"' + multibyte + '"}'
+    const res = await handleRequest(
+      new Request('https://api.example.com/api/v1/projects', {
+        method: 'POST',
+        headers: {
+          [AUTH_HEADER]: 'jwt-token',
+          [USER_HEADER]: 'engineer@example.test',
+          'Content-Type': 'application/json',
+        },
+        body: bigBody,
+      }),
+      testEnv(),
+    )
+    expect(res.status).toBe(413)
+    expect((await json<ApiErrorBody>(res)).error.code).toBe('CD-REQ-001')
+  })
 })
 
 describe('未知エンドポイント', () => {
