@@ -11,11 +11,11 @@
 | 項目 | ArcSphere Civil Twin | CivilDraft-Web-CAD |
 |---|---|---|
 | 総合得点 | **73 / 100** | **66 / 100** |
-| 判定 | 検証・限定運用可。本番前に High 3 件の修正必須 → **本セッションで 3 件修正済み** | デモ/PoC 上位水準。永続化層の再設計が本番の前提 |
+| 判定 | 検証・限定運用可。本番前に High 3 件の修正必須 → **本セッションで 3 件修正済み** | デモ/PoC 上位水準。High 5 件中 2 件修正済み (CD-3/CD-4a)、残 3 件 (CD-1/CD-2/CD-4b) の永続化層再設計が本番の前提 |
 | 完成度 | 約 80% | 約 60% |
 | 競合代替率 | 約 50% | 約 40% |
 | デモ可能か | **Yes** | **Conditional** (CAD 編集はデモ可、DXF 取込に UI なし) |
-| 本番リリース可能か | **Conditional** (修正の本番反映 + 監視整備後) | **No** (High 4 件未解決のまま実運用不可) |
+| 本番リリース可能か | **Conditional** (修正の本番反映 + 監視整備後) | **No** (High 残 3 件 CD-1/CD-2/CD-4b の解消まで実運用不可) |
 
 両プロジェクトとも「READMEだけ立派」なタイプのプロジェクトでは**なく**、テスト・CI・運用文書が実体を伴う。検証実測: ArcSphere backend **pytest 909 件 green** / frontend **vitest 153 件 green**、CivilDraft **vitest 1,287 件 green (2 skip: Neon 実接続統合テストは接続文字列未設定時 skip)**、両者 tsc / eslint / build すべて green（いずれも改善実装前の初回検証値。改善実装後は ArcSphere 917 / CivilDraft 1,290 passed — §19 参照）、secret 混入 0 件。
 
