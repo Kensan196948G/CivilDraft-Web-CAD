@@ -10,7 +10,7 @@
 | リポジトリ | `CivilDraft-Web-CAD` |
 | 既存技術資産 | [`Civil-Draw`](https://github.com/Kensan196948G/Civil-Draw) |
 | 開発基盤 | Claude Code on Linux＋GitHub＋Cloudflare＋Neon |
-| 現在の位置付け | **土木特化Web CADの技術プレビュー（v0.1.2）**。ブラウザ内CADコアと土木ドメイン部品は拡充中。Workers APIはP0縦線（Project作成/更新→Drawing作成/更新→Revision作成→Content/数量保存→照査/承認→Export作成→Audit検索）を実装し、本番稼働中（`civildraft-web-cad.mirai-dx-platform.com`）。2026-07-21のv0.1.0でpersistX全9ハンドラのNeon永続化配線・監査ログ永続化が本番反映され、Neon migration 0001〜0004適用済み（0003=Neon直接格納・ADR-0014、0004=ID列text整合・ADR-0015）、書き込み系fail-closed暫定措置は撤去済み。2026-07-22のv0.1.1（PR #72・Issue #68恒久対応）でpersistX複合書き込み5種を単一トランザクションへ統合し本番反映済み。2026-07-22のv0.1.2（PR #75・Issue #73恒久対応）でquantity_items孤立item解消も本番反映済み。Cloudflare Access Application設定とAccess Secret登録（人間実施）が完了するまでAPIは認証構成fail-closed（401/503）で安全に停止 |
+| 現在の位置付け | **土木特化Web CADの技術プレビュー（v0.1.17）**。ブラウザ内CADコアと土木ドメイン部品は拡充中。Workers APIはP0縦線（Project作成/更新→Drawing作成/更新→Revision作成→Content/数量保存→照査/承認→Export作成→Audit検索）を実装し、本番稼働中（`civildraft-web-cad.mirai-dx-platform.com`）。2026-07-21のv0.1.0でpersistX全9ハンドラのNeon永続化配線・監査ログ永続化が本番反映され、Neon migration 0001〜0004適用済み（0003=Neon直接格納・ADR-0014、0004=ID列text整合・ADR-0015）、書き込み系fail-closed暫定措置は撤去済み。2026-07-22のv0.1.1（PR #72・Issue #68恒久対応）でpersistX複合書き込み5種を単一トランザクションへ統合し本番反映済み。2026-07-22のv0.1.2（PR #75・Issue #73恒久対応）でquantity_items孤立item解消も本番反映済み。以降、監査ログhash chain（Issue #61）・数量⇔図形連動（Issue #42）・レイヤーテンプレート・図面健全性チェック（Issue #59）・キーボードショートカット/コマンドパレット（Issue #47）を段階的に本番反映（v0.1.3〜v0.1.17）。Cloudflare Access Application設定とAccess Secret登録（人間実施）が完了するまでAPIは認証構成fail-closed（401/503）で安全に停止 |
 
 ---
 
@@ -93,8 +93,9 @@ CADやプログラミングに詳しくなくても、まず「何ができる�
 | 土木記号・テンプレート | ✅ 実装済み | 土木記号30種（仮設・車両・測量・土工・構造物）、作図テンプレート6種 | `src/domain/catalog/` |
 | 土木ドメイン部品 | 🟡 **試作・一部配線** | 測量座標、中心線、線形、パラメトリック7種、数量、断面、土量、施工ステップ、改訂ワークフロー、図面差分のドメイン/画面を実装。ただし実案件保存・CADハイライト・権限・監査との統合は未完 | `src/domain/survey/`・`src/domain/alignment/`・`src/domain/quantities/`・`src/domain/sections/`・`src/app/pages/` |
 | 数量⇔図形連動 | 🟡 **双方向ハイライト実装（#42）** | ①数量明細「図面で確認」→ 根拠図形を CAD 編集でオレンジ破線ハイライト（第一弾）②CAD 編集で図形クリック → 数量集計画面で根拠図形を含む明細行をハイライト表示（第二弾）。分割画面モードは将来 | `src/app/store/editorStore.ts`（highlightedGeometryIds）・`src/app/canvas/CanvasStage.tsx`・`src/app/pages/QuantitySummaryPage.tsx` |
-| 図面健全性チェック | ✅ 実装済み（#59 第一弾） | エディタの「図面健全性」ボタンで、存在しないレイヤー参照（error）・用紙外図形（warning）・非表示レイヤー上の図形（info）を検出して一覧表示（A3/A2/A1 等の用紙サイズに対応）。未接続数量・未対応DXF要素・未承認改訂はドメイン結線後に拡張 | `src/domain/validation/drawingHealth.ts`・`src/app/pages/CadEditorPage.tsx` |
-| キーボードショートカット | ✅ 実装済み（#47 の一部） | Ctrl/Cmd+Z=Undo・Ctrl/Cmd+Y / Ctrl/Cmd+Shift+Z=Redo・Esc=ドラフト取消/選択解除（入力欄フォーカス時は無効）。作図/編集ツールバーに role/aria-label を付与し、アイコンボタンへアクセシブル名を追加 | `src/app/pages/CadEditorPage.tsx` |
+| 図面健全性チェック | ✅ 実装済み（#59 第一弾＋第二弾） | エディタの「図面健全性」ボタンで、存在しないレイヤー参照・用紙外図形・非表示レイヤー上の図形（第一弾）に加え、未接続数量／stale数量／未対応DXF要素／デフォルトレイヤー配置／未承認改訂（第二弾・`DrawingHealthContext`経由）を検出して一覧表示。検出結果から対象図形を選択してキャンバスへジャンプ可能。**ただし現状のアーキテクチャでは数量が図形から都度再計算（`computeQuantitySummary`）されるため、未接続数量／stale数量チェックは構造的に発火しにくい制約あり（Issue #116でフォローアップ予定）** | `src/domain/validation/drawingHealth.ts`・`src/app/pages/CadEditorPage.tsx` |
+| キーボードショートカット | ✅ 実装済み（#47 の一部） | Ctrl/Cmd+Z=Undo・Ctrl/Cmd+Y / Ctrl/Cmd+Shift+Z=Redo・Esc=ドラフト取消/選択解除（入力欄フォーカス時は無効）。Delete/Backspace=選択図形削除（Undo可）、数字キー1-8でツール切替。作図/編集ツールバーに role/aria-label を付与し、アイコンボタンへアクセシブル名を追加 | `src/app/pages/CadEditorPage.tsx` |
+| コマンドパレット | ✅ 実装済み（#47 の一部・v0.1.17） | Ctrl/Cmd+K で起動、ファジー検索、↑/↓/Enter/Esc操作、WAI-ARIA準拠のcombobox/listbox/optionロール。ツール切替・図面健全性チェック等をコマンド経由で実行可能。**Issue #47が提案するCADコマンドライン入力（`OFFSET 500`等のテキストコマンド）は未実装** | `src/app/pages/CadEditorPage.tsx` |
 | 自動保存（IndexedDB） | ✅ 実装・**配線済み** | 起動時に最新下書きを復元、図形/レイヤー変更をデバウンス保存、保存失敗は握り潰さず警告表示 | `src/infrastructure/autosave/`・`App.tsx`（`AutosaveManager`） |
 | 認証（Cloudflare Access） | 🟡 **部品＋JWT二次防御実装・本番テナント未設定** | Access配下のidentity取得層とロール定義に加え、Workers側にJWT二次防御層（RS256署名・iss/aud/exp/nbf検証、JWKS取得、fail-closed）を実装。v0.1.3から actorId は署名検証済みJWTの `email` を採用（`Cf-Access-Authenticated-User-Email` ヘッダー偽装対策）。`CIVILDRAFT_ACCESS_TEAM_DOMAIN`/`CIVILDRAFT_ACCESS_AUD`設定時に全経路でJWT検証、`neon-r2`本番モードでは検証設定を必須化（未設定なら503）。本番テナント設定・画面本体への配線は未完 | `src/infrastructure/auth/accessIdentity.ts`・`src/workers/accessJwt.ts`・`src/workers/index.ts`・`tests/unit/workers/accessJwt.test.ts`・`tests/unit/workers/auditHardening.test.ts` |
 | セキュリティヘッダー | ✅ 実装・**本番適用済み** | `X-Content-Type-Options: nosniff` / `X-Frame-Options: SAMEORIGIN` / `Referrer-Policy: no-referrer` / `Permissions-Policy` / `Strict-Transport-Security` を API・SPA 全応答へ付与（`assets.run_worker_first` で SPA 配信にも適用）。v0.1.3（PR #79）で本番反映 | `src/workers/index.ts`・`wrangler.jsonc`・`tests/unit/workers/auditHardening.test.ts` |
@@ -615,6 +616,7 @@ timeline
 | 2026-08-02 | 🚀 **v0.1.14 本番デプロイ**（PR #102/#103・ユーザー承認Y）: 線種のDXF往復強化（#40残）: LAYERテーブルのlinetype(6)・lock/frozenフラグ(70)を取込・生テーブル補完で往復成立。main最終`170190d`のCI全5ジョブsuccess → wrangler deploy（Worker Version `00e7d5e3`）。スモーク全PASS（[Release v0.1.14](../../releases/tag/v0.1.14)） |
 | 2026-08-02 | 🚀 **v0.1.15 本番デプロイ**（PR #104/#105・事前承認）: 図面健全性チェック（Issue #59第一弾）: 不明レイヤー/用紙外（回転矩形対応）/非表示レイヤー検出+対象図形ID表示。main最終`677c6ca`のCI全5ジョブsuccess → wrangler deploy（Worker Version `12cdda13`）。スモーク全PASS（[Release v0.1.15](../../releases/tag/v0.1.15)） |
 | 2026-08-02 | 🚀 **v0.1.16 本番デプロイ**（PR #106/#107・事前承認）: キーボードショートカット（Ctrl/Cmd+Z=Undo・Ctrl/Cmd+Y=Redo・Esc=取消/選択解除）+ ツールバーA11y（role/aria-label）。main最終`35802bf`のCI全5ジョブsuccess → wrangler deploy（Worker Version `39e2e95d`）。スモーク全PASS（[Release v0.1.16](../../releases/tag/v0.1.16)） |
+| 2026-08-02 | 🚀 **v0.1.17 本番デプロイ**（PR #110/#111・事前承認）: コマンドパレット（Ctrl/Cmd+K・ファジー検索・↑/↓/Enter/Esc・WAI-ARIA combobox/listbox/option・#47）、Delete/Backspace選択削除（Undo可）、数字キー1-8ツール切替。併せて合成監視workflowのpush誤トリガー真因（`--body`複数行文字列のインデント崩れによるYAML構文エラー）を修正し、CIにworkflow YAML検証（`scripts/validate-workflows.py`）を追加。main最終`7679c7b`のCI全5ジョブsuccess → wrangler deploy（Worker Version `b6ae0a7f`）。スモーク全PASS・テスト113ファイル/1287件（[Release v0.1.17](../../releases/tag/v0.1.17)） |
 
 ### 🛠️ 次に閉じるべき実務ワークフロー
 
@@ -689,6 +691,10 @@ timeline
 | [#105](../../pull/105) | v0.1.14デプロイ・DXF往復強化の実態をREADME/state.jsonへ同期 | ✅ マージ済み（2026-08-02・admin squash `677c6ca`） |
 | [#106](../../pull/106) | v0.1.15デプロイ・図面健全性チェックの実態をREADME/state.jsonへ同期 | ✅ マージ済み（2026-08-02・admin squash `8a2b61b`） |
 | [#107](../../pull/107) | **v0.1.16**: キーボードショートカット（Ctrl/Cmd+Z/Y・Esc）+ ツールバーA11y（#47の一部） | ✅ マージ済み（2026-08-02・admin squash `35802bf`）→ v0.1.16本番デプロイ済み |
+| [#108](../../pull/108) | **v0.1.17**: 合成監視workflow再登録（health-check.yml → synthetic-monitoring.yml） | ✅ マージ済み（2026-08-02・admin squash `96985c2`） |
+| [#109](../../pull/109) | v0.1.16デプロイ・A11y改善の実態をREADME/state.jsonへ同期 | ✅ マージ済み（2026-08-02・admin squash `8dbb6bb`） |
+| [#110](../../pull/110) | **v0.1.17**: 合成監視workflowのYAML構文エラー修正＋workflow検証をCIへ追加（push誤トリガーの真因対応） | ✅ マージ済み（2026-08-02・admin squash `6742016`）→ v0.1.17本番デプロイ済み |
+| [#111](../../pull/111) | **v0.1.17**: コマンドパレット・Delete削除・数字キーツール切替（#47） | ✅ マージ済み（2026-08-02・admin squash `7679c7b`）→ v0.1.17本番デプロイ済み |
 
 > マージ済みPRは人間の明示承認（選択式Y判断）を得てマージ済み。レビュー承認1件必須はPR作成者の自己承認不可のため、マージ実行時は enforce_admins を一時解除し完了後に即復元した。
 
