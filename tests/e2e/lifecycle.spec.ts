@@ -30,6 +30,8 @@ test('作成→作図→自動保存→復元→DXF/PDF出力の一連フロー'
   await canvas.click({ position: { x: 180, y: 160 } })
   await canvas.click({ position: { x: 320, y: 220 } })
   await expect(page.getByTitle('元に戻す')).toBeEnabled()
+  // 自動保存（3秒デバウンス + IndexedDB 書込）の完了を待ってから画面遷移する
+  await expect(page.getByText(/自動保存済み/)).toBeVisible({ timeout: 15_000 })
 
   // 出力画面へ移動（エディタがアンマウントされ、自動保存が flush される）
   await page.getByRole('button', { name: '出力', exact: true }).click()
