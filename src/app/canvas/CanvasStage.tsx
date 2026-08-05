@@ -105,7 +105,9 @@ export function CanvasStage({ paperSize = 'A3', paperOrientation = 'landscape' }
   }, [])
 
   // Spaceキー押下中はパンモード（継承元CanvasAreaの操作を踏襲）。
-  // Escape=作図キャンセル、Enter=polyline確定、Ctrl+Z/Ctrl+Y(Ctrl+Shift+Z)=Undo/Redo。
+  // Escape=作図キャンセル、Enter=polyline確定。
+  // Undo/Redo（Ctrl+Z/Ctrl+Y/Ctrl+Shift+Z）は CadEditorPage 側で一元処理する
+  // （Issue #117: ページと二重登録すると 1 キー押下で 2 ステップ Undo されてしまう）。
   const spacePressed = useRef(false)
   useEffect(() => {
     const down = (e: KeyboardEvent) => {
@@ -118,13 +120,6 @@ export function CanvasStage({ paperSize = 'A3', paperOrientation = 'landscape' }
         state.cancelDraft()
       } else if (e.code === 'Enter') {
         state.commitDraft()
-      } else if ((e.ctrlKey || e.metaKey) && e.code === 'KeyZ') {
-        e.preventDefault()
-        if (e.shiftKey) state.redo()
-        else state.undo()
-      } else if ((e.ctrlKey || e.metaKey) && e.code === 'KeyY') {
-        e.preventDefault()
-        state.redo()
       }
     }
     const up = (e: KeyboardEvent) => {
