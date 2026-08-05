@@ -10,5 +10,6 @@
   "node.history1000OpsMs": 10000,
   "browser.homeLoadMs": 10000,
   "browser.editorInitialRenderMs": 5000,
-  "browser.undoRedoCycleMs": 500
+  "browser.undoRedoCycleMs": 500,
+  "browser.render10kMs": 5000
 }
