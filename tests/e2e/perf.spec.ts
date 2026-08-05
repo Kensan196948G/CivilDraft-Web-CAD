@@ -6,7 +6,7 @@
  * （CI は fail させない。閾値の弱体化は ADR-0010 のレビュー運用で監視する）。
  *
  * 10,000図形描画は DXF取込 UI 配線（Issue #118）後に、同一エディタへ大量図形を
- * 読み込むシナリオとして追加する。現状は非空図面（デモデータ）の初回描画と
+ * 読み込むシナリオとして追加する。現状は新規案件 → エディタ初回描画と
  * Undo/Redo 操作の実測を対象とする。
  */
 import { expect, test } from '@playwright/test'
@@ -25,15 +25,18 @@ test('ホーム読込・エディタ初回描画・Undo/Redo操作の性能メ�
   await expect(page.getByText('ホーム・案件一覧').first()).toBeVisible()
   metrics['browser.homeLoadMs'] = Date.now() - homeStart
 
-  // デモ下書きを作成 → 復元 で非空の図面をエディタへ読み込む（再現性のためサンプルデータを使用）
-  await page.getByRole('button', { name: 'デモ下書きを作成' }).click()
-  await expect(page.getByRole('button', { name: '復元' })).toBeVisible()
-  await page.getByRole('button', { name: '復元' }).click()
+  // 新規案件を作成してエディタを開く（lifecycle.spec.ts と同一の実績経路）
+  await page.getByRole('button', { name: '＋ 新規案件・図面' }).click()
+  await page.getByLabel('案件名').fill('E2E性能計測')
+  await page.getByLabel('初期図面名').fill('E2E性能計測図')
+  await page.getByRole('button', { name: '案件と図面を作成' }).click()
+  await expect(page.getByText('案件詳細: E2E性能計測')).toBeVisible()
+  await page.getByRole('button', { name: /^作図/ }).click()
+  await page.getByRole('button', { name: '✏️ CAD編集' }).click()
+
   const renderStart = Date.now()
   await expect(page.getByRole('button', { name: '共有保存' })).toBeVisible()
-  await page.waitForFunction(
-    () => document.querySelector('[data-testid="canvas-stage-container"] canvas') !== null,
-  )
+  await expect(page.getByTestId('canvas-stage-container')).toBeVisible()
   metrics['browser.editorInitialRenderMs'] = Date.now() - renderStart
 
   // 作図操作を2回行い、Undo/Redo を10サイクル実行して平均操作時間を計測
