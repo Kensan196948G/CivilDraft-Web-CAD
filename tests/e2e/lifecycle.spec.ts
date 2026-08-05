@@ -37,23 +37,28 @@ test('作成→作図→自動保存→復元→DXF/PDF出力の一連フロー'
   await page.getByRole('button', { name: '出力', exact: true }).click()
   await expect(page.getByText('印刷・出力').first()).toBeVisible()
 
-  // PDF / DXF のゴールデン出力（ファイル名・マジックバイト・構造を検証）
-  await page.getByLabel('PDF（印刷用・表題欄付き）').check()
+  // DXF 出力（1回の出力で1形式ずつ検証。連続ダウンロードは blob URL の
+  // revoke 競合で2件目が欠落し得るため分割する）
+  await page.getByLabel('PDF（印刷用・表題欄付き）').uncheck()
   await page.getByLabel('DXF（CAD交換用）').check()
-  const pdfDownloadEvent = page.waitForEvent('download')
   const dxfDownloadEvent = page.waitForEvent('download')
   await page.getByRole('button', { name: '出力を実行' }).click()
-  const downloads = await Promise.all([pdfDownloadEvent, dxfDownloadEvent])
-  const pdf = downloads.find((d) => d.suggestedFilename() === 'civildraft.pdf')
-  const dxf = downloads.find((d) => d.suggestedFilename() === 'civildraft.dxf')
-  expect(pdf, 'PDF出力ファイルが生成される').toBeDefined()
-  expect(dxf, 'DXF出力ファイルが生成される').toBeDefined()
-
-  const pdfBytes = await readFile(await pdf!.path())
-  const dxfText = await readFile(await dxf!.path(), 'utf8')
-  expect(pdfBytes.subarray(0, 5).toString('ascii')).toBe('%PDF-')
+  const dxf = await dxfDownloadEvent
+  expect(dxf.suggestedFilename()).toBe('civildraft.dxf')
+  const dxfText = await readFile(await dxf.path(), 'utf8')
   expect(dxfText).toContain('ENTITIES')
   expect(dxfText).toContain('LINE')
+  await expect(page.getByText(/出力完了: DXF✓/)).toBeVisible()
+
+  // PDF 出力（%PDF- マジックバイトを検証）
+  await page.getByLabel('PDF（印刷用・表題欄付き）').check()
+  await page.getByLabel('DXF（CAD交換用）').uncheck()
+  const pdfDownloadEvent = page.waitForEvent('download')
+  await page.getByRole('button', { name: '出力を実行' }).click()
+  const pdf = await pdfDownloadEvent
+  expect(pdf.suggestedFilename()).toBe('civildraft.pdf')
+  const pdfBytes = await readFile(await pdf.path())
+  expect(pdfBytes.subarray(0, 5).toString('ascii')).toBe('%PDF-')
   await expect(page.getByText(/出力完了: PDF✓/)).toBeVisible()
 
   // 再読込 → 自動保存から復元 → 図形が保持されていることを DXF 再出力で確認
