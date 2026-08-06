@@ -95,7 +95,7 @@ describe('CanvasStage スナップ配線（Issue #24）', () => {
 
   it('作図クリックの座標がスナップされる', () => {
     const store = renderStage()
-    captured.handlers.onClick?.(pointerEvent({ x: 8, y: 8 }))
+    captured.handlers.onClick?.(pointerEvent({ x: 5, y: 5 }))
 
     expect(store.getState().draftPoints).toHaveLength(1)
     expect(store.getState().draftPoints[0]).toEqual({ x: 0, y: 0 })

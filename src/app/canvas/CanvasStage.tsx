@@ -81,12 +81,20 @@ function applySnap(
     toleranceMm: transformer.screenLengthToDomain(state.snapTolerancePx),
   }
   const snap = computeSnap(point, state.geometries, state.gridUnitMm, options)
-  if (snap.type === 'none') {
+  // エンジンの grid フォールバックは許容差を問わず最近グリッド点を返すため、
+  // 配線側で許容差内にある場合のみ吸着する（自由描画を壊さない）。
+  if (snap.type === 'none' || (snap.type === 'grid' && distance(point, snap.point) > options.toleranceMm!)) {
     state.setSnapResult(null)
     return point
   }
   state.setSnapResult(snap)
   return snap.point
+}
+
+function distance(a: { readonly x: number; readonly y: number }, b: { readonly x: number; readonly y: number }): number {
+  const dx = a.x - b.x
+  const dy = a.y - b.y
+  return Math.sqrt(dx * dx + dy * dy)
 }
 
 export function CanvasStage({ paperSize = 'A3', paperOrientation = 'landscape' }: CanvasStageProps) {
