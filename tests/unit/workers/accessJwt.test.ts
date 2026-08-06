@@ -1,6 +1,7 @@
-import { beforeAll, describe, expect, it } from 'vitest'
+import { beforeAll, beforeEach, describe, expect, it } from 'vitest'
 import { resolveAccessJwtConfig, verifyAccessJwt } from '@/workers/accessJwt'
 import { createMemoryStore, handleRequest, type WorkerEnv } from '@/workers/index'
+import { resetRateLimitState } from '@/workers/rateLimit'
 
 const TEAM_DOMAIN = 'https://civildraft.cloudflareaccess.com'
 const AUD = 'aud-tag-civildraft-app'
@@ -61,6 +62,10 @@ beforeAll(async () => {
 })
 
 const config = { teamDomain: TEAM_DOMAIN, aud: AUD }
+
+beforeEach(() => {
+  resetRateLimitState()
+})
 
 describe('resolveAccessJwtConfig', () => {
   it('team domainとAUDが揃ったときだけ設定を返す（末尾スラッシュは正規化）', () => {

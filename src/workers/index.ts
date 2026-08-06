@@ -15,6 +15,7 @@ import { revisionTransitionTarget } from '../domain/revisions'
 import { resolveAccessJwtConfig, verifyAccessJwt } from './accessJwt'
 import { verifyAuditChain } from './auditChain'
 import { createMemoryStore } from './apiStore'
+import { checkRateLimit } from './rateLimit'
 import {
   createNeonApiStore,
   inspectProductionPersistenceReadiness,
@@ -116,6 +117,7 @@ const ERROR_CODES = {
   persistenceUnavailable: 'CD-SYS-002',
   notImplemented: 'CD-SYS-004',
   internal: 'CD-SYS-003',
+  rateLimited: 'CD-RATE-LIMITED',
 } as const
 
 interface ApiRoute {
@@ -399,6 +401,23 @@ function errorResponse(
   correlationId: string,
 ): Response {
   return jsonResponse(status, { error: { code, message }, correlationId }, correlationId)
+}
+
+/** レート制限超過（429）応答。Retry-After で次に試行可能になるまでの秒数を示す（#115）。 */
+function rateLimitedResponse(correlationId: string, retryAfterSeconds: number): Response {
+  const response = errorResponse(
+    429,
+    ERROR_CODES.rateLimited,
+    'リクエストが多すぎます。しばらく待ってから再試行してください',
+    correlationId,
+  )
+  const headers = new Headers(response.headers)
+  headers.set('Retry-After', String(Math.max(1, Math.ceil(retryAfterSeconds))))
+  return new Response(response.body, {
+    status: response.status,
+    statusText: response.statusText,
+    headers,
+  })
 }
 
 export function matchRoute(method: string, pathname: string): ApiRoute | undefined {
@@ -2006,6 +2025,13 @@ export async function handleRequest(request: Request, env: WorkerEnv = {}): Prom
     correlationId,
     url,
     pendingAudits: [],
+  }
+  // 認証済み actor ごとの token bucket（#115 アプリ層）。永続化層へ到達する前に
+  // 弾くことで、連打による DB コスト・isolate メモリ消費も抑える。
+  // isolate 単位の緩和策であり、本番強化は Cloudflare binding（人間承認待ち）。
+  const rateLimit = checkRateLimit(ctx.actorId, request.method)
+  if (!rateLimit.allowed) {
+    return rateLimitedResponse(correlationId, rateLimit.retryAfterSeconds ?? 1)
   }
   const store = await resolveStore(env, resolveStoreScope(matched))
   if (!store) {
