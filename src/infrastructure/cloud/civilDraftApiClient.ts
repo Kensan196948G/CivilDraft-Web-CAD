@@ -375,7 +375,19 @@ export class CivilDraftApiClient {
     }
 
     if (!res.ok) {
-      return fail('CLOUD_API_HTTP', errorMessageFromBody(body, `Workers API が HTTP ${res.status} を返しました`))
+      const apiErrorCode =
+        isRecord(body) && isRecord((body as ApiErrorBody).error)
+          ? (body as ApiErrorBody).error?.code
+          : undefined
+      return {
+        ok: false,
+        error: {
+          code: 'CLOUD_API_HTTP',
+          severity: 'error',
+          message: errorMessageFromBody(body, `Workers API が HTTP ${res.status} を返しました`),
+          ...(typeof apiErrorCode === 'string' ? { apiErrorCode } : {}),
+        },
+      }
     }
     return ok(body)
   }
