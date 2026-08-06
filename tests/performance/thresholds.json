@@ -8,8 +8,8 @@
   "node.dxf10kOutputBytes": 0,
   "node.pdf2kExportMs": 60000,
   "node.history1000OpsMs": 10000,
-  "browser.homeLoadMs": 10000,
-  "browser.editorInitialRenderMs": 5000,
+  "browser.homeLoadMs": 5000,
+  "browser.editorInitialRenderMs": 2000,
   "browser.undoRedoCycleMs": 500,
-  "browser.render10kMs": 5000
+  "browser.render10kMs": 2000
 }
