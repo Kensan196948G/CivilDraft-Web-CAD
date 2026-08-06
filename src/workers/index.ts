@@ -16,6 +16,7 @@ import { resolveAccessJwtConfig, verifyAccessJwt } from './accessJwt'
 import { verifyAuditChain } from './auditChain'
 import { createMemoryStore } from './apiStore'
 import { createNeonApiStore, inspectProductionPersistenceReadiness, resolvePersistenceMode } from './persistence'
+import type { NeonStoreScope } from './neonApiStore'
 import type { R2BucketBinding } from './r2ContentStore'
 import type {
   ApiStore,
@@ -239,7 +240,40 @@ export const API_ROUTES: readonly ApiRoute[] = [
 
 const moduleStore = createMemoryStore()
 
-async function resolveStore(env: WorkerEnv): Promise<ApiStore | undefined> {
+/**
+ * リクエスト経路から NeonApiStore のロードスコープを解決する
+ * （Issue #114 Phase 1: リクエスト毎の全件ロード廃止）。
+ * 未知の経路は undefined（呼び出し側は 404 済みのため到達しない想定）。
+ */
+function resolveStoreScope(matched: RouteMatch): NeonStoreScope | undefined {
+  switch (matched.route.template) {
+    case '/api/v1/projects':
+      return { kind: 'projects' }
+    case '/api/v1/projects/{projectId}':
+      return { kind: 'project', projectId: requireParam(matched.params, 'projectId') }
+    case '/api/v1/projects/{projectId}/drawings':
+      return { kind: 'projectDrawings', projectId: requireParam(matched.params, 'projectId') }
+    case '/api/v1/drawings/{drawingId}':
+    case '/api/v1/drawings/{drawingId}/revisions':
+      return { kind: 'drawing', drawingId: requireParam(matched.params, 'drawingId') }
+    case '/api/v1/revisions/{revisionId}':
+    case '/api/v1/revisions/{revisionId}/content':
+    case '/api/v1/revisions/{revisionId}/quantities':
+    case '/api/v1/revisions/{revisionId}/workflow-actions':
+    case '/api/v1/revisions/{revisionId}/exports':
+      return { kind: 'revision', revisionId: requireParam(matched.params, 'revisionId') }
+    case '/api/v1/exports/{exportId}':
+      return { kind: 'export', exportId: requireParam(matched.params, 'exportId') }
+    case '/api/v1/audit-logs':
+      return { kind: 'audit' }
+    case '/api/v1/audit-logs/verify':
+      return { kind: 'auditVerify' }
+    default:
+      return undefined
+  }
+}
+
+async function resolveStore(env: WorkerEnv, scope?: NeonStoreScope): Promise<ApiStore | undefined> {
   if (env.CIVILDRAFT_DEV_STORE) {
     return env.CIVILDRAFT_DEV_STORE
   }
@@ -262,10 +296,12 @@ async function resolveStore(env: WorkerEnv): Promise<ApiStore | undefined> {
       return undefined
     }
     try {
-      const { apiStore } = await createNeonApiStore({
-        CIVILDRAFT_NEON_CONNECTION: neonConnection,
-        CIVILDRAFT_R2_BUCKET: env.CIVILDRAFT_R2_BUCKET,
-      })
+      // env をそのまま渡すことで、テスト・オフライン検証用の sqlFactory 注入が
+      // 機能する（persistence.ts の JSDoc どおりの契約）。
+      const { apiStore } = await createNeonApiStore(
+        { ...env, CIVILDRAFT_NEON_CONNECTION: neonConnection },
+        scope,
+      )
       return apiStore
     } catch (err) {
       console.error('[CivilDraft API] failed to initialize NeonApiStore', err)
@@ -1685,7 +1721,7 @@ export async function handleRequest(request: Request, env: WorkerEnv = {}): Prom
     url,
     pendingAudits: [],
   }
-  const store = await resolveStore(env)
+  const store = await resolveStore(env, resolveStoreScope(matched))
   if (!store) {
     return persistenceUnavailableResponse(env, correlationId)
   }
