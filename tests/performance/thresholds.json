@@ -11,5 +11,7 @@
   "browser.homeLoadMs": 5000,
   "browser.editorInitialRenderMs": 2000,
   "browser.undoRedoCycleMs": 500,
-  "browser.render10kMs": 2000
+  "browser.render10kMs": 2000,
+  "browser.dxf10kImportRenderMs": 10000,
+  "browser.dxfImportEntityCount": 0
 }
