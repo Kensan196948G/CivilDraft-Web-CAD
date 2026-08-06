@@ -51,6 +51,23 @@ function renderPage(
 }
 
 describe('CadEditorPage cloud save', () => {
+
+  it('選択状態をスクリーンリーダー向けライブリージョンで通知する（Issue #120）', async () => {
+    const store = createEditorStore()
+    store.getState().addGeometries([line('g-1'), line('g-2')])
+    const cloudApiClient: CloudSaveClient = { saveDraft: vi.fn(), getRevisionContent: vi.fn() }
+    renderPage(store, cloudApiClient)
+
+    const liveRegion = screen.getByRole('status')
+    expect(liveRegion.textContent).toContain('選択なし')
+
+    store.getState().select(['g-1' as Geometry['id']])
+    await waitFor(() => expect(screen.getByRole('status').textContent).toContain('図形を1件選択中'))
+
+    store.getState().clearSelection()
+    await waitFor(() => expect(screen.getByRole('status').textContent).toContain('選択なし'))
+  })
+
   it('図形が無い場合は共有保存を実行せず、画面に理由を表示する', async () => {
     const cloudApiClient: CloudSaveClient = { saveDraft: vi.fn(), getRevisionContent: vi.fn() }
     renderPage(createEditorStore(), cloudApiClient)

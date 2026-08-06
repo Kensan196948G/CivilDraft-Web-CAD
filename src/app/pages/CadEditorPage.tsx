@@ -1154,6 +1154,24 @@ export function CadEditorPage({
 
   return (
     <div style={pageRootStyle}>
+      {/* スクリーンリーダー向けライブリージョン（Issue #120）: 選択状態の変化を通知 */}
+      <div
+        aria-live="polite"
+        role="status"
+        style={{
+          position: 'fixed',
+          left: -10000,
+          top: 'auto',
+          width: 1,
+          height: 1,
+          overflow: 'hidden',
+          whiteSpace: 'nowrap',
+        }}
+      >
+        {selectedGeometries.length > 0
+          ? `図形を${selectedGeometries.length}件選択中`
+          : '選択なし'}
+      </div>
       <header style={headerBarStyle}>
         <div style={{ display: 'flex', flexDirection: 'column', lineHeight: 1.3 }}>
           <span style={{ fontSize: 11, color: 'var(--muted)' }}>{cloudDraftSession.projectName}</span>

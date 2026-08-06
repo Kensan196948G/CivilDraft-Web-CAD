@@ -4,7 +4,7 @@
  * 実ブラウザでの描画・操作検証は開発用WebUI（vite dev）で行う。
  */
 import { describe, expect, it, vi } from 'vitest'
-import { render, screen } from '@testing-library/react'
+import { fireEvent, render, screen } from '@testing-library/react'
 import type { ReactNode } from 'react'
 import { CanvasStage } from '@/app/canvas/CanvasStage'
 import { EditorStoreProvider } from '@/app/store/EditorStoreContext'
@@ -107,5 +107,26 @@ describe('CanvasStage', () => {
         </EditorStoreProvider>,
       ),
     ).not.toThrow()
+  })
+
+  it('キャンバスはフォーカス可能で、矢印キーでパンできる（Issue #120）', () => {
+    const store = createEditorStore()
+    render(
+      <EditorStoreProvider store={store}>
+        <CanvasStage />
+      </EditorStoreProvider>,
+    )
+    const canvas = screen.getByTestId('canvas-stage-container')
+    expect(canvas.getAttribute('tabindex')).toBe('0')
+    expect(canvas.getAttribute('role')).toBe('application')
+    expect(canvas.getAttribute('aria-label')).toContain('CADキャンバス')
+
+    fireEvent.keyDown(canvas, { key: 'ArrowRight' })
+    expect(store.getState().panX).toBeCloseTo(50)
+    fireEvent.keyDown(canvas, { key: 'ArrowUp' })
+    expect(store.getState().panY).toBeCloseTo(-50)
+
+    fireEvent.focus(canvas)
+    expect(canvas.style.outline).toContain('2px solid')
   })
 })

@@ -100,6 +100,7 @@ function distance(a: { readonly x: number; readonly y: number }, b: { readonly x
 export function CanvasStage({ paperSize = 'A3', paperOrientation = 'landscape' }: CanvasStageProps) {
   const containerRef = useRef<HTMLDivElement>(null)
   const [size, setSize] = useState({ width: 800, height: 600 })
+  const [focused, setFocused] = useState(false)
 
   const zoom = useEditorStore((s) => s.zoom)
   const panX = useEditorStore((s) => s.panX)
@@ -144,6 +145,33 @@ export function CanvasStage({ paperSize = 'A3', paperOrientation = 'landscape' }
     window.addEventListener('resize', measure)
     return () => window.removeEventListener('resize', measure)
   }, [])
+
+  // キャンバスへのキーボードフォーカス到達手段と、矢印キーによるパン（Issue #120）。
+  const handleCanvasKeyDown = useCallback(
+    (e: React.KeyboardEvent<HTMLDivElement>) => {
+      const state = storeApi.getState()
+      const step = 50 / state.zoom
+      switch (e.key) {
+        case 'ArrowLeft':
+          e.preventDefault()
+          state.setPan(state.panX - step, state.panY)
+          break
+        case 'ArrowRight':
+          e.preventDefault()
+          state.setPan(state.panX + step, state.panY)
+          break
+        case 'ArrowUp':
+          e.preventDefault()
+          state.setPan(state.panX, state.panY - step)
+          break
+        case 'ArrowDown':
+          e.preventDefault()
+          state.setPan(state.panX, state.panY + step)
+          break
+      }
+    },
+    [storeApi],
+  )
 
   // Spaceキー押下中はパンモード（継承元CanvasAreaの操作を踏襲）。
   // Escape=作図キャンセル、Enter=polyline確定。
@@ -337,7 +365,19 @@ export function CanvasStage({ paperSize = 'A3', paperOrientation = 'landscape' }
     <div
       ref={containerRef}
       data-testid="canvas-stage-container"
-      style={{ width: '100%', height: '100%', overflow: 'hidden' }}
+      tabIndex={0}
+      role="application"
+      aria-label="CADキャンバス（矢印キーでパン、Deleteで削除、Ctrl+Zで元に戻す）"
+      onFocus={() => setFocused(true)}
+      onBlur={() => setFocused(false)}
+      onKeyDown={handleCanvasKeyDown}
+      style={{
+        width: '100%',
+        height: '100%',
+        overflow: 'hidden',
+        outline: focused ? '2px solid #E08A2B' : 'none',
+        outlineOffset: -2,
+      }}
     >
       <Stage
         width={size.width}
