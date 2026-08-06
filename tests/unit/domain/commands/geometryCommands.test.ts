@@ -13,6 +13,9 @@ import {
   createTrimGeometryCommand,
   createImportDocumentCommand,
   createBulkUpdateGeometriesCommand,
+  createExplodeGeometryCommand,
+  createJoinLinesCommand,
+  joinCollinearLines,
 } from '@/domain/commands/geometryCommands'
 import type { DocumentState } from '@/domain/commands/editorCommand'
 import type { GeometryCreationContext } from '@/domain/geometry/geometryFactory'
@@ -380,5 +383,81 @@ describe('BulkUpdateGeometriesCommand（Issue #39）', () => {
     const undone = cmd.undo(executed)
     expect(undone.geometries[0]?.style.strokeColor).toBe('#000000')
     expect(undone.geometries[1]?.style.strokeColor).toBe('#000000')
+  })
+})
+
+describe('Explode/Join（Issue #39 残）', () => {
+  it('ポリラインを線分へ分解し、undoで復元する', () => {
+    const ctx = seqContext()
+    const poly: Geometry = {
+      ...base,
+      id: id('poly'),
+      type: 'polyline',
+      points: [
+        { x: 0, y: 0 },
+        { x: 10, y: 0 },
+        { x: 10, y: 10 },
+      ],
+      closed: false,
+    }
+    const d = doc([poly])
+    const cmd = createExplodeGeometryCommand(d, poly, ctx)
+    expect(cmd).not.toBeNull()
+    if (cmd === null) return
+    const executed = cmd.execute(d)
+    expect(executed.geometries).toHaveLength(2)
+    expect(executed.geometries.every((g) => g.type === 'line')).toBe(true)
+    const undone = cmd.undo(executed)
+    expect(undone.geometries).toHaveLength(1)
+    expect(undone.geometries[0]?.id).toBe('poly')
+  })
+
+  it('矩形を4辺の線分へ分解し、undoで復元する', () => {
+    const ctx = seqContext()
+    const rect: Geometry = {
+      ...base,
+      id: id('rect'),
+      type: 'rectangle',
+      origin: { x: 0, y: 0 },
+      width: 100,
+      height: 50,
+      rotationDeg: 0,
+    }
+    const d = doc([rect])
+    const cmd = createExplodeGeometryCommand(d, rect, ctx)
+    expect(cmd).not.toBeNull()
+    if (cmd === null) return
+    const executed = cmd.execute(d)
+    expect(executed.geometries).toHaveLength(4)
+    const undone = cmd.undo(executed)
+    expect(undone.geometries).toHaveLength(1)
+    expect(undone.geometries[0]?.type).toBe('rectangle')
+  })
+
+  it('同一線上で端点が接する2線分を結合し、undoで復元する', () => {
+    const ctx = seqContext()
+    const a = line('a', { x: 0, y: 0 }, { x: 50, y: 0 })
+    const b = line('b', { x: 50, y: 0 }, { x: 120, y: 0 })
+    expect(joinCollinearLines(a, b)).not.toBeNull()
+    const d = doc([a, b])
+    const cmd = createJoinLinesCommand(d, a, b, ctx)
+    expect(cmd).not.toBeNull()
+    if (cmd === null) return
+    const executed = cmd.execute(d)
+    expect(executed.geometries).toHaveLength(1)
+    const merged = executed.geometries[0]!
+    expect(merged.type).toBe('line')
+    if (merged.type === 'line') {
+      expect(merged.start).toEqual({ x: 0, y: 0 })
+      expect(merged.end).toEqual({ x: 120, y: 0 })
+    }
+    const undone = cmd.undo(executed)
+    expect(undone.geometries).toHaveLength(2)
+  })
+
+  it('平行だが接しない線分は結合できない', () => {
+    const a = line('a', { x: 0, y: 0 }, { x: 50, y: 0 })
+    const b = line('b', { x: 100, y: 0 }, { x: 150, y: 0 })
+    expect(joinCollinearLines(a, b)).toBeNull()
   })
 })

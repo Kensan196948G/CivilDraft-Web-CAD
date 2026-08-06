@@ -25,7 +25,9 @@ import {
   createAddGeometryCommand,
   createBulkUpdateGeometriesCommand,
   createDeleteGeometriesCommand,
+  createExplodeGeometryCommand,
   createImportDocumentCommand,
+  createJoinLinesCommand,
   createUpdateGeometryCommand,
 } from '@/domain/commands/geometryCommands'
 import { importDxf } from '@/domain/dxf/dxfImporter'
@@ -46,7 +48,7 @@ import {
   type CloudSaveDraftResult,
 } from '@/infrastructure/cloud/civilDraftApiClient'
 import type { Result, ValidationIssue } from '@/shared/types'
-import type { DrawingLayer, Geometry, GeometryStyle, GeometryType, HatchPattern, LayerId, Point } from '@/shared/types'
+import type { DrawingLayer, Geometry, GeometryStyle, GeometryType, HatchPattern, LayerId, LineGeometry, Point } from '@/shared/types'
 import { ghostButtonStyle, monoStyle, pageRootStyle, primaryButtonStyle, statusBadgeStyle } from './pageStyles'
 
 export interface CadEditorPageProps {
@@ -938,6 +940,55 @@ export function CadEditorPage({
     }
     setEditNotice(null)
     storeApi.getState().dispatchCommand(createBulkUpdateGeometriesCommand(pairs))
+  }
+
+  /** 選択図形の分解（ポリライン→線分・矩形→4辺・Issue #39残）。 */
+  const handleExplodeSelected = () => {
+    const state = storeApi.getState()
+    const target = selectedGeometries.find((g) => g.type === 'polyline' || g.type === 'rectangle')
+    if (target === undefined) {
+      setEditNotice('分解できる図形（ポリライン・矩形）を選択してください')
+      return
+    }
+    if (layers.find((l) => l.id === target.layerId)?.locked) {
+      setEditNotice('ロックされたレイヤーの図形は分解できません')
+      return
+    }
+    const command = createExplodeGeometryCommand(
+      { geometries: state.geometries, layers: state.layers },
+      target,
+    )
+    if (command !== null) {
+      state.dispatchCommand(command)
+      setEditNotice(null)
+    }
+  }
+
+  /** 選択線分の結合（同一線上・端点接続の2本を1本に・Issue #39残）。 */
+  const handleJoinSelected = () => {
+    const state = storeApi.getState()
+    const lines = selectedGeometries.filter(
+      (g): g is LineGeometry => g.type === 'line' && !layers.find((l) => l.id === g.layerId)?.locked,
+    )
+    if (lines.length < 2) {
+      setEditNotice('結合する線分を2本以上選択してください（ロックレイヤーは除外）')
+      return
+    }
+    for (let i = 0; i < lines.length; i += 1) {
+      for (let j = i + 1; j < lines.length; j += 1) {
+        const command = createJoinLinesCommand(
+          { geometries: state.geometries, layers: state.layers },
+          lines[i]!,
+          lines[j]!,
+        )
+        if (command !== null) {
+          state.dispatchCommand(command)
+          setEditNotice(null)
+          return
+        }
+      }
+    }
+    setEditNotice('同一線上で端点が接する線分が見つかりません')
   }
 
   const handlePlaceText = () => {
@@ -1898,6 +1949,16 @@ export function CadEditorPage({
               }}
             >
               {editNotice}
+            </div>
+          )}
+          {selectedGeometries.length > 0 && (
+            <div style={{ display: 'flex', gap: 6, marginBottom: 8 }}>
+              <button type="button" style={ghostButtonStyle} onClick={handleExplodeSelected}>
+                分解
+              </button>
+              <button type="button" style={ghostButtonStyle} onClick={handleJoinSelected}>
+                結合
+              </button>
             </div>
           )}
           {selectedGeometries.length === 0 && (

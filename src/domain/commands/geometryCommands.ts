@@ -28,6 +28,8 @@ export const COMMAND_TYPES = {
   TRIM_GEOMETRY: 'TRIM_GEOMETRY',
   IMPORT_DOCUMENT: 'IMPORT_DOCUMENT',
   BULK_UPDATE_GEOMETRY: 'BULK_UPDATE_GEOMETRY',
+  EXPLODE_GEOMETRY: 'EXPLODE_GEOMETRY',
+  JOIN_LINES: 'JOIN_LINES',
 } as const
 
 export interface AddGeometryPayload {
@@ -109,6 +111,19 @@ export interface ImportDocumentPayload {
 
 export interface BulkUpdateGeometryPayload {
   readonly pairs: readonly { readonly before: Geometry; readonly after: Geometry }[]
+}
+
+export interface ExplodeGeometryPayload {
+  readonly originalId: GeometryId
+  readonly replacementIds: readonly GeometryId[]
+  readonly original: Geometry
+  readonly replacements: readonly Geometry[]
+}
+
+export interface JoinLinesPayload {
+  readonly removedIds: readonly GeometryId[]
+  readonly removed: readonly Geometry[]
+  readonly merged: Geometry
 }
 
 // --- 純粋なドキュメント操作ヘルパー（破壊的変更なし） ---
@@ -587,6 +602,147 @@ export function createBulkUpdateGeometriesCommand(
     { pairs },
     (doc) => replaceGeometries(doc, forward),
     (doc) => replaceGeometries(doc, backward),
+    ctx,
+  )
+}
+
+// --- Explode / Join（Issue #39 残） ---
+
+/** ポリラインを線分へ、矩形を4辺の線分へ分解する。対象外は null。 */
+export function explodeShape(geometry: Geometry): Geometry[] | null {
+  if (geometry.type === 'rectangle') {
+    const { origin, width, height } = geometry
+    const corners = [
+      origin,
+      { x: origin.x + width, y: origin.y },
+      { x: origin.x + width, y: origin.y + height },
+      { x: origin.x, y: origin.y + height },
+    ] as const
+    return corners.map((corner, index) => ({
+      ...geometry,
+      id: geometry.id,
+      type: 'line' as const,
+      start: corner,
+      end: corners[(index + 1) % corners.length]!,
+    }))
+  }
+  if (geometry.type === 'polyline') {
+    return geometry.points.slice(1).map((point, index) => ({
+      ...geometry,
+      id: geometry.id,
+      type: 'line' as const,
+      start: geometry.points[index]!,
+      end: point,
+    }))
+  }
+  return null
+}
+
+/** 同一線上で端点が接する2線分を1本に結合する。対象外は null。 */
+export function joinCollinearLines(
+  a: Extract<Geometry, { type: 'line' }>,
+  b: Extract<Geometry, { type: 'line' }>,
+  epsilon = 1e-6,
+): Extract<Geometry, { type: 'line' }> | null {
+  const v1x = a.end.x - a.start.x
+  const v1y = a.end.y - a.start.y
+  const v2x = b.end.x - b.start.x
+  const v2y = b.end.y - b.start.y
+  const len1 = Math.hypot(v1x, v1y)
+  const len2 = Math.hypot(v2x, v2y)
+  if (len1 < epsilon || len2 < epsilon) return null
+  const cross = v1x * v2y - v1y * v2x
+  if (Math.abs(cross) > epsilon * Math.max(len1, len2)) return null
+
+  const endpoints = [a.start, a.end, b.start, b.end]
+  const touches =
+    Math.hypot(a.end.x - b.start.x, a.end.y - b.start.y) < epsilon ||
+    Math.hypot(a.end.x - b.end.x, a.end.y - b.end.y) < epsilon ||
+    Math.hypot(a.start.x - b.start.x, a.start.y - b.start.y) < epsilon ||
+    Math.hypot(a.start.x - b.end.x, a.start.y - b.end.y) < epsilon
+  if (!touches) return null
+
+  const dirX = v1x / len1
+  const dirY = v1y / len1
+  const param = (p: Point): number => (p.x - a.start.x) * dirX + (p.y - a.start.y) * dirY
+  const min = endpoints.reduce((best, p) => (param(p) < best ? param(p) : best), Infinity)
+  const max = endpoints.reduce((best, p) => (param(p) > best ? param(p) : best), -Infinity)
+  return {
+    ...a,
+    id: a.id,
+    start: { x: a.start.x + dirX * min, y: a.start.y + dirY * min },
+    end: { x: a.start.x + dirX * max, y: a.start.y + dirY * max },
+  }
+}
+
+/** 分解コマンド。undo で元図形を元位置へ復元する。 */
+export function createExplodeGeometryCommand(
+  document: DocumentState,
+  original: Geometry,
+  ctx: GeometryCreationContext = defaultCreationContext,
+): EditorCommand<ExplodeGeometryPayload> | null {
+  const exploded = explodeShape(original)
+  if (exploded === null || exploded.length === 0) return null
+  const replacements = exploded.map((shape) => ({
+    ...shape,
+    id: ctx.newId(),
+  }))
+  const replacementIds = new Set(replacements.map((g) => g.id))
+  const originalIndex = document.geometries.findIndex((g) => g.id === original.id)
+  return createCommand<ExplodeGeometryPayload>(
+    COMMAND_TYPES.EXPLODE_GEOMETRY,
+    {
+      originalId: original.id,
+      replacementIds: [...replacementIds],
+      original,
+      replacements,
+    },
+    (doc) => withGeometries(doc, [
+      ...doc.geometries.filter((g) => g.id !== original.id),
+      ...replacements,
+    ]),
+    (doc) => {
+      const geometries = doc.geometries.filter((g) => !replacementIds.has(g.id))
+      geometries.splice(originalIndex === -1 ? geometries.length : originalIndex, 0, original)
+      return withGeometries(doc, geometries)
+    },
+    ctx,
+  )
+}
+
+/** 結合コマンド。undo で元の2線分を復元する。 */
+export function createJoinLinesCommand(
+  document: DocumentState,
+  a: Extract<Geometry, { type: 'line' }>,
+  b: Extract<Geometry, { type: 'line' }>,
+  ctx: GeometryCreationContext = defaultCreationContext,
+): EditorCommand<JoinLinesPayload> | null {
+  const merged = joinCollinearLines(a, b)
+  if (merged === null) return null
+  const mergedGeometry = { ...merged, id: ctx.newId() }
+  const removedIds = new Set<GeometryId>([a.id, b.id])
+  const indexA = document.geometries.findIndex((g) => g.id === a.id)
+  const indexB = document.geometries.findIndex((g) => g.id === b.id)
+  return createCommand<JoinLinesPayload>(
+    COMMAND_TYPES.JOIN_LINES,
+    {
+      removedIds: [a.id, b.id],
+      removed: [a, b],
+      merged: mergedGeometry,
+    },
+    (doc) => withGeometries(doc, [
+      ...doc.geometries.filter((g) => !removedIds.has(g.id)),
+      mergedGeometry,
+    ]),
+    (doc) => {
+      const geometries = doc.geometries.filter((g) => g.id !== mergedGeometry.id)
+      const insertAt = (index: number, geometry: Geometry) => {
+        geometries.splice(index === -1 ? geometries.length : index, 0, geometry)
+      }
+      insertAt(indexA, a)
+      insertAt(indexB, b)
+      return withGeometries(doc, geometries)
+    },
     ctx,
   )
 }
