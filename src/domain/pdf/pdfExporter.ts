@@ -117,8 +117,16 @@ export async function exportPdf(
   const issues: ValidationIssue[] = []
 
   // 2. ドキュメント生成とフォント準備。
-  const doc = await PDFDocument.create()
+  // pdf-lib は create() 既定で現在時刻の CreationDate/ModDate を埋め込むため、
+  // 同一入力＋同一 ctx でも秒を跨ぐと bytes が変わり得る。updateMetadata:false で
+  // 無効化し、出力日時は ctx.now() 由来で明示設定する（ADR-0013 の決定性契約・CI flaky 対策）。
+  const doc = await PDFDocument.create({ updateMetadata: false })
   doc.registerFontkit(fontkit)
+  const outputDate = new Date(ctx.now())
+  doc.setProducer('CivilDraft Web CAD')
+  doc.setCreator('CivilDraft Web CAD')
+  doc.setCreationDate(outputDate)
+  doc.setModificationDate(outputDate)
 
   let font: PDFFont
   let hasInjectedFont = false
