@@ -105,4 +105,19 @@ describe('CadEditorPage DXF取込（Issue #118）', () => {
     expect(store.getState().geometries).toHaveLength(1)
     expect(store.getState().geometries[0]?.id).toBe('g-1')
   })
+
+  it('未対応形式（DWG等）は移行アシスタントの案内を表示し、図面を変更しない（Issue #60）', async () => {
+    const store = createEditorStore()
+    store.getState().dispatchCommand(createAddGeometryCommand(line('g-1'), defaultCreationContext))
+    const { input, getByText } = renderPage(store)
+
+    const file = new File(['dummy'], 'sample.dwg', { type: 'application/octet-stream' })
+    fireEvent.change(input, { target: { files: [file] } })
+
+    await waitFor(() => {
+      expect(getByText(/DWG は Autodesk 非公開形式のため直接取込できません/)).toBeInTheDocument()
+    })
+    expect(store.getState().geometries).toHaveLength(1)
+    expect(store.getState().geometries[0]?.id).toBe('g-1')
+  })
 })
