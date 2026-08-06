@@ -147,21 +147,12 @@ export function transformShape(
         end: applyPoint(geometry.end, cx, cy, op),
       }
     case 'rectangle': {
-      const center = applyPoint(
-        { x: geometry.origin.x + geometry.width / 2, y: geometry.origin.y + geometry.height / 2 },
-        cx,
-        cy,
-        op,
-      )
-      const isRotate = op === 'rotateCW' || op === 'rotateCCW'
-      // 90°回転では幅と高さを入れ替える（継承元踏襲）。
-      const width = isRotate ? geometry.height : geometry.width
-      const height = isRotate ? geometry.width : geometry.height
+      // 矩形は「原点(左上)+幅/高さ+rotationDeg」で表現され、レンダラーが原点回りに
+      // 回転する。変換は原点を写像し回転角のみ更新すればよく、幅/高さを入れ替えると
+      // 二重適用になる（Issue #25: 継承元の入れ替えは rotationDeg 適用との二重回転）。
       return {
         ...geometry,
-        origin: { x: center.x - width / 2, y: center.y - height / 2 },
-        width,
-        height,
+        origin: applyPoint(geometry.origin, cx, cy, op),
         rotationDeg: applyAngle(geometry.rotationDeg, op),
       }
     }
@@ -175,13 +166,10 @@ export function transformShape(
         endAngleDeg: applyAngle(geometry.endAngleDeg, op),
       }
     case 'ellipse': {
-      const isRotate = op === 'rotateCW' || op === 'rotateCCW'
-      // 90°回転では半長軸・半短軸を入れ替える（継承元踏襲）。
+      // 楕円も同様に、中心を写像し回転角のみ更新する（半径の入替は二重適用、Issue #25）。
       return {
         ...geometry,
         center: applyPoint(geometry.center, cx, cy, op),
-        radiusX: isRotate ? geometry.radiusY : geometry.radiusX,
-        radiusY: isRotate ? geometry.radiusX : geometry.radiusY,
         rotationDeg: applyAngle(geometry.rotationDeg, op),
       }
     }
