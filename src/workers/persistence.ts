@@ -1,7 +1,7 @@
 import { NeonApiStore } from './neonApiStore'
 import { R2ContentStore } from './r2ContentStore'
 import type { ApiStore } from './apiStore'
-import type { SqlClient } from './neonApiStore'
+import type { NeonStoreScope, SqlClient } from './neonApiStore'
 import type { R2BucketBinding } from './r2ContentStore'
 
 export type PersistenceMode = 'memory' | 'neon-r2'
@@ -67,13 +67,13 @@ export async function createNeonApiStore(env: {
   readonly CIVILDRAFT_NEON_CONNECTION: string
   readonly CIVILDRAFT_R2_BUCKET?: R2BucketBinding
   readonly sqlFactory?: (connectionString: string) => SqlClient
-}): Promise<NeonApiStoreWithR2> {
+}, scope?: NeonStoreScope): Promise<NeonApiStoreWithR2> {
   // Dynamic import so @neondatabase/serverless is only loaded in production paths
   const neonModule = await import('@neondatabase/serverless')
   const factory: (connectionString: string) => SqlClient = env.sqlFactory ?? neonModule.neon
   const sql = factory(env.CIVILDRAFT_NEON_CONNECTION)
   const neonStore = new NeonApiStore(sql)
-  await neonStore.initialize()
+  await neonStore.initialize(scope)
   const contentStore = env.CIVILDRAFT_R2_BUCKET ? new R2ContentStore(env.CIVILDRAFT_R2_BUCKET) : undefined
   return { apiStore: neonStore, neonStore, contentStore }
 }
