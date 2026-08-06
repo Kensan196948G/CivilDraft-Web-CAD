@@ -46,6 +46,7 @@ export type NeonStoreScope =
   | { readonly kind: 'projectDrawings'; readonly projectId: string }
   | { readonly kind: 'drawing'; readonly drawingId: string }
   | { readonly kind: 'revision'; readonly revisionId: string }
+  | { readonly kind: 'revisionRead'; readonly revisionId: string }
   | { readonly kind: 'export'; readonly exportId: string }
   | { readonly kind: 'audit' }
   | { readonly kind: 'auditVerify' }
@@ -654,6 +655,10 @@ export class NeonApiStore implements ApiStore {
         }
         break
       }
+      case 'revisionRead':
+        // SQL-first 読み取り経路（#114 Phase 2）: ハンドラが queryX メソッドで
+        // 必要なレコードを個別に取得するため、Map への事前ロードは行わない。
+        break
       case 'export': {
         // 出力ジョブ取得: ジョブ → 改訂 → 図面 → 案件
         const exportJob = await this.#loadExportJobById(scope.exportId)
@@ -764,35 +769,8 @@ export class NeonApiStore implements ApiStore {
         ? []
         : ((await this.#sql`SELECT * FROM quantity_sources WHERE quantity_item_id = ANY(${itemIds}) ORDER BY id`) as QuantitySourceRow[])
 
-    const itemMap = new Map<string, QuantityItemRow[]>()
-    for (const item of itemRows) {
-      const list = itemMap.get(item.revision_id)
-      if (list) {
-        list.push(item)
-      } else {
-        itemMap.set(item.revision_id, [item])
-      }
-    }
-    const sourceMap = new Map<string, QuantitySourceRow[]>()
-    for (const src of sourceRows) {
-      const list = sourceMap.get(src.quantity_item_id)
-      if (list) {
-        list.push(src)
-      } else {
-        sourceMap.set(src.quantity_item_id, [src])
-      }
-    }
-    for (const snap of snapshots) {
-      const items: QuantityItemRecord[] = (itemMap.get(snap.revision_id) ?? []).map((item) =>
-        rowToQuantityItem(item, sourceMap.get(item.id) ?? []),
-      )
-      this.quantities.set(snap.revision_id, {
-        revisionId: snap.revision_id,
-        items,
-        quantityVersion: toNumber(snap.quantity_version),
-        updatedAt: toIsoString(snap.updated_at),
-        updatedBy: snap.updated_by,
-      })
+    for (const snapshot of this.#rowsToQuantities(snapshots, itemRows, sourceRows)) {
+      this.quantities.set(snapshot.revisionId, snapshot)
     }
   }
 
@@ -816,6 +794,91 @@ export class NeonApiStore implements ApiStore {
     for (const row of rows) {
       this.auditLogs.push(rowToAuditLog(row))
     }
+  }
+
+  /** quantity_snapshots/items/sources の行群を API 契約レコードへ組立てる。 */
+  #rowsToQuantities(
+    snapshots: readonly QuantitySnapshotRow[],
+    itemRows: readonly QuantityItemRow[],
+    sourceRows: readonly QuantitySourceRow[],
+  ): readonly QuantitySnapshotRecord[] {
+    const itemMap = new Map<string, QuantityItemRow[]>()
+    for (const item of itemRows) {
+      const list = itemMap.get(item.revision_id)
+      if (list) {
+        list.push(item)
+      } else {
+        itemMap.set(item.revision_id, [item])
+      }
+    }
+    const sourceMap = new Map<string, QuantitySourceRow[]>()
+    for (const src of sourceRows) {
+      const list = sourceMap.get(src.quantity_item_id)
+      if (list) {
+        list.push(src)
+      } else {
+        sourceMap.set(src.quantity_item_id, [src])
+      }
+    }
+    return snapshots.map((snap) => {
+      const items: QuantityItemRecord[] = (itemMap.get(snap.revision_id) ?? []).map((item) =>
+        rowToQuantityItem(item, sourceMap.get(item.id) ?? []),
+      )
+      return {
+        revisionId: snap.revision_id,
+        items,
+        quantityVersion: toNumber(snap.quantity_version),
+        updatedAt: toIsoString(snap.updated_at),
+        updatedBy: snap.updated_by,
+      }
+    })
+  }
+
+  // -----------------------------------------------------------------------
+  // SQL-first read methods（#114 Phase 2）
+  // ハンドラが単一レコード/サブセットを述語付き・明示列で直接取得する。
+  // Map キャッシュは更新しない（読み取り専用・書き込み経路は Phase 1 のスコープ
+  // ロードを引き続き使用）。
+  // -----------------------------------------------------------------------
+
+  async queryRevision(revisionId: string): Promise<RevisionRecord | undefined> {
+    const rows =
+      await this.#sql`SELECT id, drawing_id, revision_number, status, change_summary, based_on_revision_id, content_version, content_checksum, created_at, created_by, updated_at, updated_by FROM drawing_revisions WHERE id = ${revisionId}` as RevisionRow[]
+    const row = rows[0]
+    return row ? rowToRevision(row) : undefined
+  }
+
+  async queryDrawing(drawingId: string): Promise<DrawingRecord | undefined> {
+    const rows =
+      await this.#sql`SELECT id, project_id, drawing_number, name, drawing_type, settings, status, active_revision_id, created_at, created_by, updated_at, updated_by, version FROM drawings WHERE id = ${drawingId}` as DrawingRow[]
+    const row = rows[0]
+    return row ? rowToDrawing(row) : undefined
+  }
+
+  async queryProjectMembers(projectId: string): Promise<readonly ProjectMemberRecord[]> {
+    const rows =
+      await this.#sql`SELECT project_id, user_id, role, created_at, updated_at FROM project_members WHERE project_id = ${projectId} ORDER BY user_id` as ProjectMemberRow[]
+    return rows.map((row) => rowToProjectMember(row))
+  }
+
+  async queryContent(revisionId: string): Promise<ContentRecord | undefined> {
+    const rows =
+      await this.#sql`SELECT revision_id, content, byte_size, content_checksum, mime_type, schema_version, content_version, updated_at, storage_provider FROM drawing_contents WHERE revision_id = ${revisionId}` as ContentRow[]
+    const row = rows[0]
+    return row ? rowToContent(row) : undefined
+  }
+
+  async queryQuantities(revisionId: string): Promise<QuantitySnapshotRecord | undefined> {
+    const snapshots =
+      await this.#sql`SELECT revision_id, quantity_version, updated_at, updated_by FROM quantity_snapshots WHERE revision_id = ${revisionId}` as QuantitySnapshotRow[]
+    const itemRows =
+      await this.#sql`SELECT id, revision_id, group_key, work_type, specification, method, unit, raw_value, rounded_value, item_status, quantity_version FROM quantity_items WHERE revision_id = ${revisionId} ORDER BY id` as QuantityItemRow[]
+    const itemIds = itemRows.map((item) => item.id)
+    const sourceRows =
+      itemIds.length === 0
+        ? []
+        : ((await this.#sql`SELECT quantity_item_id, geometry_id, contribution_raw FROM quantity_sources WHERE quantity_item_id = ANY(${itemIds}) ORDER BY id`) as QuantitySourceRow[])
+    return this.#rowsToQuantities(snapshots, itemRows, sourceRows)[0]
   }
 
   // -----------------------------------------------------------------------

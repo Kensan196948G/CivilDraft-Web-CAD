@@ -113,8 +113,8 @@ const FULL_SCAN_SQL = [
   'SELECT * FROM project_members ORDER BY project_id, user_id',
 ]
 
-describe('Neon スコープ付きロードの配線（Issue #114 Phase 1）', () => {
-  it('revision 内容取得は全件 SELECT を発行せず、述語付きで必要サブセットのみロードする', async () => {
+describe('Neon スコープ付きロードの配線（Issue #114 Phase 1/2）', () => {
+  it('revision 内容取得は SELECT * を一切発行せず、SQL-first クエリのみで応答する', async () => {
     const sql = makeNeonSql({
       'FROM drawing_revisions WHERE id': [
         {
@@ -203,8 +203,13 @@ describe('Neon スコープ付きロードの配線（Issue #114 Phase 1）', ()
     expect(body.content.contentVersion).toBe(1)
 
     const queries = (sql.mock.calls as [TemplateStringsArray][]).map((call) => call[0]?.join('') ?? '')
+    // SQL-first 読み取り（#114 Phase 2）: 明示列の述語クエリのみ
     expect(queries.some((q) => q.includes('FROM drawing_revisions WHERE id'))).toBe(true)
+    expect(queries.some((q) => q.includes('FROM drawings WHERE id'))).toBe(true)
+    expect(queries.some((q) => q.includes('FROM project_members WHERE project_id'))).toBe(true)
     expect(queries.some((q) => q.includes('FROM drawing_contents WHERE revision_id'))).toBe(true)
+    // revisionRead スコープは Map への事前ロードを行わないため SELECT * は皆無
+    expect(queries.every((q) => !q.startsWith('SELECT *'))).toBe(true)
     for (const fullScan of FULL_SCAN_SQL) {
       expect(queries).not.toContain(fullScan)
     }

@@ -259,6 +259,11 @@ function resolveStoreScope(matched: RouteMatch): NeonStoreScope | undefined {
     case '/api/v1/revisions/{revisionId}':
     case '/api/v1/revisions/{revisionId}/content':
     case '/api/v1/revisions/{revisionId}/quantities':
+      // SQL-first 読み取り経路（#114 Phase 2）: GET は queryX で個別取得するため
+      // Map への事前ロードを省略（revisionRead スコープ）。
+      return matched.route.method === 'GET'
+        ? { kind: 'revisionRead', revisionId: requireParam(matched.params, 'revisionId') }
+        : { kind: 'revision', revisionId: requireParam(matched.params, 'revisionId') }
     case '/api/v1/revisions/{revisionId}/workflow-actions':
     case '/api/v1/revisions/{revisionId}/exports':
       return { kind: 'revision', revisionId: requireParam(matched.params, 'revisionId') }
@@ -739,6 +744,67 @@ function authorizeProject(
   return errorResponse(403, ERROR_CODES.forbidden, 'この案件への権限がありません', ctx.correlationId)
 }
 
+/**
+ * SQL-first 読み取り経路用の認可（#114 Phase 2）。
+ * queryProjectMembers フックがあればメンバーを SQL で取得し、無ければ
+ * 従来の Map（memory/dev）で判定する。
+ */
+async function authorizeProjectAsync(
+  store: ApiStore,
+  ctx: RequestContext,
+  projectId: string,
+  action: 'view' | 'edit' | 'manage',
+): Promise<Response | undefined> {
+  if (store.queryProjectMembers) {
+    const members = await store.queryProjectMembers(projectId)
+    const role = members.find((member) => member.userId === ctx.actorId)?.role
+    const allowed =
+      role !== undefined &&
+      (action === 'view'
+        ? roleCanView(role)
+        : action === 'edit'
+          ? roleCanEdit(role)
+          : roleCanManage(role))
+    if (allowed) {
+      return undefined
+    }
+    appendAudit(store, ctx, {
+      eventName: `authorization.${action}.denied`,
+      projectId,
+      entityType: 'project',
+      entityId: projectId,
+      result: 'failure',
+      detail: { action },
+    })
+    return errorResponse(403, ERROR_CODES.forbidden, 'この案件への権限がありません', ctx.correlationId)
+  }
+  return authorizeProject(store, ctx, projectId, action)
+}
+
+/**
+ * SQL-first 読み取り経路用の改訂+図面解決（#114 Phase 2）。
+ * queryRevision/queryDrawing フックがあれば SQL で取得し、無ければ Map へ
+ * フォールバックする。
+ */
+async function getRevisionWithDrawingAsync(
+  store: ApiStore,
+  ctx: RequestContext,
+  revisionId: string,
+  action: 'view' | 'edit',
+): Promise<{ revision: RevisionRecord; drawing: DrawingRecord } | Response> {
+  const revision = (await store.queryRevision?.(revisionId)) ?? store.revisions.get(revisionId)
+  if (!revision) {
+    return errorResponse(404, ERROR_CODES.notFound, '改訂が見つかりません', ctx.correlationId)
+  }
+  const drawing = (await store.queryDrawing?.(revision.drawingId)) ?? store.drawings.get(revision.drawingId)
+  if (!drawing) {
+    return errorResponse(404, ERROR_CODES.notFound, '図面が見つかりません', ctx.correlationId)
+  }
+  const denied = await authorizeProjectAsync(store, ctx, drawing.projectId, action)
+  if (denied) return denied
+  return { revision, drawing }
+}
+
 function getRevisionWithDrawing(
   store: ApiStore,
   ctx: RequestContext,
@@ -1208,16 +1274,16 @@ async function createRevision(
   return jsonResponse(201, { revision }, ctx.correlationId)
 }
 
-function getRevision(store: ApiStore, ctx: RequestContext, revisionId: string): Response {
-  const revision = store.revisions.get(revisionId)
+async function getRevision(store: ApiStore, ctx: RequestContext, revisionId: string): Promise<Response> {
+  const revision = (await store.queryRevision?.(revisionId)) ?? store.revisions.get(revisionId)
   if (!revision) {
     return errorResponse(404, ERROR_CODES.notFound, '改訂が見つかりません', ctx.correlationId)
   }
-  const drawing = store.drawings.get(revision.drawingId)
+  const drawing = (await store.queryDrawing?.(revision.drawingId)) ?? store.drawings.get(revision.drawingId)
   if (!drawing) {
     return errorResponse(404, ERROR_CODES.notFound, '図面が見つかりません', ctx.correlationId)
   }
-  const denied = authorizeProject(store, ctx, drawing.projectId, 'view')
+  const denied = await authorizeProjectAsync(store, ctx, drawing.projectId, 'view')
   if (denied) return denied
   return jsonResponse(200, { revision }, ctx.correlationId)
 }
@@ -1319,28 +1385,28 @@ async function putRevisionContent(
   return jsonResponse(200, { content }, ctx.correlationId)
 }
 
-function getRevisionContent(store: ApiStore, ctx: RequestContext, revisionId: string): Response {
-  const revision = store.revisions.get(revisionId)
-  if (!revision) {
-    return errorResponse(404, ERROR_CODES.notFound, '改訂が見つかりません', ctx.correlationId)
-  }
-  const drawing = store.drawings.get(revision.drawingId)
-  if (!drawing) {
-    return errorResponse(404, ERROR_CODES.notFound, '図面が見つかりません', ctx.correlationId)
-  }
-  const denied = authorizeProject(store, ctx, drawing.projectId, 'view')
-  if (denied) return denied
-  const content = store.contents.get(revisionId)
+async function getRevisionContent(
+  store: ApiStore,
+  ctx: RequestContext,
+  revisionId: string,
+): Promise<Response> {
+  const resolved = await getRevisionWithDrawingAsync(store, ctx, revisionId, 'view')
+  if (isResponse(resolved)) return resolved
+  const content = (await store.queryContent?.(revisionId)) ?? store.contents.get(revisionId)
   if (!content) {
     return errorResponse(404, ERROR_CODES.notFound, '図面内容が見つかりません', ctx.correlationId)
   }
   return jsonResponse(200, { content }, ctx.correlationId)
 }
 
-function getRevisionQuantities(store: ApiStore, ctx: RequestContext, revisionId: string): Response {
-  const resolved = getRevisionWithDrawing(store, ctx, revisionId, 'view')
+async function getRevisionQuantities(
+  store: ApiStore,
+  ctx: RequestContext,
+  revisionId: string,
+): Promise<Response> {
+  const resolved = await getRevisionWithDrawingAsync(store, ctx, revisionId, 'view')
   if (isResponse(resolved)) return resolved
-  const snapshot = store.quantities.get(revisionId) ?? {
+  const snapshot = (await store.queryQuantities?.(revisionId)) ?? store.quantities.get(revisionId) ?? {
     revisionId,
     items: [],
     quantityVersion: 0,

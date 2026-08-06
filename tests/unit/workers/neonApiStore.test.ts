@@ -1195,3 +1195,54 @@ describe('NeonApiStore scoped initialize（Issue #114 Phase 1）', () => {
     expect(queryTexts(sql).every((t) => t.includes('FROM audit_logs'))).toBe(true)
   })
 })
+
+describe('NeonApiStore SQL-first read methods（Issue #114 Phase 2）', () => {
+  function queryTexts(sql: SqlClient): readonly string[] {
+    return sqlCalls(sql).map((call) => call[0]?.join('') ?? '')
+  }
+
+  it('queryRevision/queryDrawing/queryProjectMembers/queryContent は明示列の述語クエリでレコードを返し、Map を変更しない', async () => {
+    const sql = makeSqlClient({
+      'FROM drawing_revisions WHERE id': [revisionRow()],
+      'FROM drawings WHERE id': [drawingRow()],
+      'FROM project_members WHERE project_id': [memberRow()],
+      'FROM drawing_contents WHERE revision_id': [contentRow()],
+    })
+    const store = new NeonApiStore(sql)
+
+    expect((await store.queryRevision('rev-1'))?.drawingId).toBe('draw-1')
+    expect((await store.queryDrawing('draw-1'))?.projectId).toBe('proj-1')
+    expect(await store.queryProjectMembers('proj-1')).toHaveLength(1)
+    expect((await store.queryContent('rev-1'))?.contentVersion).toBe(1)
+
+    // SQL-first メソッドは読み取り専用: ローカル Map へ書き込まない
+    expect(store.revisions.size).toBe(0)
+    expect(store.drawings.size).toBe(0)
+    expect(store.contents.size).toBe(0)
+    const texts = queryTexts(sql)
+    expect(texts.every((t) => !t.startsWith('SELECT *'))).toBe(true)
+  })
+
+  it('queryQuantities は snapshot+items+sources を明示列クエリで組立てる', async () => {
+    const sql = makeSqlClient({
+      'FROM quantity_snapshots WHERE revision_id': [quantitySnapshotRow()],
+      'FROM quantity_items WHERE revision_id': [quantityItemRow()],
+      'FROM quantity_sources WHERE quantity_item_id = ANY': [quantitySourceRow()],
+    })
+    const store = new NeonApiStore(sql)
+
+    const snapshot = await store.queryQuantities('rev-1')
+    expect(snapshot?.quantityVersion).toBe(1)
+    expect(snapshot?.items).toHaveLength(1)
+    expect(snapshot?.items[0]?.sources).toHaveLength(1)
+    expect(queryTexts(sql).every((t) => !t.startsWith('SELECT *'))).toBe(true)
+  })
+
+  it('revisionRead スコープの initialize はクエリを一切発行しない', async () => {
+    const sql = makeSqlClient({})
+    const store = new NeonApiStore(sql)
+
+    await store.initialize({ kind: 'revisionRead', revisionId: 'rev-1' })
+    expect(sql).not.toHaveBeenCalled()
+  })
+})

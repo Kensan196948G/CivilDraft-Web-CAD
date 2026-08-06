@@ -198,6 +198,16 @@ export interface ApiStore {
     action: WorkflowActionRecord,
     revision: RevisionRecord,
   ): Promise<void>
+
+  // -- SQL-first read hooks（#114 Phase 2） --
+  // NeonApiStore はリクエストに必要なレコードを述語付き SQL で直接取得する。
+  // ハンドラはフックがあればそれを使い、無ければ従来の Map 参照へフォールバックする
+  // （memory/dev モードは Map 契約を維持）。
+  queryRevision?(revisionId: string): Promise<RevisionRecord | undefined>
+  queryDrawing?(drawingId: string): Promise<DrawingRecord | undefined>
+  queryProjectMembers?(projectId: string): Promise<readonly ProjectMemberRecord[]>
+  queryContent?(revisionId: string): Promise<ContentRecord | undefined>
+  queryQuantities?(revisionId: string): Promise<QuantitySnapshotRecord | undefined>
 }
 
 export function createMemoryStore(): ApiStore {
