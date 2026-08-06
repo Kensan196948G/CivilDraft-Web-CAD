@@ -381,6 +381,54 @@ export const SYMBOL_CATALOG: readonly SymbolDef[] = [
       { type: 'line', data: [-8, 0, 8, 0] },
     ],
   },
+  {
+    id: 'guardrail',
+    name: '防護柵（ガードレール）',
+    category: '構造物',
+    size: 40,
+    paths: [
+      { type: 'polyline', data: [-20, -6, -10, 0, 0, -6, 10, 0, 20, -6], closed: false },
+      { type: 'line', data: [-20, 6, -20, -6] },
+      { type: 'line', data: [-7, 6, -7, -6] },
+      { type: 'line', data: [7, 6, 7, -6] },
+      { type: 'line', data: [20, 6, 20, -6] },
+    ],
+  },
+  {
+    id: 'utility-pole',
+    name: '電柱',
+    category: '構造物',
+    size: 30,
+    paths: [
+      { type: 'circle', data: [0, 0, 4] },
+      { type: 'line', data: [-12, -8, 12, 8] },
+      { type: 'line', data: [-12, 8, 12, -8] },
+      { type: 'line', data: [0, 0, 0, 15] },
+    ],
+  },
+  {
+    id: 'tree',
+    name: '樹木',
+    category: '構造物',
+    size: 24,
+    paths: [
+      { type: 'circle', data: [0, -4, 9] },
+      { type: 'line', data: [0, 5, 0, 12] },
+      { type: 'line', data: [-2, 12, 2, 12] },
+    ],
+  },
+  {
+    id: 'water-valve',
+    name: '水道バルブ',
+    category: '構造物',
+    size: 20,
+    paths: [
+      { type: 'circle', data: [0, 0, 9] },
+      { type: 'line', data: [-6, 0, 6, 0] },
+      { type: 'line', data: [0, -6, 0, 6] },
+      { type: 'line', data: [-3, -3, 3, 3] },
+    ],
+  },
 ]
 
 export function getSymbolById(id: string): SymbolDef | undefined {
