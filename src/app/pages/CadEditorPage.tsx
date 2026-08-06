@@ -677,6 +677,13 @@ export function CadEditorPage({
   const editingOffsetDistance = useEditorStore((s) => s.editingOffsetDistance)
   const editingFilletRadius = useEditorStore((s) => s.editingFilletRadius)
   const editingChamferDist = useEditorStore((s) => s.editingChamferDist)
+  const snapEnabled = useEditorStore((s) => s.snapEnabled)
+  const snapTolerancePx = useEditorStore((s) => s.snapTolerancePx)
+  const snapEndpoint = useEditorStore((s) => s.snapEndpoint)
+  const snapMidpoint = useEditorStore((s) => s.snapMidpoint)
+  const snapCenter = useEditorStore((s) => s.snapCenter)
+  const snapIntersection = useEditorStore((s) => s.snapIntersection)
+  const snapGrid = useEditorStore((s) => s.snapGrid)
   const gridVisible = useEditorStore((s) => s.gridVisible)
   const currentStepId = useEditorStore((s) => s.currentStepId)
   const draftCursor = useEditorStore((s) => s.draftCursor)
@@ -695,6 +702,7 @@ export function CadEditorPage({
   } | null>(null)
   const [cloudSaving, setCloudSaving] = useState(false)
   const [lastCloudRevisionId, setLastCloudRevisionId] = useState<string | null>(null)
+  const [cloudConflict, setCloudConflict] = useState(false)
   const [editNotice, setEditNotice] = useState<string | null>(null)
   const [selectedTemplateId, setSelectedTemplateId] = useState<string>(LAYER_TEMPLATES[0]?.id ?? '')
   const [healthOpen, setHealthOpen] = useState(false)
@@ -949,6 +957,7 @@ export function CadEditorPage({
       return
     }
     setCloudSaving(true)
+    setCloudConflict(false)
     setCloudSaveStatus({ ok: true, text: '共有保存中...' })
     try {
       const result = await apiClient.saveDraft(buildCloudSaveInput(cloudDraftSession, s.geometries, s.layers))
@@ -959,7 +968,16 @@ export function CadEditorPage({
           text: `共有保存済み: ${result.value.project.projectNumber} / ${result.value.drawing.drawingNumber}`,
         })
       } else {
-        setCloudSaveStatus({ ok: false, text: `共有保存失敗: ${result.error.message}` })
+        const isConflict =
+          result.error.apiErrorCode === 'CD-CONFLICT-001' ||
+          result.error.apiErrorCode === 'CD-CONFLICT-002'
+        setCloudConflict(isConflict)
+        setCloudSaveStatus({
+          ok: false,
+          text: isConflict
+            ? '共有保存失敗: サーバ上の図面が更新されています。最新版を再読込してください'
+            : `共有保存失敗: ${result.error.message}`,
+        })
       }
     } catch (err) {
       setCloudSaveStatus({ ok: false, text: `共有保存失敗: ${String(err)}` })
@@ -1001,6 +1019,7 @@ export function CadEditorPage({
       return
     }
     setCloudSaving(true)
+    setCloudConflict(false)
     setCloudSaveStatus({ ok: true, text: '共有再読込中...' })
     try {
       const result = await apiClient.getRevisionContent(lastCloudRevisionId)
@@ -1166,6 +1185,18 @@ export function CadEditorPage({
           <span style={statusBadgeStyle(cloudSaveStatus.ok ? '#1F8255' : '#C5392F', cloudSaveStatus.ok ? '#E4F3EC' : '#FCE9E7')}>
             {cloudSaveStatus.text}
           </span>
+        )}
+        {cloudConflict && (
+          <button
+            type="button"
+            style={ghostButtonStyle}
+            aria-label="サーバの最新版を再読込"
+            onClick={() => {
+              void runCloudReload()
+            }}
+          >
+            ⚠️ 最新版を再読込
+          </button>
         )}
         <button
           title="元に戻す"
@@ -1412,6 +1443,69 @@ export function CadEditorPage({
                 )}
               </div>
             )}
+          </div>
+
+          <div style={{ marginBottom: 20 }}>
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 6 }}>
+              <div style={sectionLabelStyle}>スナップ</div>
+              <button
+                type="button"
+                aria-label="スナップ有効"
+                aria-pressed={snapEnabled}
+                style={snapEnabled ? toolButtonActiveStyle : toolButtonStyle}
+                onClick={() => storeApi.getState().setSnapEnabled(!snapEnabled)}
+              >
+                {snapEnabled ? 'ON' : 'OFF'}
+              </button>
+            </div>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 6 }}>
+              <span style={{ fontSize: 11.5, color: 'var(--ink2)', whiteSpace: 'nowrap' }}>許容差</span>
+              <input
+                type="number"
+                aria-label="スナップ許容差px"
+                value={snapTolerancePx}
+                min={1}
+                max={40}
+                style={{ ...editParamInputStyle, width: 56 }}
+                onChange={(e) => storeApi.getState().setSnapTolerancePx(Number(e.target.value) || 10)}
+              />
+              <span style={{ fontSize: 11, color: 'var(--muted)' }}>px</span>
+            </div>
+            <div style={{ display: 'flex', flexWrap: 'wrap', gap: 4 }}>
+              {(
+                [
+                  ['snapEndpoint', '端点'],
+                  ['snapMidpoint', '中点'],
+                  ['snapCenter', '中心'],
+                  ['snapIntersection', '交点'],
+                  ['snapGrid', 'グリッド'],
+                ] as const
+              ).map(([key, label]) => {
+                const active = key === 'snapEndpoint' ? snapEndpoint
+                  : key === 'snapMidpoint' ? snapMidpoint
+                  : key === 'snapCenter' ? snapCenter
+                  : key === 'snapIntersection' ? snapIntersection
+                  : snapGrid
+                return (
+                  <button
+                    key={key}
+                    type="button"
+                    aria-label={`スナップ: ${label}`}
+                    aria-pressed={active}
+                    disabled={!snapEnabled}
+                    style={{
+                      ...miniButtonStyle,
+                      background: active ? 'var(--hover)' : 'var(--surface)',
+                      color: active ? 'var(--ink)' : 'var(--muted)',
+                      opacity: snapEnabled ? 1 : 0.5,
+                    }}
+                    onClick={() => storeApi.getState().toggleSnapType(key === 'snapEndpoint' ? 'endpoint' : key === 'snapMidpoint' ? 'midpoint' : key === 'snapCenter' ? 'center' : key === 'snapIntersection' ? 'intersection' : 'grid')}
+                  >
+                    {label}
+                  </button>
+                )
+              })}
+            </div>
           </div>
 
           {activeTool === 'text' && draftPoints.length >= 1 && (
