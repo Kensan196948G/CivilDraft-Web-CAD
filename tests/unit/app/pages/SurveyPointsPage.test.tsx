@@ -38,9 +38,30 @@ function symbolsOf(store: EditorStore): SymbolGeometry[] {
 
 afterEach(() => {
   vi.restoreAllMocks()
+  vi.unstubAllGlobals()
 })
 
 describe('SurveyPointsPage / CSV取込', () => {
+  it('取込後にGeoJSON出力が有効になり、ダウンロードを実行する（Issue #44）', async () => {
+    const createObjectURL = vi.fn(() => 'blob:mock')
+    const revokeObjectURL = vi.fn()
+    const click = vi.fn()
+    Object.defineProperty(URL, 'createObjectURL', { value: createObjectURL, writable: true, configurable: true })
+    Object.defineProperty(URL, 'revokeObjectURL', { value: revokeObjectURL, writable: true, configurable: true })
+    vi.spyOn(HTMLAnchorElement.prototype, 'click').mockImplementation(click)
+
+    renderPage(createEditorStore())
+    await userEvent.click(screen.getByRole('button', { name: 'サンプルCSVを挿入' }))
+    await userEvent.click(screen.getByRole('button', { name: '取込' }))
+
+    const button = screen.getByRole('button', { name: 'GeoJSON出力' })
+    expect(button).toBeEnabled()
+    await userEvent.click(button)
+    expect(createObjectURL).toHaveBeenCalledTimes(1)
+    expect(click).toHaveBeenCalledTimes(1)
+    expect(revokeObjectURL).toHaveBeenCalled()
+  })
+
   it('サンプルCSVを挿入して取込むと3測点がテーブルに表示される', async () => {
     renderPage(createEditorStore())
     await userEvent.click(screen.getByRole('button', { name: 'サンプルCSVを挿入' }))
