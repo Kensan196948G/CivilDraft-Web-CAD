@@ -12,29 +12,56 @@
  * HomePage/DrawingComparePage/CadEditorPageは同一のautosaveStoreインスタンスを共有する
  * （エディタで保存したスナップショットをホームの復旧候補から見えるようにするため）。
  */
-import { useMemo, useState } from 'react'
+import { lazy, Suspense, useMemo, useState } from 'react'
 import { ErrorBoundary } from './ErrorBoundary'
 import { Sidebar } from './layout/Sidebar'
 import type { AppView } from './layout/Sidebar'
 import { CadEditorPage, DEFAULT_CLOUD_DRAFT_SESSION } from './pages/CadEditorPage'
 import type { CloudDraftSession } from './pages/CadEditorPage'
-import { ConstructionStepsPage } from './pages/ConstructionStepsPage'
-import { CrossSectionPage } from './pages/CrossSectionPage'
-import { AuditLogPage } from './pages/AuditLogPage'
-import { DrawingComparePage } from './pages/DrawingComparePage'
-import { DrawingSettingsPage } from './pages/DrawingSettingsPage'
 import { HomePage } from './pages/HomePage'
-import { PartsPalettePage } from './pages/PartsPalettePage'
-import { PrintExportPage } from './pages/PrintExportPage'
-import { ProjectDetailPage } from './pages/ProjectDetailPage'
-import { QuantitySummaryPage } from './pages/QuantitySummaryPage'
-import { ReviewApprovalPage } from './pages/ReviewApprovalPage'
-import { SurveyPointsPage } from './pages/SurveyPointsPage'
-import { SystemSettingsPage } from './pages/SystemSettingsPage'
 import { EditorStoreProvider } from './store/EditorStoreContext'
 import { createAutosaveStore } from '@/infrastructure/autosave/autosaveStore'
 import type { AutosaveStore } from '@/infrastructure/autosave/autosaveStore'
 import './home.css'
+
+// バンドル最適化（Issue #26）: 初期表示に不要な業務ページはコード分割し、
+// 遷移時に遅延読み込みする（pdf-lib/dxf 等の vendor チャンクの初期ロードを回避）。
+const ProjectDetailPage = lazy(() =>
+  import('./pages/ProjectDetailPage').then((m) => ({ default: m.ProjectDetailPage })),
+)
+const DrawingSettingsPage = lazy(() =>
+  import('./pages/DrawingSettingsPage').then((m) => ({ default: m.DrawingSettingsPage })),
+)
+const SurveyPointsPage = lazy(() =>
+  import('./pages/SurveyPointsPage').then((m) => ({ default: m.SurveyPointsPage })),
+)
+const PartsPalettePage = lazy(() =>
+  import('./pages/PartsPalettePage').then((m) => ({ default: m.PartsPalettePage })),
+)
+const QuantitySummaryPage = lazy(() =>
+  import('./pages/QuantitySummaryPage').then((m) => ({ default: m.QuantitySummaryPage })),
+)
+const CrossSectionPage = lazy(() =>
+  import('./pages/CrossSectionPage').then((m) => ({ default: m.CrossSectionPage })),
+)
+const ConstructionStepsPage = lazy(() =>
+  import('./pages/ConstructionStepsPage').then((m) => ({ default: m.ConstructionStepsPage })),
+)
+const DrawingComparePage = lazy(() =>
+  import('./pages/DrawingComparePage').then((m) => ({ default: m.DrawingComparePage })),
+)
+const ReviewApprovalPage = lazy(() =>
+  import('./pages/ReviewApprovalPage').then((m) => ({ default: m.ReviewApprovalPage })),
+)
+const PrintExportPage = lazy(() =>
+  import('./pages/PrintExportPage').then((m) => ({ default: m.PrintExportPage })),
+)
+const AuditLogPage = lazy(() =>
+  import('./pages/AuditLogPage').then((m) => ({ default: m.AuditLogPage })),
+)
+const SystemSettingsPage = lazy(() =>
+  import('./pages/SystemSettingsPage').then((m) => ({ default: m.SystemSettingsPage })),
+)
 
 const THEME_STORAGE_KEY = 'civildraft-theme'
 
@@ -115,9 +142,17 @@ function AppShell() {
         onNavigate={setView}
         onToggleTheme={toggleTheme}
       />
-      {registeredPage ?? (
-        <HomePage autosaveStore={autosaveStore} onOpenEditor={() => openEditor()} />
-      )}
+      <Suspense
+        fallback={
+          <div style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--muted)', fontSize: 13 }}>
+            読み込み中...
+          </div>
+        }
+      >
+        {registeredPage ?? (
+          <HomePage autosaveStore={autosaveStore} onOpenEditor={() => openEditor()} />
+        )}
+      </Suspense>
     </div>
   )
 }

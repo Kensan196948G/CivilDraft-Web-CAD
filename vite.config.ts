@@ -38,9 +38,6 @@ export default defineConfig({
           if (id.includes('/src/domain/')) {
             return 'domain-core'
           }
-          if (id.includes('/src/app/pages/')) {
-            return 'app-pages'
-          }
         },
       },
     },
