@@ -88,6 +88,18 @@ const thStyle: CSSProperties = { textAlign: 'left', padding: '11px 16px', border
 const orangeButton: CSSProperties = { cursor: 'pointer', border: '1px solid #E08A2B', background: '#E08A2B', color: '#fff', padding: '6px 11px', borderRadius: 8, font: 'inherit', fontSize: 12, fontWeight: 600 }
 const ghostButton: CSSProperties = { cursor: 'pointer', border: '1px solid var(--line)', background: 'var(--surface)', color: 'var(--ink2)', padding: '6px 11px', borderRadius: 8, font: 'inherit', fontSize: 12, fontWeight: 600 }
 const fieldStyle: CSSProperties = { border: '1px solid var(--line)', borderRadius: 8, background: 'var(--surface)', color: 'var(--ink)', padding: '8px 10px', font: 'inherit', fontSize: 12.5 }
+const demoBannerStyle: CSSProperties = {
+  display: 'flex',
+  alignItems: 'center',
+  gap: 8,
+  marginBottom: 14,
+  padding: '8px 12px',
+  borderRadius: 8,
+  background: '#FFF7E8',
+  border: '1px solid #F0D9B0',
+  color: '#8A5A00',
+  fontSize: 12,
+}
 
 function tdStyle(last: boolean): CSSProperties {
   return { padding: '12px 16px', borderBottom: last ? 'none' : '1px solid var(--line2)' }
@@ -251,6 +263,10 @@ export function HomePage({ autosaveStore, onOpenEditor }: HomePageProps) {
       </header>
 
       <main style={{ flex: 1, overflow: 'auto', padding: 22 }}>
+        <div role="status" style={demoBannerStyle}>
+          ⚠️ デモ表示: 共有API（Cloudflare Access設定）接続前のため、案件一覧・統計はサンプルデータです。
+          Access設定後は本番の実案件データへ切り替わります（Issue #36・#62）。
+        </div>
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit,minmax(170px,1fr))', gap: 14, marginBottom: 16 }}>
           <button style={cardStyle} onClick={() => openMetric('active')}>
             <div style={cardTitleRow}><div style={cardTitleStyle}>進行中案件</div><span style={{ width: 8, height: 8, borderRadius: 3, background: '#2E5AAC' }} /></div>
