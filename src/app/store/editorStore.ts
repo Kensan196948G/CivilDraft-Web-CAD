@@ -33,6 +33,7 @@ import {
   type ToolType,
 } from '@/domain/tools/draftGeometry'
 import type { EditingToolType } from '@/domain/tools/editGeometry'
+import type { SnapResult, SnapType } from '@/domain/geometry/snapEngine'
 import { findLayerTemplate } from '@/domain/catalog/layerTemplates'
 const REPEAT_EDITING_TOOLS: ReadonlySet<EditingToolType> = new Set([
   'rotate',
@@ -41,6 +42,40 @@ const REPEAT_EDITING_TOOLS: ReadonlySet<EditingToolType> = new Set([
   'fillet',
   'chamfer',
 ])
+
+/** SnapType から SnapSlice のトグル state キーへ変換する（'none' は null）。 */
+type SnapStateKey =
+  | 'snapEndpoint'
+  | 'snapMidpoint'
+  | 'snapCenter'
+  | 'snapIntersection'
+  | 'snapPerpendicular'
+  | 'snapTangent'
+  | 'snapNearest'
+  | 'snapGrid'
+
+function snapTypeToStateKey(type: SnapType): SnapStateKey | null {
+  switch (type) {
+    case 'endpoint':
+      return 'snapEndpoint'
+    case 'midpoint':
+      return 'snapMidpoint'
+    case 'center':
+      return 'snapCenter'
+    case 'intersection':
+      return 'snapIntersection'
+    case 'perpendicular':
+      return 'snapPerpendicular'
+    case 'tangent':
+      return 'snapTangent'
+    case 'nearest':
+      return 'snapNearest'
+    case 'grid':
+      return 'snapGrid'
+    case 'none':
+      return null
+  }
+}
 import { dispatchEditingOperation } from '@/domain/tools/editGeometry'
 import type {
   ConstructionStepId,
@@ -208,13 +243,35 @@ export interface ToolSlice {
   executeEditingOperation: (clickPoint: Point | null) => void
 }
 
+/** スナップ設定と表示状態（Issue #24 配線・#120 可視化）。 */
+export interface SnapSlice {
+  readonly snapEnabled: boolean
+  /** スナップ許容半径（screen px）。domain へは zoom 換算で注入する。 */
+  readonly snapTolerancePx: number
+  readonly snapEndpoint: boolean
+  readonly snapMidpoint: boolean
+  readonly snapCenter: boolean
+  readonly snapIntersection: boolean
+  readonly snapPerpendicular: boolean
+  readonly snapTangent: boolean
+  readonly snapNearest: boolean
+  readonly snapGrid: boolean
+  /** CanvasStage が算出した現在のスナップ候補（SnapMarker 表示用）。 */
+  readonly snapResult: SnapResult | null
+  setSnapEnabled: (enabled: boolean) => void
+  setSnapTolerancePx: (tolerancePx: number) => void
+  toggleSnapType: (type: SnapType) => void
+  setSnapResult: (result: SnapResult | null) => void
+}
+
 export type EditorState = DocumentSlice &
   ViewportSlice &
   LayerSlice &
   SelectionSlice &
   StepSlice &
   HistorySlice &
-  ToolSlice
+  ToolSlice &
+  SnapSlice
 
 export type EditorStore = ReturnType<typeof createEditorStore>
 
@@ -645,6 +702,28 @@ export function createEditorStore(ctx: GeometryCreationContext = defaultCreation
         }
       }
     },
+
+    // --- SnapSlice（Issue #24 配線） ---
+    snapEnabled: true,
+    snapTolerancePx: 10,
+    snapEndpoint: true,
+    snapMidpoint: true,
+    snapCenter: true,
+    snapIntersection: true,
+    snapPerpendicular: false,
+    snapTangent: false,
+    snapNearest: false,
+    snapGrid: true,
+    snapResult: null,
+    setSnapEnabled: (enabled) => set({ snapEnabled: enabled, snapResult: null }),
+    setSnapTolerancePx: (tolerancePx) => set({ snapTolerancePx: Math.max(1, Math.min(40, tolerancePx)) }),
+    toggleSnapType: (type) => {
+      const state = get()
+      const key = snapTypeToStateKey(type)
+      if (key === null) return
+      set({ [key]: !state[key] })
+    },
+    setSnapResult: (result) => set({ snapResult: result }),
   }))
 
   return {
