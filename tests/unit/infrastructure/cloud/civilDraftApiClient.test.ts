@@ -122,8 +122,8 @@ describe('CivilDraftApiClient', () => {
     // #66 で isPersistedWriteRoute の一時停止ゲートは撤去済み。neon-r2 モードで
     // binding 未設定の場合は readiness 検査（persistence.ts）の 503 が返る。
     // Workers 側のエラーメッセージがそのまま ValidationIssue へ透過することを確認する。
-    expect(result.error.message).toContain('CIVILDRAFT_NEON_CONNECTION')
-    expect(result.error.message).toContain('binding')
+    expect(result.error.message).toContain('共有保存サービス')
+    expect(result.error.message).not.toMatch(/CIVILDRAFT_NEON_CONNECTION|binding/i)
   })
 
   it('listAuditLogs で監査ログ一覧を取得できる（Issue #61）', async () => {

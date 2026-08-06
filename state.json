@@ -540,30 +540,6 @@
   "blocked_issues": [],
   "open_issues_next": [
     {
-      "issue": 115,
-      "title": "[Roadmap] Cloudflare Workers Rate Limiting導入（認証済みユーザーによるコスト/可用性DoS対策）",
-      "priority": "P2",
-      "note": "2026-08-03システム評価CD-4b。課金が発生し得るbinding追加のため人間の明示承認が前提（CLAUDE.md §8.6）"
-    },
-    {
-      "issue": 116,
-      "title": "[提案] 図面健全性チェック Phase 3: 数量明細のstate化によるunlinked/stale-quantityの実検出",
-      "priority": "P2",
-      "note": "Issue #59第二弾（本セッション実装）のフォローアップ。computeQuantitySummaryが図形から都度再計算するため、現行アーキテクチャではunlinked/stale-quantityが構造的に発火しにくい"
-    },
-    {
-      "issue": 120,
-      "title": "[Roadmap] キャンバス（CAD描画領域）のアクセシビリティ対応（フォーカス管理・ライブリージョン）",
-      "priority": "P3",
-      "note": "2026-08-03システム評価CD-9。ツールバーのrole/aria-labelは実装済み（#47）だがキャンバス本体は未対応"
-    },
-    {
-      "issue": 47,
-      "title": "コマンドパレット + CADコマンドライン",
-      "priority": "P3",
-      "note": "コマンドパレット部分はPR #111で実装済み（v0.1.17本番デプロイ済み）。CADコマンドライン（`OFFSET 500`等のテキストコマンド入力）部分が未実装のためOPEN継続"
-    },
-    {
       "issue": 23,
       "title": "Arc掃引方向（CW/CCW）の規約確定",
       "priority": "P2",
@@ -582,10 +558,82 @@
       "note": "GeometryRendererはrotationDegを描画適用するため要実機検証→transformShape修正方針決定"
     },
     {
+      "issue": 39,
+      "title": "[Roadmap] プロパティパレット拡張（複数選択一括編集・グリップ編集・ストレッチ・結合・分解）",
+      "priority": "P2",
+      "note": "複数選択時の一括編集・グリップ編集が未実装。Phase B候補"
+    },
+    {
+      "issue": 41,
+      "title": "[Roadmap] ブロック/部品定義・属性ブロックの拡張",
+      "priority": "P2",
+      "note": "シンボルカタログは実装済み。ブロック定義・属性・インスタンス編集は未実装。Phase C候補"
+    },
+    {
+      "issue": 43,
+      "title": "[Roadmap] ファイル互換方針の確定（JWW/SXF/DWG）",
+      "priority": "P2",
+      "note": "DXF対応範囲は実装済み。JWW/SXF調査・DWG変換方針（ODA等）は文書化タスク"
+    },
+    {
+      "issue": 62,
+      "title": "[Roadmap] サンプルデータ除去・実案件データ運用化（断面・案件詳細・ホーム等）",
+      "priority": "P2",
+      "note": "デモ明示バナーは実装済み（PR #124）。実データ化はCloudflare Access Secret登録（人間決裁）後"
+    },
+    {
+      "issue": 115,
+      "title": "[Roadmap] Cloudflare Workers Rate Limiting導入（認証済みユーザーによるコスト/可用性DoS対策）",
+      "priority": "P2",
+      "note": "2026-08-03システム評価CD-4b。課金が発生し得るbinding追加のため人間の明示承認が前提（CLAUDE.md §8.6）"
+    },
+    {
+      "issue": 116,
+      "title": "[提案] 図面健全性チェック Phase 3: 数量明細のstate化によるunlinked/stale-quantityの実検出",
+      "priority": "P2",
+      "note": "Issue #59第二弾（本セッション実装）のフォローアップ。computeQuantitySummaryが図形から都度再計算するため、現行アーキテクチャではunlinked/stale-quantityが構造的に発火しにくい"
+    },
+    {
       "issue": 26,
       "title": "バンドルサイズ最適化（pdf-lib/dxf系コード分割）",
       "priority": "P3",
       "note": "gzip 708KB。dynamic import化で改善可能"
+    },
+    {
+      "issue": 44,
+      "title": "[Roadmap] 測量座標系フォーマット入出力拡張（SIMA/LandXML/GeoJSON）",
+      "priority": "P3",
+      "note": "CSV入出力は実装済み。SIMA/LandXML/GeoJSONは未実装"
+    },
+    {
+      "issue": 46,
+      "title": "[提案] 土木施工図テンプレート + 数量根拠自動連動",
+      "priority": "P3",
+      "note": "レイヤーテンプレート5種は実装済み。図面テンプレート（表題欄・図面枠）は未実装"
+    },
+    {
+      "issue": 47,
+      "title": "コマンドパレット + CADコマンドライン",
+      "priority": "P3",
+      "note": "コマンドパレット部分はPR #111で実装済み（v0.1.17本番デプロイ済み）。CADコマンドライン（`OFFSET 500`等のテキストコマンド入力）部分が未実装のためOPEN継続"
+    },
+    {
+      "issue": 58,
+      "title": "[提案] 現場説明モード（施工ステップ・数量・根拠図形・承認状態の閲覧特化UI）",
+      "priority": "P3",
+      "note": "共有保存フル稼働（Access設定）後に本格実装が望ましい"
+    },
+    {
+      "issue": 60,
+      "title": "[提案] JWW/SXF/DWG移行アシスタント（変換可否・失われる要素・代替表現・修正候補の提示）",
+      "priority": "P3",
+      "note": "調査・設計タスク。DWG変換はODA契約等の人間判断を要する"
+    },
+    {
+      "issue": 120,
+      "title": "[Roadmap] キャンバス（CAD描画領域）のアクセシビリティ対応（フォーカス管理・ライブリージョン）",
+      "priority": "P3",
+      "note": "2026-08-03システム評価CD-9。ツールバーのrole/aria-labelは実装済み（#47）だがキャンバス本体は未対応"
     }
   ],
   "learning": {

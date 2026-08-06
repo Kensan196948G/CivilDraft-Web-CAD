@@ -43,6 +43,14 @@ export default mergeConfig(
         reporter: ['text', 'html'],
         include: ['src/**/*.{ts,tsx}'],
         exclude: ['src/**/*.d.ts', 'src/main.tsx'],
+        // 2026-08-06 実測: stmts 91.52% / branch 83.51% / funcs 86.85% / lines 91.52%。
+        // 閾値は実測より数%下に設定し、回帰防止と将来の改善余地を両立する。
+        thresholds: {
+          statements: 85,
+          branches: 75,
+          functions: 80,
+          lines: 85,
+        },
       },
     },
   }),
