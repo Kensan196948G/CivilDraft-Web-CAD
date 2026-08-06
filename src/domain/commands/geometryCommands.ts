@@ -27,6 +27,7 @@ export const COMMAND_TYPES = {
   CHAMFER_GEOMETRIES: 'CHAMFER_GEOMETRIES',
   TRIM_GEOMETRY: 'TRIM_GEOMETRY',
   IMPORT_DOCUMENT: 'IMPORT_DOCUMENT',
+  BULK_UPDATE_GEOMETRY: 'BULK_UPDATE_GEOMETRY',
 } as const
 
 export interface AddGeometryPayload {
@@ -104,6 +105,10 @@ export interface ImportDocumentPayload {
   /** 取込後の図面状態。 */
   readonly afterGeometries: readonly Geometry[]
   readonly afterLayers: readonly DrawingLayer[]
+}
+
+export interface BulkUpdateGeometryPayload {
+  readonly pairs: readonly { readonly before: Geometry; readonly after: Geometry }[]
 }
 
 // --- 純粋なドキュメント操作ヘルパー（破壊的変更なし） ---
@@ -560,6 +565,28 @@ export function createImportDocumentCommand(
     },
     () => ({ geometries: afterGeometries, layers: afterLayers }),
     () => ({ geometries: beforeGeometries, layers: beforeLayers }),
+    ctx,
+  )
+}
+
+// --- BulkUpdateGeometryCommand ---
+
+/**
+ * 複数図形の一括プロパティ更新（Issue #39）。
+ * pairs は before→after（同一 id 前提）。execute で after 群へ差し替え、
+ * undo で before 群へ戻す。1 操作 = 1 undo として扱う。
+ */
+export function createBulkUpdateGeometriesCommand(
+  pairs: readonly { readonly before: Geometry; readonly after: Geometry }[],
+  ctx: GeometryCreationContext = defaultCreationContext,
+): EditorCommand<BulkUpdateGeometryPayload> {
+  const forward = new Map<GeometryId, Geometry>(pairs.map((p) => [p.after.id, p.after]))
+  const backward = new Map<GeometryId, Geometry>(pairs.map((p) => [p.before.id, p.before]))
+  return createCommand<BulkUpdateGeometryPayload>(
+    COMMAND_TYPES.BULK_UPDATE_GEOMETRY,
+    { pairs },
+    (doc) => replaceGeometries(doc, forward),
+    (doc) => replaceGeometries(doc, backward),
     ctx,
   )
 }
