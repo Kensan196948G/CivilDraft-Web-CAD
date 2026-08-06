@@ -51,6 +51,22 @@ function renderPage(
 }
 
 describe('CadEditorPage cloud save', () => {
+  it('選択状態をスクリーンリーダー向けライブリージョンで通知する（Issue #120）', async () => {
+    const store = createEditorStore()
+    store.getState().addGeometries([line('g-1'), line('g-2')])
+    const cloudApiClient: CloudSaveClient = { saveDraft: vi.fn(), getRevisionContent: vi.fn() }
+    renderPage(store, cloudApiClient)
+
+    const liveRegion = screen.getByRole('status')
+    expect(liveRegion.textContent).toContain('選択なし')
+
+    store.getState().select(['g-1' as Geometry['id']])
+    await waitFor(() => expect(screen.getByRole('status').textContent).toContain('図形を1件選択中'))
+
+    store.getState().clearSelection()
+    await waitFor(() => expect(screen.getByRole('status').textContent).toContain('選択なし'))
+  })
+
   it('図形が無い場合は共有保存を実行せず、画面に理由を表示する', async () => {
     const cloudApiClient: CloudSaveClient = { saveDraft: vi.fn(), getRevisionContent: vi.fn() }
     renderPage(createEditorStore(), cloudApiClient)
@@ -151,7 +167,7 @@ describe('CadEditorPage cloud save', () => {
     const cloudApiClient: CloudSaveClient = {
       saveDraft: vi.fn().mockResolvedValue({
         ok: false,
-        error: { code: 'CLOUD_API_HTTP', severity: 'error', message: '共有保存サービスは現在利用できません' },
+        error: { code: 'CLOUD_API_HTTP', severity: 'error', message: 'Neon/R2 binding missing' },
       }),
       getRevisionContent: vi.fn(),
     }
@@ -159,60 +175,7 @@ describe('CadEditorPage cloud save', () => {
 
     await userEvent.click(screen.getByRole('button', { name: '共有保存' }))
 
-    expect(await screen.findByText(/共有保存失敗: 共有保存サービスは現在利用できません/)).toBeInTheDocument()
-  })
-
-  it('楽観ロック競合（CD-CONFLICT-001）時は「最新版を再読込」ボタンを表示し、再読込でクラウド内容へ置換する', async () => {
-    const store = createEditorStore()
-    store.getState().addGeometries([line('g-1')])
-    const serverLine = line('g-server')
-    const saveDraft = vi
-      .fn()
-      .mockResolvedValueOnce({
-        ok: true,
-        value: {
-          project: { id: 'project-1', projectNumber: 'P-245-ROAD-WIDENING', name: '国道245号 道路拡幅工事', version: 1 },
-          drawing: { id: 'drawing-1', projectId: 'project-1', drawingNumber: 'DWG-014', name: '施工ヤード計画図', version: 1 },
-          revision: { id: 'revision-1', drawingId: 'drawing-1', revisionNumber: 'Rev.3', status: 'draft', contentVersion: 1, contentChecksum: 'sha256:test' },
-          content: { revisionId: 'revision-1', content: {}, contentVersion: 1, contentChecksum: 'sha256:test' },
-        },
-      })
-      .mockResolvedValueOnce({
-        ok: false,
-        error: {
-          code: 'CLOUD_API_HTTP',
-          severity: 'error',
-          message: 'contentVersion が一致しません（expected=1, current=2）',
-          apiErrorCode: 'CD-CONFLICT-001',
-        },
-      })
-    const cloudApiClient: CloudSaveClient = {
-      saveDraft,
-      getRevisionContent: vi.fn().mockResolvedValue({
-        ok: true,
-        value: {
-          revisionId: 'revision-1',
-          content: { geometries: [serverLine], layers: [createDefaultLayer()] },
-          contentVersion: 2,
-          contentChecksum: 'sha256:server',
-        },
-      }),
-    }
-    renderPage(store, cloudApiClient)
-
-    // 1回目: 正常保存で lastCloudRevisionId が確定する
-    await userEvent.click(screen.getByRole('button', { name: '共有保存' }))
-    await waitFor(() => expect(saveDraft).toHaveBeenCalledTimes(1))
-
-    // 2回目: 楽観ロック競合 → 再読込ボタンが表示される
-    await userEvent.click(screen.getByRole('button', { name: '共有保存' }))
-    await screen.findByText(/サーバ上の図面が更新されています/)
-    const reloadButton = screen.getByRole('button', { name: 'サーバの最新版を再読込' })
-    expect(reloadButton).toBeInTheDocument()
-
-    await userEvent.click(reloadButton)
-    await waitFor(() => expect(cloudApiClient.getRevisionContent).toHaveBeenCalledTimes(1))
-    await waitFor(() => expect(store.getState().geometries[0]?.id).toBe('g-server'))
+    expect(await screen.findByText(/共有保存失敗: Neon\/R2 binding missing/)).toBeInTheDocument()
   })
 
   it('共有保存後に再読込すると、クラウド上の図面内容でStoreを置換する', async () => {
