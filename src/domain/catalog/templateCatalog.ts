@@ -43,7 +43,7 @@ export type GeometryTemplate = DistributiveOmit<
 export interface TemplateDef {
   readonly id: string
   readonly name: string
-  readonly category: '仮設' | '土工' | '舗装' | '測量'
+  readonly category: '仮設' | '土工' | '舗装' | '測量' | '図面枠'
   readonly description: string
   readonly shapes: readonly GeometryTemplate[]
 }
@@ -232,6 +232,46 @@ export const TEMPLATE_CATALOG: readonly TemplateDef[] = [
         angleDeg: 0,
         spacing: 8,
       },
+    ],
+  },
+  {
+    id: 'title-block-a3',
+    name: '表題欄（A3）',
+    category: '図面枠',
+    description: 'A3横用の標準表題欄（工事名・図面名・図面番号・縮尺・作成/承認・日付）',
+    shapes: [
+      // 外枠・内枠
+      { type: 'rectangle', origin: { x: 200, y: 227 }, width: 220, height: 70, rotationDeg: 0 },
+      // 縦区切り
+      { type: 'line', start: { x: 260, y: 227 }, end: { x: 260, y: 297 } },
+      { type: 'line', start: { x: 340, y: 227 }, end: { x: 340, y: 297 } },
+      { type: 'line', start: { x: 380, y: 227 }, end: { x: 380, y: 297 } },
+      { type: 'line', start: { x: 400, y: 227 }, end: { x: 400, y: 297 } },
+      // 横区切り
+      { type: 'line', start: { x: 200, y: 247 }, end: { x: 420, y: 247 } },
+      { type: 'line', start: { x: 200, y: 267 }, end: { x: 420, y: 267 } },
+      { type: 'line', start: { x: 200, y: 287 }, end: { x: 420, y: 287 } },
+      // ラベル（左列）
+      { type: 'text', anchor: { x: 205, y: 236 }, text: '工事名', height: 9, rotationDeg: 0, horizontalAlign: 'left' },
+      { type: 'text', anchor: { x: 205, y: 256 }, text: '図面名', height: 9, rotationDeg: 0, horizontalAlign: 'left' },
+      { type: 'text', anchor: { x: 205, y: 276 }, text: '図面番号', height: 9, rotationDeg: 0, horizontalAlign: 'left' },
+      // 値欄（左列の右側）
+      { type: 'text', anchor: { x: 268, y: 236 }, text: '＿＿＿＿＿＿＿＿', height: 9, rotationDeg: 0, horizontalAlign: 'left' },
+      { type: 'text', anchor: { x: 268, y: 256 }, text: '＿＿＿＿＿＿＿＿', height: 9, rotationDeg: 0, horizontalAlign: 'left' },
+      { type: 'text', anchor: { x: 268, y: 276 }, text: '＿＿＿＿＿＿＿＿', height: 9, rotationDeg: 0, horizontalAlign: 'left' },
+      // 縮尺・作成・承認
+      { type: 'text', anchor: { x: 343, y: 236 }, text: '縮尺', height: 9, rotationDeg: 0, horizontalAlign: 'left' },
+      { type: 'text', anchor: { x: 343, y: 256 }, text: '作成', height: 9, rotationDeg: 0, horizontalAlign: 'left' },
+      { type: 'text', anchor: { x: 343, y: 276 }, text: '承認', height: 9, rotationDeg: 0, horizontalAlign: 'left' },
+      { type: 'text', anchor: { x: 383, y: 236 }, text: '1:100', height: 9, rotationDeg: 0, horizontalAlign: 'left' },
+      { type: 'text', anchor: { x: 383, y: 256 }, text: '＿＿＿＿', height: 9, rotationDeg: 0, horizontalAlign: 'left' },
+      { type: 'text', anchor: { x: 383, y: 276 }, text: '＿＿＿＿', height: 9, rotationDeg: 0, horizontalAlign: 'left' },
+      // 日付・版
+      { type: 'text', anchor: { x: 402, y: 236 }, text: '日付', height: 8, rotationDeg: 0, horizontalAlign: 'left' },
+      { type: 'text', anchor: { x: 402, y: 256 }, text: '版', height: 8, rotationDeg: 0, horizontalAlign: 'left' },
+      { type: 'text', anchor: { x: 402, y: 276 }, text: '＿＿', height: 8, rotationDeg: 0, horizontalAlign: 'left' },
+      // 備考欄（最終行は上部セルより低いため下段に配置）
+      { type: 'text', anchor: { x: 205, y: 292 }, text: '備考', height: 8, rotationDeg: 0, horizontalAlign: 'left' },
     ],
   },
 ]
