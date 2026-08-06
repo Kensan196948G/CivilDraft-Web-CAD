@@ -1,10 +1,11 @@
-import { beforeAll, describe, expect, it } from 'vitest'
+import { beforeAll, beforeEach, describe, expect, it } from 'vitest'
 import worker, {
   createMemoryStore,
   handleRequest,
   type AssetFetcher,
   type WorkerEnv,
 } from '@/workers/index'
+import { resetRateLimitState } from '@/workers/rateLimit'
 
 // 2026-08-01 リリース後監査で追加したハードニングの回帰テスト:
 // 1) 全 API レスポンスへのセキュリティヘッダー付与
@@ -96,6 +97,10 @@ function expectSecurityHeaders(response: Response): void {
     expect(response.headers.get(name)).toBe(value)
   }
 }
+
+beforeEach(() => {
+  resetRateLimitState()
+})
 
 describe('セキュリティヘッダー（2026-08-01 監査）', () => {
   it('認証エラー応答にもセキュリティヘッダーが付与される', async () => {

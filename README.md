@@ -93,7 +93,7 @@ CADやプログラミングに詳しくなくても、まず「何ができる�
 | 土木記号・テンプレート | ✅ 実装済み | 土木記号30種（仮設・車両・測量・土工・構造物）、作図テンプレート6種 | `src/domain/catalog/` |
 | 土木ドメイン部品 | 🟡 **試作・一部配線** | 測量座標、中心線、線形、パラメトリック7種、数量、断面、土量、施工ステップ、改訂ワークフロー、図面差分のドメイン/画面を実装。ただし実案件保存・CADハイライト・権限・監査との統合は未完 | `src/domain/survey/`・`src/domain/alignment/`・`src/domain/quantities/`・`src/domain/sections/`・`src/app/pages/` |
 | 数量⇔図形連動 | 🟡 **双方向ハイライト実装（#42）** | ①数量明細「図面で確認」→ 根拠図形を CAD 編集でオレンジ破線ハイライト（第一弾）②CAD 編集で図形クリック → 数量集計画面で根拠図形を含む明細行をハイライト表示（第二弾）。分割画面モードは将来 | `src/app/store/editorStore.ts`（highlightedGeometryIds）・`src/app/canvas/CanvasStage.tsx`・`src/app/pages/QuantitySummaryPage.tsx` |
-| 図面健全性チェック | ✅ 実装済み（#59 第一弾＋第二弾） | エディタの「図面健全性」ボタンで、存在しないレイヤー参照・用紙外図形・非表示レイヤー上の図形（第一弾）に加え、未接続数量／stale数量／未対応DXF要素／デフォルトレイヤー配置／未承認改訂（第二弾・`DrawingHealthContext`経由）を検出して一覧表示。検出結果から対象図形を選択してキャンバスへジャンプ可能。**ただし現状のアーキテクチャでは数量が図形から都度再計算（`computeQuantitySummary`）されるため、未接続数量／stale数量チェックは構造的に発火しにくい制約あり（Issue #116でフォローアップ予定）** | `src/domain/validation/drawingHealth.ts`・`src/app/pages/CadEditorPage.tsx` |
+| 図面健全性チェック | ✅ 実装済み（#59 第一弾＋第二弾＋#116 数量 state 化） | エディタの「図面健全性」ボタンで、存在しないレイヤー参照・用紙外図形・非表示レイヤー上の図形（第一弾）に加え、未接続数量／stale数量／未対応DXF要素／デフォルトレイヤー配置／未承認改訂（第二弾・`DrawingHealthContext`経由）を検出して一覧表示。検出結果から対象図形を選択してキャンバスへジャンプ可能。**数量明細は editor store の state として保持され（Issue #116 Phase 3）、図形削除で unlinked-quantity・幾何変更で stale-quantity が実検出される。「数量を再計算」で現在の図面から status=valid へ復元可能** | `src/domain/validation/drawingHealth.ts`・`src/domain/quantities/recalculation.ts`・`src/app/store/editorStore.ts`・`src/app/pages/CadEditorPage.tsx` |
 | キーボードショートカット | ✅ 実装済み（#47 の一部） | Ctrl/Cmd+Z=Undo・Ctrl/Cmd+Y / Ctrl/Cmd+Shift+Z=Redo・Esc=ドラフト取消/選択解除（入力欄フォーカス時は無効）。Delete/Backspace=選択図形削除（Undo可）、数字キー1-8でツール切替。作図/編集ツールバーに role/aria-label を付与し、アイコンボタンへアクセシブル名を追加 | `src/app/pages/CadEditorPage.tsx` |
 | コマンドパレット | ✅ 実装済み（#47 の一部・v0.1.17） | Ctrl/Cmd+K で起動、ファジー検索、↑/↓/Enter/Esc操作、WAI-ARIA準拠のcombobox/listbox/optionロール。ツール切替・図面健全性チェック等をコマンド経由で実行可能。**Issue #47が提案するCADコマンドライン入力（`OFFSET 500`等のテキストコマンド）は未実装** | `src/app/pages/CadEditorPage.tsx` |
 | 自動保存（IndexedDB） | ✅ 実装・**配線済み** | 起動時に最新下書きを復元、図形/レイヤー変更をデバウンス保存、保存失敗は握り潰さず警告表示 | `src/infrastructure/autosave/`・`App.tsx`（`AutosaveManager`） |
@@ -709,6 +709,7 @@ timeline
 | [#131](../../pull/131) | **Issue #45/#63**: DXF取込ゴールデンE2E・10k図形/10MB級取込性能E2E | ✅ マージ済み（2026-08-06・`89decac`）→ v0.1.19 |
 | [#133](../../pull/133) | **Issue #114 Phases 3-4・#119**: 楽観ロックDB強制・監査チェーン直列化（migration 0006）・一覧ページネーション・メンバー管理API | ✅ マージ済み（2026-08-06・`95bdb68`）→ v0.1.19 |
 | [#134](../../pull/134) | **Issue #114 Phase 2**: リビジョン読み取り経路のSQL-first化 | ✅ マージ済み（2026-08-06・`73ea308`）→ v0.1.19 |
+| [#137](../../pull/137) | **Issue #115**: アプリ層レート制限（token bucket）: read 120req/60s・write 30req/60s・超過時 429 CD-RATE-LIMITED+Retry-After | ⏳ PRレビュー中（2026-08-06・`7df8eb9`） |
 
 > マージ済みPRは人間の明示承認（選択式Y判断）を得てマージ済み。レビュー承認1件必須はPR作成者の自己承認不可のため、PR #111までは マージ実行時に enforce_admins を一時解除し完了後に即復元していた。PR #121以降は、branch protectionの `required_approving_review_count` を 1→0 へ恒久変更（2026-08-04・人間承認済み、他の保護設定は変更なし）したため、admin bypassを伴わない通常マージ経路を使用する。PR #124〜#134は2026-08-06の /goal 指示（品質条件達成後のマージ・本番デプロイの事前承認）に基づき通常マージ経路で統合・v0.1.19として本番反映済み。
 

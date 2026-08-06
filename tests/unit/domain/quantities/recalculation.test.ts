@@ -6,6 +6,7 @@ import {
   invalidateByGeometryChange,
   recomputeQuantityItem,
   recomputeStaleItems,
+  syncQuantityItemsByGeometryDiff,
 } from '@/domain/quantities/recalculation'
 import { makeLine } from './geometryFixtures'
 
@@ -51,6 +52,45 @@ describe('invalidateByGeometryChange / stale化（§17.3・§7.2）', () => {
   it('無関係な図形の変更では stale にしない', () => {
     const invalidated = invalidateByGeometryChange([lengthItem()], ['other' as GeometryId])
     expect(invalidated[0]?.status).toBe('valid')
+  })
+})
+
+describe('syncQuantityItemsByGeometryDiff / 図面差分からの数量 state 同期（Issue #116）', () => {
+  it('同一 ID・別参照の図形変更で依存明細が stale になる', () => {
+    const items = [lengthItem()]
+    const l1 = makeLine('l1', { x: 0, y: 0 }, { x: 1000, y: 0 })
+    const l2 = makeLine('l2', { x: 0, y: 0 }, { x: 2000, y: 0 })
+    const synced = syncQuantityItemsByGeometryDiff(
+      items,
+      [l1, l2],
+      [makeLine('l1', { x: 0, y: 0 }, { x: 4000, y: 0 }), l2],
+    )
+    expect(synced[0]?.status).toBe('stale')
+  })
+
+  it('依存しない図形の変更では同じ配列参照を返す', () => {
+    const items = [lengthItem()]
+    const other = makeLine('other', { x: 0, y: 0 }, { x: 100, y: 0 })
+    const next = makeLine('other', { x: 0, y: 0 }, { x: 200, y: 0 })
+    expect(syncQuantityItemsByGeometryDiff(items, [other], [next])).toBe(items)
+  })
+
+  it('図形削除では sources を保持し unlinked-quantity の検出を可能にする', () => {
+    const items = [lengthItem()]
+    const l1 = makeLine('l1', { x: 0, y: 0 }, { x: 1000, y: 0 })
+    const l2 = makeLine('l2', { x: 0, y: 0 }, { x: 2000, y: 0 })
+    const synced = syncQuantityItemsByGeometryDiff(items, [l1, l2], [l2])
+    expect(synced).toBe(items)
+    expect(synced[0]?.sources.map((source) => source.geometryId)).toEqual(['l1', 'l2'])
+    expect(synced[0]?.status).toBe('valid')
+  })
+
+  it('図形追加では明細を変更しない（再計算まで新図形は含めない）', () => {
+    const items = [lengthItem()]
+    const l1 = makeLine('l1', { x: 0, y: 0 }, { x: 1000, y: 0 })
+    const l2 = makeLine('l2', { x: 0, y: 0 }, { x: 2000, y: 0 })
+    const l3 = makeLine('l3', { x: 0, y: 0 }, { x: 3000, y: 0 })
+    expect(syncQuantityItemsByGeometryDiff(items, [l1, l2], [l1, l2, l3])).toBe(items)
   })
 })
 

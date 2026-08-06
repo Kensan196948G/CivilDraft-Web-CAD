@@ -1,9 +1,10 @@
-import { describe, expect, it } from 'vitest'
+import { beforeEach, describe, expect, it } from 'vitest'
 import {
   CivilDraftApiClient,
   type CloudApiClientOptions,
 } from '@/infrastructure/cloud/civilDraftApiClient'
 import { createMemoryStore, handleRequest, type WorkerEnv } from '@/workers/index'
+import { resetRateLimitState } from '@/workers/rateLimit'
 import type { CivilDraftDocument } from '@/infrastructure/files'
 import type { DrawingLayer, Geometry, GeometryStyle, LayerId } from '@/shared/types'
 
@@ -66,6 +67,10 @@ function makeClient(env: WorkerEnv): CivilDraftApiClient {
     correlationId: () => 'corr-client-test',
   })
 }
+
+beforeEach(() => {
+  resetRateLimitState()
+})
 
 describe('CivilDraftApiClient', () => {
   it('Workers API P0縦線をブラウザ側クライアントから保存・再読込・Export作成できる', async () => {

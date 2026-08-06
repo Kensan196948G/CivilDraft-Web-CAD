@@ -1,4 +1,5 @@
-import { describe, expect, it, vi } from 'vitest'
+import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { resetRateLimitState } from '@/workers/rateLimit'
 import worker, {
   API_ROUTES,
   createMemoryStore,
@@ -123,6 +124,10 @@ const noopCtx: ExecutionContext = {
 function testEnv(): WorkerEnv {
   return { CIVILDRAFT_API_MODE: 'memory', CIVILDRAFT_DEV_STORE: createMemoryStore() }
 }
+
+beforeEach(() => {
+  resetRateLimitState()
+})
 
 describe('matchRoute', () => {
   it('パラメータ付き経路に一致する', () => {
@@ -887,6 +892,38 @@ describe('§25.2 ルーティング', () => {
       )
       expect(res.status).not.toBe(501)
     }
+  })
+})
+
+describe('レート制限（Issue #115）', () => {
+  it('書き込み上限超過で 429 CD-RATE-LIMITED と Retry-After を返す（読み取りは独立）', async () => {
+    const env = testEnv()
+    for (let i = 0; i < 30; i += 1) {
+      const res = await handleRequest(
+        authedRequest('POST', '/api/v1/projects', {
+          projectNumber: `P-RATELIMIT-${i}`,
+          name: 'レート制限試験',
+        }),
+        env,
+      )
+      expect(res.status).toBe(201)
+    }
+
+    // 書き込み 30 回の後でも読み取りバケットは独立して許可される
+    const readRes = await handleRequest(authedRequest('GET', '/api/v1/projects'), env)
+    expect(readRes.status).toBe(200)
+
+    const limitedRes = await handleRequest(
+      authedRequest('POST', '/api/v1/projects', {
+        projectNumber: 'P-RATELIMIT-OVER',
+        name: 'レート制限超過',
+      }),
+      env,
+    )
+    expect(limitedRes.status).toBe(429)
+    const body = await json<ApiErrorBody>(limitedRes)
+    expect(body.error.code).toBe('CD-RATE-LIMITED')
+    expect(Number(limitedRes.headers.get('Retry-After'))).toBeGreaterThanOrEqual(1)
   })
 })
 

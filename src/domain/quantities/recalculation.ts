@@ -52,13 +52,43 @@ export function buildDependencyIndex(items: readonly QuantityItem[]): Dependency
 export function invalidateByGeometryChange(
   items: readonly QuantityItem[],
   changedGeometryIds: Iterable<GeometryId>,
-): QuantityItem[] {
+): readonly QuantityItem[] {
   const changed = new Set<GeometryId>(changedGeometryIds)
+  if (changed.size === 0) return items
+  const hasDependentItem = items.some(
+    (item) =>
+      (item.status === 'valid' || item.status === 'manuallyAdjusted') &&
+      item.sources.some((source) => changed.has(source.geometryId)),
+  )
+  if (!hasDependentItem) return items
   return items.map((item) => {
     if (item.status !== 'valid' && item.status !== 'manuallyAdjusted') return item
     const dependsOnChanged = item.sources.some((source) => changed.has(source.geometryId))
     return dependsOnChanged ? { ...item, status: 'stale' } : item
   })
+}
+
+/**
+ * 図面の前後差分から数量 state を同期する（Issue #116 Phase 3）。
+ *
+ * - 変更（同一 id・別参照）: 依存入力として invalidateByGeometryChange で依存明細を stale 化
+ * - 削除: sources を保持したまま（= unlinked として保持）。checkDrawingHealth が
+ *   存在しない図形 ID を参照する明細を unlinked-quantity として検出する
+ * - 追加: 明細は変更しない（都度再計算による unlinked/stale の握り潰しを防ぐ。
+ *   新図形は明細の再計算まで含めない）
+ */
+export function syncQuantityItemsByGeometryDiff(
+  items: readonly QuantityItem[],
+  prevGeometries: readonly Geometry[],
+  nextGeometries: readonly Geometry[],
+): readonly QuantityItem[] {
+  const prevById = new Map<GeometryId, Geometry>(prevGeometries.map((geometry) => [geometry.id, geometry]))
+  const changed: GeometryId[] = []
+  for (const next of nextGeometries) {
+    const prev = prevById.get(next.id)
+    if (prev !== undefined && prev !== next) changed.push(next.id)
+  }
+  return invalidateByGeometryChange(items, changed)
 }
 
 /** 現在の図形集合を ID で引く関数。削除済み図形は undefined を返す。 */
