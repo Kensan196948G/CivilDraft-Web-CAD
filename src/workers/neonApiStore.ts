@@ -34,6 +34,22 @@ import { computeEntryHash } from './auditChain'
 /** Subset of the `@neondatabase/serverless` SQL function we actually use. */
 export type SqlClient = ReturnType<typeof neon>
 
+/**
+ * リクエスト単位のロードスコープ（Issue #114 Phase 1）。
+ * neon-r2 モードではリクエスト毎の全件ロードをやめ、このスコープで必要な
+ * サブセットだけを述語付き SELECT でロードする。undefined の場合は従来どおり
+ * 全件ロード（メモリ/dev 互換・既存テスト互換）。
+ */
+export type NeonStoreScope =
+  | { readonly kind: 'projects' }
+  | { readonly kind: 'project'; readonly projectId: string }
+  | { readonly kind: 'projectDrawings'; readonly projectId: string }
+  | { readonly kind: 'drawing'; readonly drawingId: string }
+  | { readonly kind: 'revision'; readonly revisionId: string }
+  | { readonly kind: 'export'; readonly exportId: string }
+  | { readonly kind: 'audit' }
+  | { readonly kind: 'auditVerify' }
+
 // ---------------------------------------------------------------------------
 // Row types (what comes back from SELECT)
 // ---------------------------------------------------------------------------
@@ -444,19 +460,18 @@ export class NeonApiStore implements ApiStore {
     this.#sql = sql
   }
 
-  /** Load all data from Neon into the local Maps.  Must be called once before use. */
-  async initialize(): Promise<void> {
+  /**
+   * Load data from Neon into the local Maps.  Must be called once before use.
+   * scope 指定時は該当サブセットのみを述語付き SELECT でロードする
+   * （Issue #114 Phase 1: リクエスト毎の全件ロード廃止）。
+   */
+  async initialize(scope?: NeonStoreScope): Promise<void> {
     if (this.#initialized) return
-    await Promise.all([
-      this.#loadProjects(),
-      this.#loadDrawings(),
-      this.#loadRevisions(),
-      this.#loadContents(),
-      this.#loadQuantities(),
-      this.#loadWorkflowActions(),
-      this.#loadExportJobs(),
-      this.#loadAuditLogs(),
-    ])
+    if (scope === undefined) {
+      await this.#loadAll()
+    } else {
+      await this.#initializeScoped(scope)
+    }
     this.#initialized = true
   }
 
@@ -555,6 +570,249 @@ export class NeonApiStore implements ApiStore {
 
   async #loadAuditLogs(): Promise<void> {
     const rows = await this.#sql`SELECT * FROM audit_logs ORDER BY occurred_at` as AuditLogRow[]
+    for (const row of rows) {
+      this.auditLogs.push(rowToAuditLog(row))
+    }
+  }
+
+  // -----------------------------------------------------------------------
+  // Scoped loaders (Issue #114 Phase 1)
+  // -----------------------------------------------------------------------
+
+  /** 従来互換の全件ロード。 */
+  async #loadAll(): Promise<void> {
+    await Promise.all([
+      this.#loadProjects(),
+      this.#loadDrawings(),
+      this.#loadRevisions(),
+      this.#loadContents(),
+      this.#loadQuantities(),
+      this.#loadWorkflowActions(),
+      this.#loadExportJobs(),
+      this.#loadAuditLogs(),
+    ])
+  }
+
+  /** スコープに応じた述語付きロード。 */
+  async #initializeScoped(scope: NeonStoreScope): Promise<void> {
+    switch (scope.kind) {
+      case 'projects':
+        // 案件一覧/作成: 全案件 + 全メンバーシップ（一覧の権限判定）+ 監査チェーン末尾
+        await Promise.all([
+          this.#loadProjectsAll(),
+          this.#loadProjectMembersAll(),
+          this.#loadAuditTail(),
+        ])
+        break
+      case 'project':
+        // 案件取得/更新: 全案件（projectNumber 重複チェック）+ 対象メンバー + 監査末尾
+        await Promise.all([
+          this.#loadProjectsAll(),
+          this.#loadProjectMembersByProject(scope.projectId),
+          this.#loadAuditTail(),
+        ])
+        break
+      case 'projectDrawings':
+        // 図面一覧/作成: 対象案件 + メンバー + 対象案件の図面 + 監査末尾
+        await Promise.all([
+          this.#loadProjectById(scope.projectId),
+          this.#loadProjectMembersByProject(scope.projectId),
+          this.#loadDrawingsByProject(scope.projectId),
+          this.#loadAuditTail(),
+        ])
+        break
+      case 'drawing': {
+        // 図面取得/更新・改訂作成: 図面 → 案件 → 案件の図面（番号重複）+ 改訂（番号重複）
+        const drawing = await this.#loadDrawingById(scope.drawingId)
+        if (drawing) {
+          await Promise.all([
+            this.#loadProjectById(drawing.project_id),
+            this.#loadProjectMembersByProject(drawing.project_id),
+            this.#loadDrawingsByProject(drawing.project_id),
+            this.#loadRevisionsByDrawing(drawing.id),
+            this.#loadAuditTail(),
+          ])
+        }
+        break
+      }
+      case 'revision': {
+        // 改訂系（取得/内容/数量/ワークフロー/出力）: 改訂 → 図面 → 案件 → 内容/数量
+        const revision = await this.#loadRevisionById(scope.revisionId)
+        if (revision) {
+          const drawing = await this.#loadDrawingById(revision.drawing_id)
+          await Promise.all([
+            this.#loadContentByRevision(revision.id),
+            this.#loadQuantitiesByRevision(revision.id),
+            this.#loadAuditTail(),
+            ...(drawing
+              ? [
+                  this.#loadProjectById(drawing.project_id),
+                  this.#loadProjectMembersByProject(drawing.project_id),
+                ]
+              : []),
+          ])
+        }
+        break
+      }
+      case 'export': {
+        // 出力ジョブ取得: ジョブ → 改訂 → 図面 → 案件
+        const exportJob = await this.#loadExportJobById(scope.exportId)
+        if (exportJob) {
+          const revision = await this.#loadRevisionById(exportJob.revision_id)
+          const drawing = revision ? await this.#loadDrawingById(revision.drawing_id) : undefined
+          await Promise.all([
+            this.#loadAuditTail(),
+            ...(drawing
+              ? [
+                  this.#loadProjectById(drawing.project_id),
+                  this.#loadProjectMembersByProject(drawing.project_id),
+                ]
+              : []),
+          ])
+        }
+        break
+      }
+      case 'audit':
+      case 'auditVerify':
+        // 監査検索/検証: 監査ログ全件（フィルタ・チェーン検証はハンドラ/検証器が実施）
+        await this.#loadAuditLogs()
+        break
+    }
+  }
+
+  async #loadProjectsAll(): Promise<void> {
+    const rows = await this.#sql`SELECT * FROM projects ORDER BY project_number` as ProjectRow[]
+    for (const row of rows) {
+      this.projects.set(row.id, rowToProject(row))
+    }
+  }
+
+  async #loadProjectMembersAll(): Promise<void> {
+    const rows =
+      await this.#sql`SELECT * FROM project_members ORDER BY project_id, user_id` as ProjectMemberRow[]
+    for (const row of rows) {
+      this.projectMembers.set(memberMapKey(row.project_id, row.user_id), rowToProjectMember(row))
+    }
+  }
+
+  async #loadProjectById(projectId: string): Promise<void> {
+    const rows = await this.#sql`SELECT * FROM projects WHERE id = ${projectId}` as ProjectRow[]
+    for (const row of rows) {
+      this.projects.set(row.id, rowToProject(row))
+    }
+  }
+
+  async #loadProjectMembersByProject(projectId: string): Promise<void> {
+    const rows =
+      await this.#sql`SELECT * FROM project_members WHERE project_id = ${projectId}` as ProjectMemberRow[]
+    for (const row of rows) {
+      this.projectMembers.set(memberMapKey(row.project_id, row.user_id), rowToProjectMember(row))
+    }
+  }
+
+  async #loadDrawingsByProject(projectId: string): Promise<void> {
+    const rows =
+      await this.#sql`SELECT * FROM drawings WHERE project_id = ${projectId} ORDER BY drawing_number` as DrawingRow[]
+    for (const row of rows) {
+      this.drawings.set(row.id, rowToDrawing(row))
+    }
+  }
+
+  async #loadDrawingById(drawingId: string): Promise<DrawingRow | undefined> {
+    const rows = await this.#sql`SELECT * FROM drawings WHERE id = ${drawingId}` as DrawingRow[]
+    const row = rows[0]
+    if (row) {
+      this.drawings.set(row.id, rowToDrawing(row))
+    }
+    return row
+  }
+
+  async #loadRevisionById(revisionId: string): Promise<RevisionRow | undefined> {
+    const rows =
+      await this.#sql`SELECT * FROM drawing_revisions WHERE id = ${revisionId}` as RevisionRow[]
+    const row = rows[0]
+    if (row) {
+      this.revisions.set(row.id, rowToRevision(row))
+    }
+    return row
+  }
+
+  async #loadRevisionsByDrawing(drawingId: string): Promise<void> {
+    const rows =
+      await this.#sql`SELECT * FROM drawing_revisions WHERE drawing_id = ${drawingId} ORDER BY revision_number` as RevisionRow[]
+    for (const row of rows) {
+      this.revisions.set(row.id, rowToRevision(row))
+    }
+  }
+
+  async #loadContentByRevision(revisionId: string): Promise<void> {
+    const rows =
+      await this.#sql`SELECT * FROM drawing_contents WHERE revision_id = ${revisionId}` as ContentRow[]
+    for (const row of rows) {
+      this.contents.set(row.revision_id, rowToContent(row))
+    }
+  }
+
+  async #loadQuantitiesByRevision(revisionId: string): Promise<void> {
+    const snapshots =
+      await this.#sql`SELECT * FROM quantity_snapshots WHERE revision_id = ${revisionId}` as QuantitySnapshotRow[]
+    const itemRows =
+      await this.#sql`SELECT * FROM quantity_items WHERE revision_id = ${revisionId} ORDER BY id` as QuantityItemRow[]
+    const itemIds = itemRows.map((item) => item.id)
+    const sourceRows =
+      itemIds.length === 0
+        ? []
+        : ((await this.#sql`SELECT * FROM quantity_sources WHERE quantity_item_id = ANY(${itemIds}) ORDER BY id`) as QuantitySourceRow[])
+
+    const itemMap = new Map<string, QuantityItemRow[]>()
+    for (const item of itemRows) {
+      const list = itemMap.get(item.revision_id)
+      if (list) {
+        list.push(item)
+      } else {
+        itemMap.set(item.revision_id, [item])
+      }
+    }
+    const sourceMap = new Map<string, QuantitySourceRow[]>()
+    for (const src of sourceRows) {
+      const list = sourceMap.get(src.quantity_item_id)
+      if (list) {
+        list.push(src)
+      } else {
+        sourceMap.set(src.quantity_item_id, [src])
+      }
+    }
+    for (const snap of snapshots) {
+      const items: QuantityItemRecord[] = (itemMap.get(snap.revision_id) ?? []).map((item) =>
+        rowToQuantityItem(item, sourceMap.get(item.id) ?? []),
+      )
+      this.quantities.set(snap.revision_id, {
+        revisionId: snap.revision_id,
+        items,
+        quantityVersion: toNumber(snap.quantity_version),
+        updatedAt: toIsoString(snap.updated_at),
+        updatedBy: snap.updated_by,
+      })
+    }
+  }
+
+  async #loadExportJobById(exportId: string): Promise<ExportJobRow | undefined> {
+    const rows = await this.#sql`SELECT * FROM export_jobs WHERE id = ${exportId}` as ExportJobRow[]
+    const row = rows[0]
+    if (row) {
+      this.exportJobs.set(row.id, rowToExportJob(row))
+    }
+    return row
+  }
+
+  /**
+   * 監査ハッシュチェーンの末尾 1 件のみロードする。
+   * 書き込み系リクエストで previous_hash 計算に使う（Issue #61 / #114 Phase 1）。
+   */
+  async #loadAuditTail(): Promise<void> {
+    const rows =
+      await this.#sql`SELECT * FROM audit_logs ORDER BY occurred_at DESC, id DESC LIMIT 1` as AuditLogRow[]
+    this.auditLogs.length = 0
     for (const row of rows) {
       this.auditLogs.push(rowToAuditLog(row))
     }
