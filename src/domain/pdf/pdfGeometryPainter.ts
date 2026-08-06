@@ -1,7 +1,8 @@
 /**
  * 単一Geometryの PDF ベクター描画（pdf-lib のプリミティブ／低レベルオペレータへのマッピング）。
  * 継承元: なし（新規実装、Issue #10 / 詳細設計仕様書§24.1）。描画の対応規約は
- * src/app/canvas/GeometryRenderer.tsx（Konva描画）の暫定規約に一致させる（arc掃引方向=Issue #23）。
+ * src/app/canvas/GeometryRenderer.tsx（Konva描画）の規約に一致させる
+ * （arc掃引方向: startAngleDeg→endAngleDeg の正方向=画面時計回り、Issue #23 確定）。
  *
  * 設計方針:
  * - 座標は pdfCoordinate.ts の PdfProjector（単一の真実）で内部mm→絶対PDF pt へ写像する。

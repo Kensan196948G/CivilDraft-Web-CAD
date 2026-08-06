@@ -118,10 +118,14 @@ describe('transformShape', () => {
     expect(result?.createdAt).toBe('2026-07-15T00:00:00.000Z')
   })
 
-  it('rotateCW: rectangle は幅高さを入れ替え rotationDeg に+90する', () => {
+  it('rotateCW: rectangle は寸法を維持し原点回転＋rotationDeg+90する（Issue #25）', () => {
     const result = transformShape(rectangle('r', { x: 0, y: 0 }, 10, 20, 0), 0, 0, 'rotateCW')
-    // 中心(5,10)→CW→(-10,5)、幅20 高さ10、origin=(-20,0)、rotation 90
-    expect(result).toEqual(rectangle('r', { x: -20, y: 0 }, 20, 10, 90))
+    // レンダラーが原点回りに回転するため、原点を写像＋角度+90で視覚的に90°回転と一致する
+    expect(result).toEqual(rectangle('r', { x: 0, y: 0 }, 10, 20, 90))
+  })
+  it('rotateCW: rotationDeg=90の矩形は寸法を入れ替えず rotationDeg=180になる（二重適用なし・Issue #25）', () => {
+    const result = transformShape(rectangle('r', { x: 0, y: 0 }, 10, 20, 90), 0, 0, 'rotateCW')
+    expect(result).toEqual(rectangle('r', { x: 0, y: 0 }, 10, 20, 180))
   })
 
   it('rotateCW: arc は中心を回し、角度(度数法)へ直接+90する', () => {
@@ -129,9 +133,9 @@ describe('transformShape', () => {
     expect(result).toEqual(arc('c', { x: 20, y: 0 }, 5, 90, 180))
   })
 
-  it('rotateCCW: ellipse は半長軸・半短軸を入れ替え rotationDeg に-90する', () => {
+  it('rotateCCW: ellipse は半径を維持し中心回転＋rotationDeg-90する（Issue #25）', () => {
     const result = transformShape(ellipse('e', { x: 0, y: 0 }, 4, 2, 10), 0, 0, 'rotateCCW')
-    expect(result).toEqual(ellipse('e', { x: 0, y: 0 }, 2, 4, -80))
+    expect(result).toEqual(ellipse('e', { x: 0, y: 0 }, 4, 2, -80))
   })
 
   it('mirrorV: text は基準点をY反転し rotationDeg を 180-angle にする', () => {

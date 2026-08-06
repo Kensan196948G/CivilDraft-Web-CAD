@@ -153,8 +153,17 @@ export function filletLines(
   const cy = corner.y + (bisY / bisLen) * centerDist
 
   // 中心からpA・pBへの角度（継承元はラジアンで格納。ArcGeometryは度数法へ変換）
-  const startAngle = Math.atan2(pA.y - cy, pA.x - cx)
-  const endAngle = Math.atan2(pB.y - cy, pB.x - cx)
+  let startAngle = Math.atan2(pA.y - cy, pA.x - cx)
+  let endAngle = Math.atan2(pB.y - cy, pB.x - cx)
+
+  // 掃引方向規約（Issue #23）: ArcGeometry は「startAngleDeg → endAngleDeg の正方向
+  // （画面時計回り）掃引」で解釈され、レンダラー/PDFは (end-start+360)%360 を使う。
+  // atan2 の端点順は小さい弧（≤180°）になるとは限らないため、正方向掃引が 180° を
+  // 超える場合は端点を入れ替えてフィレット弧（常に≤180°）を正しく表現する。
+  const sweepDeg = (((radToDeg(endAngle) - radToDeg(startAngle)) % 360) + 360) % 360
+  if (sweepDeg > 180) {
+    ;[startAngle, endAngle] = [endAngle, startAngle]
+  }
 
   // トリムした線分を作る。cornerIsE2ならend側、そうでなければstart側を後退点へ差し替える。
   const now = ctx.now()
