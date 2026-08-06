@@ -82,13 +82,16 @@ describe('filletLines / 正常系', () => {
     expect(result.arc.radius).toBeCloseTo(2)
   })
 
-  it('円弧角度はラジアンではなく度数法で格納される（ADR-0012）', () => {
+  it('円弧角度はラジアンではなく度数法で格納され、小さい弧（≤180°掃引）になる（ADR-0012・Issue #23）', () => {
     const result = filletLines(line('L1', 0, 0, 10, 0), line('L2', 0, 0, 0, 10), 2, detCtx())
     expect(result).not.toBeNull()
     if (!result) return
-    // atan2(-2,0)=-π/2→-90°, atan2(0,-2)=π→180°。ラジアン(-1.5708/3.1416)なら不一致になる。
-    expect(result.arc.startAngleDeg).toBeCloseTo(-90)
-    expect(result.arc.endAngleDeg).toBeCloseTo(180)
+    // atan2 の端点順は (-90°, 180°) だが正方向掃引は 270° になるため、
+    // フィレット弧（90°）を表すよう入れ替えられ (180°, -90°) になる。
+    expect(result.arc.startAngleDeg).toBeCloseTo(180)
+    expect(result.arc.endAngleDeg).toBeCloseTo(-90)
+    const sweep = ((result.arc.endAngleDeg - result.arc.startAngleDeg + 360) % 360) || 360
+    expect(sweep).toBeCloseTo(90)
   })
 
   it('端点が逆順格納（corner=end側）でもend側を正しくトリムする', () => {
