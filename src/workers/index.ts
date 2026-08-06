@@ -345,7 +345,7 @@ function persistenceUnavailableResponse(env: WorkerEnv, correlationId: string): 
     return errorResponse(
       503,
       ERROR_CODES.persistenceUnavailable,
-      "CIVILDRAFT_API_MODE が未設定または不正です（'memory' または 'neon-r2' を明示設定してください）",
+      '共有保存サービスの設定が無効なため利用できません',
       correlationId,
     )
   }
@@ -354,8 +354,8 @@ function persistenceUnavailableResponse(env: WorkerEnv, correlationId: string): 
     503,
     ERROR_CODES.persistenceUnavailable,
     readiness.ready
-      ? 'Neon永続化アダプタは未接続です'
-      : `Neon永続化に必要なbindingが未設定です: ${readiness.missingBindings.join(', ')}`,
+      ? '共有保存サービスは現在利用できません'
+      : '共有保存サービスの構成が未完了のため利用できません',
     correlationId,
   )
 }
