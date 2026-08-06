@@ -10,7 +10,7 @@
 | リポジトリ | `CivilDraft-Web-CAD` |
 | 既存技術資産 | [`Civil-Draw`](https://github.com/Kensan196948G/Civil-Draw) |
 | 開発基盤 | Claude Code on Linux＋GitHub＋Cloudflare＋Neon |
-| 現在の位置付け | **土木特化Web CADの技術プレビュー（v0.1.18）**。ブラウザ内CADコアと土木ドメイン部品は拡充中。Workers APIはP0縦線（Project作成/更新→Drawing作成/更新→Revision作成→Content/数量保存→照査/承認→Export作成→Audit検索）を実装し、本番稼働中（`civildraft-web-cad.mirai-dx-platform.com`）。2026-07-21のv0.1.0でpersistX全9ハンドラのNeon永続化配線・監査ログ永続化が本番反映され、Neon migration 0001〜0004適用済み（0003=Neon直接格納・ADR-0014、0004=ID列text整合・ADR-0015）、書き込み系fail-closed暫定措置は撤去済み。2026-07-22のv0.1.1（PR #72・Issue #68恒久対応）でpersistX複合書き込み5種を単一トランザクションへ統合し本番反映済み。2026-07-22のv0.1.2（PR #75・Issue #73恒久対応）でquantity_items孤立item解消も本番反映済み。以降、監査ログhash chain（Issue #61）・数量⇔図形連動（Issue #42）・レイヤーテンプレート・図面健全性チェック（Issue #59）・キーボードショートカット/コマンドパレット（Issue #47）を段階的に本番反映（v0.1.3〜v0.1.17）。2026-08-04のv0.1.18（PR #113/#121、Worker Version `a959db6f`）でactorId偽装対策・リクエストボディ上限等のセキュリティ強化（PR #113）と図面健全性チェック第二弾（Issue #59・数量連動配線バグ修正）を本番反映。Cloudflare Access Application設定とAccess Secret登録（人間実施）が完了するまでAPIは認証構成fail-closed（401/503）で安全に停止 |
+| 現在の位置付け | **土木特化Web CADの技術プレビュー（v0.1.19）**。ブラウザ内CADコアと土木ドメイン部品は拡充中。Workers APIはP0縦線（Project作成/更新→Drawing作成/更新→Revision作成→Content/数量保存→照査/承認→Export作成→Audit検索）を実装し、本番稼働中（`civildraft-web-cad.mirai-dx-platform.com`）。2026-07-21のv0.1.0でpersistX全9ハンドラのNeon永続化配線・監査ログ永続化が本番反映され、Neon migration 0001〜0004適用済み（0003=Neon直接格納・ADR-0014、0004=ID列text整合・ADR-0015）、書き込み系fail-closed暫定措置は撤去済み。2026-07-22のv0.1.1（PR #72・Issue #68恒久対応）でpersistX複合書き込み5種を単一トランザクションへ統合し本番反映済み。2026-07-22のv0.1.2（PR #75・Issue #73恒久対応）でquantity_items孤立item解消も本番反映済み。以降、監査ログhash chain（Issue #61）・数量⇔図形連動（Issue #42）・レイヤーテンプレート・図面健全性チェック（Issue #59）・キーボードショートカット/コマンドパレット（Issue #47）を段階的に本番反映（v0.1.3〜v0.1.17）。2026-08-04のv0.1.18（PR #113/#121、Worker Version `a959db6f`）でactorId偽装対策・リクエストボディ上限等のセキュリティ強化（PR #113）と図面健全性チェック第二弾（Issue #59・数量連動配線バグ修正）を本番反映。2026-08-06のv0.1.19（PR #124〜#134、Worker Version `aa76014d`）でP1全解消。続いてIssue #116（数量明細のstate化・PR #138）とIssue #115（アプリ層レート制限・PR #137）をマージ済み（本番デプロイは人間実施待ち）。Cloudflare Access Application設定とAccess Secret登録（人間実施）が完了するまでAPIは認証構成fail-closed（401/503）で安全に停止 |
 
 ---
 
@@ -619,6 +619,7 @@ timeline
 | 2026-08-02 | 🚀 **v0.1.17 本番デプロイ**（PR #110/#111・事前承認）: コマンドパレット（Ctrl/Cmd+K・ファジー検索・↑/↓/Enter/Esc・WAI-ARIA combobox/listbox/option・#47）、Delete/Backspace選択削除（Undo可）、数字キー1-8ツール切替。併せて合成監視workflowのpush誤トリガー真因（`--body`複数行文字列のインデント崩れによるYAML構文エラー）を修正し、CIにworkflow YAML検証（`scripts/validate-workflows.py`）を追加。main最終`7679c7b`のCI全5ジョブsuccess → wrangler deploy（Worker Version `b6ae0a7f`）。スモーク全PASS・テスト113ファイル/1287件（[Release v0.1.17](../../releases/tag/v0.1.17)） |
 | 2026-08-04 | 🚀 **v0.1.18 本番デプロイ**（PR #113/#121/#122・PR #121はユーザー承認Y→通常マージ経路）: 図面健全性チェック第二弾（Issue #59・未接続数量/stale数量/未対応DXF要素/デフォルトレイヤー配置/未承認改訂の5チェック+`DrawingHealthContext`経由の数量連動配線バグ修正、PR #121）、actorId偽装対策・リクエストボディ上限・依存更新（PR #113）、docs実態同期（PR #122）。CLOUDFLARE_API_TOKENローテーション（Workers Scripts:Edit付与）でデプロイBLOCKERを解消し、main最終`4033a44`のCI全チェックsuccess → wrangler deploy（Worker Version `a959db6f`、2026-08-04T13:32:55Z）。スモーク全PASS（SPA 200×2/API 401 CD-AUTH-001/ヘッダー5種）・Observability健全・テスト113ファイル/1300件（[Release v0.1.18](../../releases/tag/v0.1.18)） |
 | 2026-08-06 | 🚀 **v0.1.19 本番デプロイ**（PR #124〜#134・/goal事前承認）: **P1全解消**。Issue #117（Ctrl+Z/Y二重発火・PR #126）、#118（DXF取込UI配線・PR #130）、#114（Neon永続化層: Phase1スコープ付きロード #127 / Phase2リビジョン読み取りSQL-first #134 / Phase3楽観ロックDB強制・Phase4監査ハッシュチェーン直列化（migration 0006）・一覧ページネーション・#119メンバー管理API #133）、#45/#63（PlaywrightライフサイクルE2E・性能ベンチマークCI閾値・DXF取込ゴールデン/10k性能E2E・#128/#131）、#129（PDF出力メタデータ決定性）、#36/#37/#38（受入基準充足を証跡付きクローズ）。main最終`95bdb68`のCI全チェックsuccess・ローカル1324テストPASS → wrangler deploy（Worker Version `aa76014d`、2026-08-06T00:58:00Z）。スモーク全PASS（SPA 200×2/API 401 CD-AUTH-001/メンバーAPI経路401/ヘッダー5種）（[Release v0.1.19](../../releases/tag/v0.1.19)） |
+| 2026-08-06 | 🧩 **Issue #116 / #115 完了**（PR #138/#137・通常マージ経路）: 図面健全性チェックPhase 3・数量明細のstate化（editor storeの`quantityItems`+`recalculateQuantities`・`syncQuantityItemsByGeometryDiff`差分同期）で、図形削除→unlinked-quantity・幾何変更→stale-quantityを実検出、「数量を再計算」ボタンでstatus=validへ復元。アプリ層レート制限（token bucket・429 CD-RATE-LIMITED）はWorker側で実装済み。main最終`9ce21b5`のCI全チェックsuccess・テスト1337件。**本番デプロイは人間実施待ち** |
 
 ### 🛠️ 次に閉じるべき実務ワークフロー
 
@@ -709,7 +710,10 @@ timeline
 | [#131](../../pull/131) | **Issue #45/#63**: DXF取込ゴールデンE2E・10k図形/10MB級取込性能E2E | ✅ マージ済み（2026-08-06・`89decac`）→ v0.1.19 |
 | [#133](../../pull/133) | **Issue #114 Phases 3-4・#119**: 楽観ロックDB強制・監査チェーン直列化（migration 0006）・一覧ページネーション・メンバー管理API | ✅ マージ済み（2026-08-06・`95bdb68`）→ v0.1.19 |
 | [#134](../../pull/134) | **Issue #114 Phase 2**: リビジョン読み取り経路のSQL-first化 | ✅ マージ済み（2026-08-06・`73ea308`）→ v0.1.19 |
-| [#137](../../pull/137) | **Issue #115**: アプリ層レート制限（token bucket）: read 120req/60s・write 30req/60s・超過時 429 CD-RATE-LIMITED+Retry-After | ⏳ PRレビュー中（2026-08-06・`7df8eb9`） |
+| [#135](../../pull/135) | v0.1.19本番デプロイ・P1全解消の実態同期（README/state.json） | ✅ マージ済み（2026-08-06・`1fea06e`） |
+| [#136](../../pull/136) | 本番完成セッションのGO判定書追加（#45/#63/#114/#117/#118/#119完了証跡） | ✅ マージ済み（2026-08-06・`d48599d`） |
+| [#137](../../pull/137) | **Issue #115**: アプリ層レート制限（token bucket）: read 120req/60s・write 30req/60s・超過時 429 CD-RATE-LIMITED+Retry-After | ✅ マージ済み（2026-08-06・`9ce21b5`）→ 本番デプロイは人間実施待ち |
+| [#138](../../pull/138) | **Issue #116**: 図面健全性チェックPhase 3・数量明細のstate化（editor store保持+差分同期）でunlinked/stale-quantityを実検出・「数量を再計算」ボタン追加 | ✅ マージ済み（2026-08-06・`67aed71`・CI全6チェックpass）→ 本番デプロイは人間実施待ち |
 
 > マージ済みPRは人間の明示承認（選択式Y判断）を得てマージ済み。レビュー承認1件必須はPR作成者の自己承認不可のため、PR #111までは マージ実行時に enforce_admins を一時解除し完了後に即復元していた。PR #121以降は、branch protectionの `required_approving_review_count` を 1→0 へ恒久変更（2026-08-04・人間承認済み、他の保護設定は変更なし）したため、admin bypassを伴わない通常マージ経路を使用する。PR #124〜#134は2026-08-06の /goal 指示（品質条件達成後のマージ・本番デプロイの事前承認）に基づき通常マージ経路で統合・v0.1.19として本番反映済み。
 
