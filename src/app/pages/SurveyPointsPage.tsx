@@ -24,6 +24,7 @@ import {
   parseSurveyCsv,
   validateCoordinateSystemSettings,
 } from '@/domain/survey'
+import { exportSurveyGeoJson } from '@/domain/survey/surveyGeoJson'
 import { createAddGeometryCommand } from '@/domain/commands/geometryCommands'
 import { defaultCreationContext, type GeometryCreationContext } from '@/domain/geometry/geometryFactory'
 import { useEditorStore, useEditorStoreApi } from '@/app/store/useEditorStore'
@@ -139,6 +140,18 @@ export function SurveyPointsPage({ creationContext = defaultCreationContext }: S
     const anchor = document.createElement('a')
     anchor.href = url
     anchor.download = 'survey-points.csv'
+    anchor.click()
+    URL.revokeObjectURL(url)
+  }
+
+  const handleExportGeoJson = () => {
+    if (points.length === 0) return
+    const geojson = exportSurveyGeoJson(points, { name: 'CivilDraft Survey Points' })
+    const blob = new Blob([geojson], { type: 'application/geo+json;charset=utf-8' })
+    const url = URL.createObjectURL(blob)
+    const anchor = document.createElement('a')
+    anchor.href = url
+    anchor.download = 'survey-points.geojson'
     anchor.click()
     URL.revokeObjectURL(url)
   }
@@ -362,6 +375,14 @@ export function SurveyPointsPage({ creationContext = defaultCreationContext }: S
                   disabled={points.length === 0}
                 >
                   CSV出力
+                </button>
+                <button
+                  type="button"
+                  style={ghostButtonStyle}
+                  onClick={handleExportGeoJson}
+                  disabled={points.length === 0}
+                >
+                  GeoJSON出力
                 </button>
                 <button
                   type="button"
