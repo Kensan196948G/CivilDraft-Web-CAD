@@ -41,8 +41,8 @@ function seqContext(): GeometryCreationContext {
 }
 
 describe('TEMPLATE_CATALOG', () => {
-  it('エントリ数は6でidは一意', () => {
-    expect(TEMPLATE_CATALOG).toHaveLength(6)
+  it('エントリ数は7でidは一意', () => {
+    expect(TEMPLATE_CATALOG).toHaveLength(7)
     const ids = TEMPLATE_CATALOG.map((t) => t.id)
     expect(new Set(ids).size).toBe(ids.length)
   })
@@ -61,9 +61,9 @@ describe('TEMPLATE_CATALOG', () => {
     }
   })
 
-  it('categoryは4種（仮設/土工/舗装/測量）のいずれか', () => {
+  it('categoryは5種（仮設/土工/舗装/測量/図面枠）のいずれか', () => {
     for (const t of TEMPLATE_CATALOG) {
-      expect(['仮設', '土工', '舗装', '測量']).toContain(t.category)
+      expect(['仮設', '土工', '舗装', '測量', '図面枠']).toContain(t.category)
     }
   })
 })
@@ -169,5 +169,17 @@ describe('getTemplateById', () => {
 
   it('存在しないidでundefinedを返す', () => {
     expect(getTemplateById('no-such-id')).toBeUndefined()
+  })
+
+  it('表題欄テンプレート（A3）を取得・実体化できる（Issue #46）', () => {
+    const tpl = getTemplateById('title-block-a3')
+    expect(tpl?.category).toBe('図面枠')
+    expect(tpl?.shapes.length).toBeGreaterThan(10)
+
+    const geometries = instantiateTemplate(tpl!, { layerId: 'layer-1' as LayerId, style }, seqContext())
+    expect(geometries.some((g) => g.type === 'rectangle')).toBe(true)
+    expect(geometries.some((g) => g.type === 'line')).toBe(true)
+    expect(geometries.some((g) => g.type === 'text')).toBe(true)
+    expect(new Set(geometries.map((g) => g.id)).size).toBe(geometries.length)
   })
 })
