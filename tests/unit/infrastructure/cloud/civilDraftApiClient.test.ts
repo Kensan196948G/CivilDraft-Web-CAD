@@ -131,6 +131,30 @@ describe('CivilDraftApiClient', () => {
     expect(result.error.message).not.toMatch(/CIVILDRAFT_NEON_CONNECTION|binding/i)
   })
 
+  it('409/428 の API エラーコードを apiErrorCode として透過する（#114 楽観ロック競合UX用）', async () => {
+    const client = new CivilDraftApiClient({
+      baseUrl: 'https://api.example.test',
+      fetch: async () =>
+        new Response(
+          JSON.stringify({
+            error: {
+              code: 'CD-CONFLICT-001',
+              message: 'project.version が一致しません（expected=1, current=2）',
+            },
+            correlationId: 'corr-conflict',
+          }),
+          { status: 409, headers: { 'Content-Type': 'application/json' } },
+        ),
+    })
+
+    const result = await client.createProject({ projectNumber: 'P-CONFLICT', name: '競合テスト' })
+    expect(result.ok).toBe(false)
+    if (result.ok) return
+    expect(result.error.code).toBe('CLOUD_API_HTTP')
+    expect(result.error.apiErrorCode).toBe('CD-CONFLICT-001')
+    expect(result.error.message).toContain('一致しません')
+  })
+
   it('listAuditLogs で監査ログ一覧を取得できる（Issue #61）', async () => {
     const env: WorkerEnv = { CIVILDRAFT_API_MODE: 'memory', CIVILDRAFT_DEV_STORE: createMemoryStore() }
     const client = makeClient(env)

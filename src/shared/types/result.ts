@@ -13,4 +13,6 @@ export interface ValidationIssue {
   readonly field?: string
   readonly entityId?: string
   readonly message: string
+  /** Workers API の構造化エラーコード（例: CD-CONFLICT-001）。UI の分岐に使う。 */
+  readonly apiErrorCode?: string
 }

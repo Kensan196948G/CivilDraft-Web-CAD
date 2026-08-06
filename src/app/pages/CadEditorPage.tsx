@@ -695,6 +695,7 @@ export function CadEditorPage({
   } | null>(null)
   const [cloudSaving, setCloudSaving] = useState(false)
   const [lastCloudRevisionId, setLastCloudRevisionId] = useState<string | null>(null)
+  const [cloudConflict, setCloudConflict] = useState(false)
   const [editNotice, setEditNotice] = useState<string | null>(null)
   const [selectedTemplateId, setSelectedTemplateId] = useState<string>(LAYER_TEMPLATES[0]?.id ?? '')
   const [healthOpen, setHealthOpen] = useState(false)
@@ -949,6 +950,7 @@ export function CadEditorPage({
       return
     }
     setCloudSaving(true)
+    setCloudConflict(false)
     setCloudSaveStatus({ ok: true, text: '共有保存中...' })
     try {
       const result = await apiClient.saveDraft(buildCloudSaveInput(cloudDraftSession, s.geometries, s.layers))
@@ -959,7 +961,16 @@ export function CadEditorPage({
           text: `共有保存済み: ${result.value.project.projectNumber} / ${result.value.drawing.drawingNumber}`,
         })
       } else {
-        setCloudSaveStatus({ ok: false, text: `共有保存失敗: ${result.error.message}` })
+        const isConflict =
+          result.error.apiErrorCode === 'CD-CONFLICT-001' ||
+          result.error.apiErrorCode === 'CD-CONFLICT-002'
+        setCloudConflict(isConflict)
+        setCloudSaveStatus({
+          ok: false,
+          text: isConflict
+            ? '共有保存失敗: サーバ上の図面が更新されています。最新版を再読込してください'
+            : `共有保存失敗: ${result.error.message}`,
+        })
       }
     } catch (err) {
       setCloudSaveStatus({ ok: false, text: `共有保存失敗: ${String(err)}` })
@@ -1001,6 +1012,7 @@ export function CadEditorPage({
       return
     }
     setCloudSaving(true)
+    setCloudConflict(false)
     setCloudSaveStatus({ ok: true, text: '共有再読込中...' })
     try {
       const result = await apiClient.getRevisionContent(lastCloudRevisionId)
@@ -1148,6 +1160,18 @@ export function CadEditorPage({
           <span style={statusBadgeStyle(cloudSaveStatus.ok ? '#1F8255' : '#C5392F', cloudSaveStatus.ok ? '#E4F3EC' : '#FCE9E7')}>
             {cloudSaveStatus.text}
           </span>
+        )}
+        {cloudConflict && (
+          <button
+            type="button"
+            style={ghostButtonStyle}
+            aria-label="サーバの最新版を再読込"
+            onClick={() => {
+              void runCloudReload()
+            }}
+          >
+            ⚠️ 最新版を再読込
+          </button>
         )}
         <button
           title="元に戻す"
