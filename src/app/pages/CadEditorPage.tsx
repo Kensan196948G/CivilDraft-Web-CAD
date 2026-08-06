@@ -23,6 +23,7 @@ import { useEditorStore, useEditorStoreApi } from '../store/useEditorStore'
 import { getCategories, SYMBOL_CATALOG } from '@/domain/catalog/symbolCatalog'
 import {
   createAddGeometryCommand,
+  createBulkUpdateGeometriesCommand,
   createDeleteGeometriesCommand,
   createImportDocumentCommand,
   createUpdateGeometryCommand,
@@ -886,6 +887,37 @@ export function CadEditorPage({
     storeApi.getState().dispatchCommand(createUpdateGeometryCommand(selected, next))
   }
 
+  /** 複数選択図形への一括スタイル適用（Issue #39）。ロックレイヤーは除外し1 undo で反映。 */
+  const bulkApplyStyle = (patch: Partial<GeometryStyle>) => {
+    const pairs = selectedGeometries
+      .filter((g) => !layers.find((l) => l.id === g.layerId)?.locked)
+      .map((g) => ({ before: g, after: withUpdatedAt(g, { style: { ...g.style, ...patch } }) }))
+    if (pairs.length === 0) {
+      setEditNotice('ロックされたレイヤーの図形は変更できません')
+      return
+    }
+    if (pairs.length < selectedGeometries.length) {
+      setEditNotice(`ロック済みレイヤーの ${selectedGeometries.length - pairs.length} 件は変更しませんでした`)
+    } else {
+      setEditNotice(null)
+    }
+    storeApi.getState().dispatchCommand(createBulkUpdateGeometriesCommand(pairs))
+  }
+
+  /** 複数選択図形の一括レイヤー移動（Issue #39）。 */
+  const bulkApplyLayer = (layerId: LayerId) => {
+    if (layerId === '') return
+    const pairs = selectedGeometries
+      .filter((g) => g.layerId !== layerId && !layers.find((l) => l.id === g.layerId)?.locked)
+      .map((g) => ({ before: g, after: withUpdatedAt(g, { layerId }) }))
+    if (pairs.length === 0) {
+      setEditNotice('ロックされたレイヤーの図形は変更できません')
+      return
+    }
+    setEditNotice(null)
+    storeApi.getState().dispatchCommand(createBulkUpdateGeometriesCommand(pairs))
+  }
+
   const handlePlaceText = () => {
     const point = draftPoints[0]
     if (point === undefined || textInputValue.trim() === '') return
@@ -1731,7 +1763,71 @@ export function CadEditorPage({
             <div style={{ color: 'var(--muted)', fontSize: 12.5 }}>図形を選択すると詳細が表示されます。</div>
           )}
           {selectedGeometries.length > 1 && (
-            <div style={{ color: 'var(--ink2)', fontSize: 12.5 }}>{selectedGeometries.length}件選択中（複数選択時は編集できません）</div>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+              <div style={{ color: 'var(--ink2)', fontSize: 12.5 }}>
+                {selectedGeometries.length}件選択中（一括編集）
+              </div>
+              <div style={fieldRowStyle}>
+                <span style={fieldLabelStyle}>線色</span>
+                <input
+                  type="color"
+                  aria-label="一括: 線色"
+                  defaultValue="#000000"
+                  onChange={(e) => bulkApplyStyle({ strokeColor: e.target.value })}
+                />
+              </div>
+              <div style={fieldRowStyle}>
+                <span style={fieldLabelStyle}>線幅</span>
+                <input
+                  type="number"
+                  aria-label="一括: 線幅"
+                  defaultValue={1}
+                  min={0.1}
+                  step={0.5}
+                  style={editParamInputStyle}
+                  onChange={(e) => bulkApplyStyle({ strokeWidth: Math.max(0.1, Number(e.target.value) || 1) })}
+                />
+              </div>
+              <div style={fieldRowStyle}>
+                <span style={fieldLabelStyle}>線種</span>
+                <select
+                  aria-label="一括: 線種"
+                  defaultValue="continuous"
+                  style={miniSelectStyle}
+                  onChange={(e) => bulkApplyStyle({ lineType: e.target.value as GeometryStyle['lineType'] })}
+                >
+                  <option value="continuous">実線</option>
+                  <option value="dashed">破線</option>
+                  <option value="dashDot">一点鎖線</option>
+                  <option value="dotted">点線</option>
+                </select>
+              </div>
+              <div style={fieldRowStyle}>
+                <span style={fieldLabelStyle}>印刷</span>
+                <input
+                  type="checkbox"
+                  aria-label="一括: 印刷"
+                  defaultChecked
+                  onChange={(e) => bulkApplyStyle({ printable: e.target.checked })}
+                />
+              </div>
+              <div style={fieldRowStyle}>
+                <span style={fieldLabelStyle}>レイヤー</span>
+                <select
+                  aria-label="一括: レイヤー移動"
+                  defaultValue=""
+                  style={miniSelectStyle}
+                  onChange={(e) => bulkApplyLayer(e.target.value as LayerId)}
+                >
+                  <option value="">移動先を選択</option>
+                  {layers.map((l) => (
+                    <option key={l.id} value={l.id}>
+                      {l.name}
+                    </option>
+                  ))}
+                </select>
+              </div>
+            </div>
           )}
           {selected !== null && (
             <>

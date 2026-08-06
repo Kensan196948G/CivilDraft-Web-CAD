@@ -21,6 +21,14 @@ describe('SYMBOL_CATALOG / データ整合性', () => {
     expect(ids.length).toBeGreaterThan(0)
   })
 
+  it('土木現場用の追加記号（防護柵・電柱・樹木・水道バルブ）が取得できる（Issue #41）', () => {
+    for (const id of ['guardrail', 'utility-pole', 'tree', 'water-valve']) {
+      const def = getSymbolById(id)
+      expect(def).toBeDefined()
+      expect(def?.paths.length).toBeGreaterThan(0)
+    }
+  })
+
   it('全エントリがname/category/size/pathsを備え、pathsが空でない', () => {
     for (const def of SYMBOL_CATALOG) {
       expect(def.name.length).toBeGreaterThan(0)
