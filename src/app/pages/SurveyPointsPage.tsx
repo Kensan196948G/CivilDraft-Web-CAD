@@ -25,6 +25,7 @@ import {
   validateCoordinateSystemSettings,
 } from '@/domain/survey'
 import { exportSurveyGeoJson } from '@/domain/survey/surveyGeoJson'
+import { exportSurveyLandXml } from '@/domain/survey/surveyLandXml'
 import { createAddGeometryCommand } from '@/domain/commands/geometryCommands'
 import { defaultCreationContext, type GeometryCreationContext } from '@/domain/geometry/geometryFactory'
 import { useEditorStore, useEditorStoreApi } from '@/app/store/useEditorStore'
@@ -152,6 +153,18 @@ export function SurveyPointsPage({ creationContext = defaultCreationContext }: S
     const anchor = document.createElement('a')
     anchor.href = url
     anchor.download = 'survey-points.geojson'
+    anchor.click()
+    URL.revokeObjectURL(url)
+  }
+
+  const handleExportLandXml = () => {
+    if (points.length === 0) return
+    const xml = exportSurveyLandXml(points, { name: 'CivilDraft Survey Points' })
+    const blob = new Blob([xml], { type: 'application/xml;charset=utf-8' })
+    const url = URL.createObjectURL(blob)
+    const anchor = document.createElement('a')
+    anchor.href = url
+    anchor.download = 'survey-points.landxml'
     anchor.click()
     URL.revokeObjectURL(url)
   }
@@ -383,6 +396,14 @@ export function SurveyPointsPage({ creationContext = defaultCreationContext }: S
                   disabled={points.length === 0}
                 >
                   GeoJSON出力
+                </button>
+                <button
+                  type="button"
+                  style={ghostButtonStyle}
+                  onClick={handleExportLandXml}
+                  disabled={points.length === 0}
+                >
+                  LandXML出力
                 </button>
                 <button
                   type="button"
