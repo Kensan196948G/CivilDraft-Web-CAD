@@ -33,6 +33,24 @@ function line(gid: string): Geometry {
   }
 }
 
+function rectangle(gid: string, width = 100, height = 50): Geometry {
+  const layer = createDefaultLayer()
+  return {
+    id: gid as GeometryId,
+    layerId: layer.id,
+    type: 'rectangle',
+    style: layer.defaultStyle,
+    constructionStepIds: [],
+    locked: false,
+    createdAt: '2026-07-17T00:00:00.000Z',
+    updatedAt: '2026-07-17T00:00:00.000Z',
+    origin: { x: 0, y: 0 },
+    width,
+    height,
+    rotationDeg: 0,
+  }
+}
+
 function renderPage(
   store: EditorStore,
   cloudApiClient: CloudSaveClient,
@@ -121,6 +139,42 @@ describe('CadEditorPage cloud save', () => {
 
     store.getState().undo()
     expect(store.getState().geometries.every((g) => g.style.lineType === 'continuous')).toBe(true)
+  })
+
+  it('複数選択時の「分解」で矩形が4辺になり、undoで戻る（Issue #39残）', async () => {
+    const store = createEditorStore()
+    store.getState().addGeometries([rectangle('r-1')])
+    store.getState().select(['r-1' as GeometryId])
+    const cloudApiClient: CloudSaveClient = { saveDraft: vi.fn(), getRevisionContent: vi.fn() }
+    renderPage(store, cloudApiClient)
+
+    fireEvent.click(screen.getByRole('button', { name: '分解' }))
+    await waitFor(() => {
+      expect(store.getState().geometries).toHaveLength(4)
+      expect(store.getState().geometries.every((g) => g.type === 'line')).toBe(true)
+    })
+
+    store.getState().undo()
+    await waitFor(() => expect(store.getState().geometries).toHaveLength(1))
+    expect(store.getState().geometries[0]?.type).toBe('rectangle')
+  })
+
+  it('複数選択時の「結合」で同一直線上の2線分が1本になる（Issue #39残）', async () => {
+    const store = createEditorStore()
+    const lineB: Geometry = { ...line('b'), start: { x: 1000, y: 0 }, end: { x: 2000, y: 0 } }
+    store.getState().addGeometries([line('a'), lineB])
+    store.getState().select(['a' as GeometryId, 'b' as GeometryId])
+    const cloudApiClient: CloudSaveClient = { saveDraft: vi.fn(), getRevisionContent: vi.fn() }
+    renderPage(store, cloudApiClient)
+
+    fireEvent.click(screen.getByRole('button', { name: '結合' }))
+    await waitFor(() => expect(store.getState().geometries).toHaveLength(1))
+    const merged = store.getState().geometries[0]!
+    expect(merged.type).toBe('line')
+    if (merged.type === 'line') {
+      expect(merged.start).toEqual({ x: 0, y: 0 })
+      expect(merged.end).toEqual({ x: 2000, y: 0 })
+    }
   })
 
   it('図形が無い場合は共有保存を実行せず、画面に理由を表示する', async () => {
