@@ -1,6 +1,12 @@
 import { describe, expect, it } from 'vitest'
 import { createEditorStore, MAX_ZOOM, MIN_ZOOM } from '@/app/store/editorStore'
 import { LAYER_TEMPLATES } from '@/domain/catalog/layerTemplates'
+import {
+  createAddGeometryCommand,
+  createDeleteGeometriesCommand,
+  createUpdateGeometryCommand,
+} from '@/domain/commands/geometryCommands'
+import { checkDrawingHealth } from '@/domain/validation/drawingHealth'
 import type {
   DrawingLayer,
   Geometry,
@@ -338,5 +344,120 @@ describe('EditorStore / レイヤーテンプレート適用（Issue #40）', ()
     const count = store.getState().layers.length
     store.getState().applyLayerTemplate('unknown')
     expect(store.getState().layers.length).toBe(count)
+  })
+})
+
+describe('EditorStore / 数量 state 同期（Issue #116 Phase 3）', () => {
+  function doc(store: ReturnType<typeof createEditorStore>) {
+    const s = store.getState()
+    return { geometries: s.geometries, layers: s.layers }
+  }
+
+  it('replaceDocument で現図面から数量明細が算出される', () => {
+    const store = createEditorStore()
+    store.getState().replaceDocument([circle('a', 0, 0, 5)], [layer('L1', '外形線')])
+    const items = store.getState().quantityItems
+    expect(items).toHaveLength(1)
+    expect(items[0]?.method).toBe('area')
+    expect(items[0]?.status).toBe('valid')
+    expect(items[0]?.sources.map((source) => source.geometryId)).toEqual(['a'])
+  })
+
+  it('図形削除後も quantityItems が sources を保持し unlinked-quantity を検出する', () => {
+    const store = createEditorStore()
+    const a = { ...circle('a', 0, 0, 5), layerId: 'L1' as LayerId }
+    const b = { ...circle('b', 100, 100, 5), layerId: 'L1' as LayerId }
+    store.getState().replaceDocument([a, b], [layer('L1', '外形線')])
+    store
+      .getState()
+      .dispatchCommand(createDeleteGeometriesCommand(doc(store), [id('a')]))
+    expect(store.getState().quantityItems[0]?.sources.map((source) => source.geometryId)).toEqual(['a', 'b'])
+
+    const result = checkDrawingHealth(
+      doc(store),
+      {},
+      { quantities: store.getState().quantityItems },
+    )
+    const issue = result.issues.find((i) => i.code === 'unlinked-quantity')
+    expect(issue?.count).toBe(1)
+    expect(issue?.geometryIds).toContain('a')
+  })
+
+  it('削除を undo すると unlinked-quantity が解消される', () => {
+    const store = createEditorStore()
+    const a = { ...circle('a', 0, 0, 5), layerId: 'L1' as LayerId }
+    const b = { ...circle('b', 100, 100, 5), layerId: 'L1' as LayerId }
+    store.getState().replaceDocument([a, b], [layer('L1', '外形線')])
+    store
+      .getState()
+      .dispatchCommand(createDeleteGeometriesCommand(doc(store), [id('a')]))
+    store.getState().undo()
+
+    const result = checkDrawingHealth(
+      doc(store),
+      {},
+      { quantities: store.getState().quantityItems },
+    )
+    expect(result.issues.find((i) => i.code === 'unlinked-quantity')).toBeUndefined()
+  })
+
+  it('図形変更で依存明細が stale になり、再計算で解消される', () => {
+    const store = createEditorStore()
+    const a = { ...circle('a', 0, 0, 5), layerId: 'L1' as LayerId }
+    store.getState().replaceDocument([a], [layer('L1', '外形線')])
+    store
+      .getState()
+      .dispatchCommand(createUpdateGeometryCommand(a, { ...a, center: { x: 500, y: 500 } }))
+
+    expect(store.getState().quantityItems[0]?.status).toBe('stale')
+    const staleResult = checkDrawingHealth(
+      doc(store),
+      {},
+      { quantities: store.getState().quantityItems },
+    )
+    expect(staleResult.issues.find((i) => i.code === 'stale-quantity')?.count).toBe(1)
+
+    store.getState().recalculateQuantities()
+    expect(store.getState().quantityItems[0]?.status).toBe('valid')
+    const fixedResult = checkDrawingHealth(
+      doc(store),
+      {},
+      { quantities: store.getState().quantityItems },
+    )
+    expect(fixedResult.issues.find((i) => i.code === 'stale-quantity')).toBeUndefined()
+  })
+
+  it('直接 updateGeometry / removeGeometries でも数量 state が同期される', () => {
+    const store = createEditorStore()
+    const a = { ...circle('a', 0, 0, 5), layerId: 'L1' as LayerId }
+    store.getState().replaceDocument([a], [layer('L1', '外形線')])
+
+    store.getState().updateGeometry({ ...a, center: { x: 300, y: 300 } })
+    expect(store.getState().quantityItems[0]?.status).toBe('stale')
+
+    store.getState().removeGeometries([id('a')])
+    const result = checkDrawingHealth(
+      doc(store),
+      {},
+      { quantities: store.getState().quantityItems },
+    )
+    expect(result.issues.find((i) => i.code === 'unlinked-quantity')?.count).toBe(1)
+  })
+
+  it('addGeometries は数量 state を変更しない（再計算まで新図形は含めない）', () => {
+    const store = createEditorStore()
+    store.getState().replaceDocument([circle('a', 0, 0, 5)], [layer('L1', '外形線')])
+    const before = store.getState().quantityItems
+    store.getState().addGeometries([circle('b', 200, 200, 5)])
+    expect(store.getState().quantityItems).toBe(before)
+    expect(store.getState().quantityItems[0]?.sources).toHaveLength(1)
+  })
+
+  it('dispatchCommand の ADD_GEOMETRY は quantityItems の参照を維持する', () => {
+    const store = createEditorStore()
+    store.getState().replaceDocument([circle('a', 0, 0, 5)], [layer('L1', '外形線')])
+    const before = store.getState().quantityItems
+    store.getState().dispatchCommand(createAddGeometryCommand(circle('b', 200, 200, 5)))
+    expect(store.getState().quantityItems).toBe(before)
   })
 })
