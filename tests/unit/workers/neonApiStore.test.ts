@@ -1087,3 +1087,111 @@ describe('NeonApiStore', () => {
     })
   })
 })
+
+describe('NeonApiStore scoped initialize（Issue #114 Phase 1）', () => {
+  function queryTexts(sql: SqlClient): readonly string[] {
+    return sqlCalls(sql).map((call) => call[0]?.join('') ?? '')
+  }
+
+  it('project スコープは全案件・対象メンバー・監査末尾のみロードし、図面/改訂/内容は SELECT しない', async () => {
+    const sql = makeSqlClient({
+      'FROM projects ORDER BY project_number': [projectRow()],
+      'FROM project_members WHERE project_id': [memberRow()],
+      'FROM audit_logs ORDER BY occurred_at DESC, id DESC LIMIT 1': [auditLogRow()],
+    })
+    const store = new NeonApiStore(sql)
+    await store.initialize({ kind: 'project', projectId: 'proj-1' })
+
+    expect(store.projects.get('proj-1')?.name).toBe('国道245号')
+    expect(store.projectMembers.get('proj-1:user@test')?.role).toBe('manager')
+    expect(store.auditLogs).toHaveLength(1)
+    expect(store.drawings.size).toBe(0)
+    expect(store.revisions.size).toBe(0)
+    expect(store.contents.size).toBe(0)
+    const texts = queryTexts(sql)
+    expect(texts.some((t) => t.includes('FROM drawings'))).toBe(false)
+    expect(texts.some((t) => t.includes('FROM drawing_revisions'))).toBe(false)
+    expect(texts.some((t) => t.includes('FROM drawing_contents'))).toBe(false)
+  })
+
+  it('drawing スコープは図面→案件→案件の図面/改訂と監査末尾を述語付きでロードする', async () => {
+    const sql = makeSqlClient({
+      'FROM drawings WHERE id': [drawingRow()],
+      'FROM projects WHERE id': [projectRow()],
+      'FROM project_members WHERE project_id': [memberRow()],
+      'FROM drawings WHERE project_id': [drawingRow()],
+      'FROM drawing_revisions WHERE drawing_id': [revisionRow()],
+      'FROM audit_logs ORDER BY occurred_at DESC, id DESC LIMIT 1': [auditLogRow()],
+    })
+    const store = new NeonApiStore(sql)
+    await store.initialize({ kind: 'drawing', drawingId: 'draw-1' })
+
+    expect(store.drawings.get('draw-1')?.projectId).toBe('proj-1')
+    expect(store.projects.get('proj-1')?.id).toBe('proj-1')
+    expect(store.projectMembers.get('proj-1:user@test')?.role).toBe('manager')
+    expect(store.revisions.get('rev-1')?.drawingId).toBe('draw-1')
+    expect(store.auditLogs).toHaveLength(1)
+    expect(store.contents.size).toBe(0)
+    expect(queryTexts(sql).some((t) => t.includes('FROM drawing_contents'))).toBe(false)
+  })
+
+  it('revision スコープは改訂→図面→案件→内容/数量/監査末尾を述語付きでロードする', async () => {
+    const sql = makeSqlClient({
+      'FROM drawing_revisions WHERE id': [revisionRow()],
+      'FROM drawings WHERE id': [drawingRow()],
+      'FROM projects WHERE id': [projectRow()],
+      'FROM project_members WHERE project_id': [memberRow()],
+      'FROM drawing_contents WHERE revision_id': [contentRow()],
+      'FROM quantity_snapshots WHERE revision_id': [quantitySnapshotRow()],
+      'FROM quantity_items WHERE revision_id': [quantityItemRow()],
+      'FROM quantity_sources WHERE quantity_item_id = ANY': [quantitySourceRow()],
+      'FROM audit_logs ORDER BY occurred_at DESC, id DESC LIMIT 1': [auditLogRow()],
+    })
+    const store = new NeonApiStore(sql)
+    await store.initialize({ kind: 'revision', revisionId: 'rev-1' })
+
+    expect(store.revisions.get('rev-1')?.drawingId).toBe('draw-1')
+    expect(store.drawings.get('draw-1')?.projectId).toBe('proj-1')
+    expect(store.projects.get('proj-1')?.id).toBe('proj-1')
+    expect(store.contents.get('rev-1')?.contentVersion).toBe(1)
+    const quantities = store.quantities.get('rev-1')
+    expect(quantities?.items).toHaveLength(1)
+    expect(quantities?.items[0]?.sources).toHaveLength(1)
+    expect(store.auditLogs).toHaveLength(1)
+    expect(queryTexts(sql).some((t) => t.includes('FROM export_jobs'))).toBe(false)
+  })
+
+  it('export スコープはジョブ→改訂→図面→案件と監査末尾のみロードする', async () => {
+    const sql = makeSqlClient({
+      'FROM export_jobs WHERE id': [exportJobRow()],
+      'FROM drawing_revisions WHERE id': [revisionRow()],
+      'FROM drawings WHERE id': [drawingRow()],
+      'FROM projects WHERE id': [projectRow()],
+      'FROM project_members WHERE project_id': [memberRow()],
+      'FROM audit_logs ORDER BY occurred_at DESC, id DESC LIMIT 1': [auditLogRow()],
+    })
+    const store = new NeonApiStore(sql)
+    await store.initialize({ kind: 'export', exportId: 'exp-1' })
+
+    expect(store.exportJobs.get('exp-1')?.status).toBe('completed')
+    expect(store.revisions.get('rev-1')?.id).toBe('rev-1')
+    expect(store.drawings.get('draw-1')?.id).toBe('draw-1')
+    expect(store.projects.get('proj-1')?.id).toBe('proj-1')
+    expect(store.contents.size).toBe(0)
+    expect(store.quantities.size).toBe(0)
+    expect(queryTexts(sql).some((t) => t.includes('FROM drawing_contents'))).toBe(false)
+  })
+
+  it('auditVerify スコープは監査ログ全件のみロードする', async () => {
+    const sql = makeSqlClient({
+      'FROM audit_logs ORDER BY occurred_at': [auditLogRow()],
+    })
+    const store = new NeonApiStore(sql)
+    await store.initialize({ kind: 'auditVerify' })
+
+    expect(store.auditLogs).toHaveLength(1)
+    expect(store.projects.size).toBe(0)
+    expect(store.drawings.size).toBe(0)
+    expect(queryTexts(sql).every((t) => t.includes('FROM audit_logs'))).toBe(true)
+  })
+})

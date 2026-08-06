@@ -11,6 +11,7 @@ import {
   createFilletGeometriesCommand,
   createChamferGeometriesCommand,
   createTrimGeometryCommand,
+  createImportDocumentCommand,
 } from '@/domain/commands/geometryCommands'
 import type { DocumentState } from '@/domain/commands/editorCommand'
 import type { GeometryCreationContext } from '@/domain/geometry/geometryFactory'
@@ -321,5 +322,37 @@ describe('TrimGeometryCommand', () => {
     const undone = cmd.undo(executed)
     expect(undone.geometries).toHaveLength(1)
     expect(undone.geometries[0]?.id).toBe('orig')
+  })
+})
+
+describe('ImportDocumentCommand（Issue #118）', () => {
+  it('executeで取込後状態へ置き換え、undoで取込前状態を完全復元する', () => {
+    const ctx = seqContext()
+    const beforeLine = line('before', { x: 0, y: 0 }, { x: 10, y: 10 })
+    const importedLine = line('imported', { x: 100, y: 100 }, { x: 200, y: 200 })
+    const importedLayer = layer('dxf-layer', 'DXF-0')
+    const d = doc([beforeLine])
+    const cmd = createImportDocumentCommand(d, [importedLine], [importedLayer], ctx)
+
+    const executed = cmd.execute(d)
+    expect(executed.geometries).toHaveLength(1)
+    expect(executed.geometries[0]?.id).toBe('imported')
+    expect(executed.layers[0]?.id).toBe('dxf-layer')
+
+    const undone = cmd.undo(executed)
+    expect(undone.geometries).toHaveLength(1)
+    expect(undone.geometries[0]?.id).toBe('before')
+    expect(undone.layers[0]?.id).toBe('layer-1')
+  })
+
+  it('取込レイヤーが空の場合は既存レイヤーを維持する', () => {
+    const ctx = seqContext()
+    const beforeLine = line('before', { x: 0, y: 0 }, { x: 10, y: 10 })
+    const d = doc([beforeLine])
+    const cmd = createImportDocumentCommand(d, [beforeLine], [], ctx)
+
+    const executed = cmd.execute(d)
+    expect(executed.layers).toHaveLength(1)
+    expect(executed.layers[0]?.id).toBe('layer-1')
   })
 })

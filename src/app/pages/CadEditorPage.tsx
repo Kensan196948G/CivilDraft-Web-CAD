@@ -10,9 +10,10 @@
  * デザインが示す「スナップ状態」「未確定数量バッジ」「業務属性の詳細（工種/規格/工区/
  * 測点）」「更新履歴の変更者・変更内容」は、対応する実データ・実装が現時点で存在しない
  * ため、正直に不掲載または「未設定」表示とする（捏造しない）。
- * DXF取込のUI導線は本画面に対応する置き場所がなく、別Issueで扱う。
+ * DXF取込はヘッダーの「📥 取込」ボタンから行う（Issue #118）。取込は1操作として
+ * Undo/Redo 履歴へ積まれ、取込前の図面へ1度で戻せる。
  */
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import type { CSSProperties } from 'react'
 import { CanvasStage } from '../canvas/CanvasStage'
 import { CommandPalette, type CommandPaletteItem } from '../components/CommandPalette'
@@ -23,8 +24,10 @@ import { getCategories, SYMBOL_CATALOG } from '@/domain/catalog/symbolCatalog'
 import {
   createAddGeometryCommand,
   createDeleteGeometriesCommand,
+  createImportDocumentCommand,
   createUpdateGeometryCommand,
 } from '@/domain/commands/geometryCommands'
+import { importDxf } from '@/domain/dxf/dxfImporter'
 import { DEFAULT_CONSTRUCTION_STEPS } from '@/domain/construction-steps'
 import type { ToolType } from '@/domain/tools/draftGeometry'
 import { EDITING_TOOLS, PARAM_EDITING_TOOLS, SELECTION_REQUIRED_TOOLS } from '@/domain/tools/editGeometry'
@@ -704,6 +707,46 @@ export function CadEditorPage({
   const [hatchPattern, setHatchPattern] = useState<HatchPattern>('parallel')
   const [hatchAngle, setHatchAngle] = useState(0)
   const [hatchSpacing, setHatchSpacing] = useState(20)
+  const dxfInputRef = useRef<HTMLInputElement | null>(null)
+
+  /** DXF取込（Issue #118）: ファイル選択 → パース → 1操作のUndo可能コマンドとして図面置換。 */
+  const handleImportDxf = async (file: File | undefined) => {
+    if (file === undefined) return
+    setEditNotice(null)
+    try {
+      const content = await file.text()
+      const result = importDxf(content, defaultCreationContext)
+      if (!result.ok) {
+        setEditNotice(`DXF取込に失敗: ${result.error.message}`)
+        return
+      }
+      const { geometries, layers, issues } = result.value
+      if (geometries.length === 0) {
+        setEditNotice('DXF取込: 図形が見つかりませんでした')
+        return
+      }
+      const state = storeApi.getState()
+      state.dispatchCommand(
+        createImportDocumentCommand(
+          { geometries: state.geometries, layers: state.layers },
+          geometries,
+          layers,
+          defaultCreationContext,
+        ),
+      )
+      const issueSummary =
+        issues.length > 0
+          ? `（警告・情報 ${issues.length} 件: ${issues.map((i) => i.code).join(', ')}）`
+          : ''
+      setEditNotice(
+        `DXF取込完了: 図形 ${geometries.length} 件・レイヤー ${layers.length} 件${issueSummary}`,
+      )
+    } catch (e) {
+      setEditNotice(`DXF取込に失敗しました: ${e instanceof Error ? e.message : String(e)}`)
+    } finally {
+      if (dxfInputRef.current !== null) dxfInputRef.current.value = ''
+    }
+  }
 
   useEffect(() => {
     const scheduler = scheduleAutosave(
@@ -1165,6 +1208,26 @@ export function CadEditorPage({
         <button style={ghostButtonStyle} onClick={runHealthCheck}>
           図面健全性
         </button>
+        <button
+          type="button"
+          style={ghostButtonStyle}
+          aria-label="DXF取込"
+          title="DXF取込（.dxf）"
+          onClick={() => dxfInputRef.current?.click()}
+        >
+          📥 取込
+        </button>
+        <input
+          ref={dxfInputRef}
+          type="file"
+          accept=".dxf,application/dxf"
+          style={{ display: 'none' }}
+          aria-hidden="true"
+          tabIndex={-1}
+          onChange={(e) => {
+            void handleImportDxf(e.target.files?.[0])
+          }}
+        />
         <button style={primaryButtonStyle} onClick={() => onNavigate('print')}>
           出力
         </button>
