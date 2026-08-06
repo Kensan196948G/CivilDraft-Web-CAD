@@ -64,7 +64,8 @@ describe('App ナビゲーション統合', () => {
         await userEvent.click(screen.getByRole('button', { name: new RegExp(`^${section}›?$`) }))
       }
       await userEvent.click(screen.getByRole('button', { name: new RegExp(nav) }))
-      expect(screen.getAllByText(expectText).length).toBeGreaterThanOrEqual(1)
+      // Issue #26: 業務ページは遅延読み込み（React.lazy）のため非同期に表示される
+      expect((await screen.findAllByText(expectText)).length).toBeGreaterThanOrEqual(1)
     },
   )
 
