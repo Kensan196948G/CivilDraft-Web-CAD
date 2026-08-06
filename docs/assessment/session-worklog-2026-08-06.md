@@ -116,3 +116,16 @@ Lead（/root）: 統合・レビュー・#62デモ明示・#115設計・文書/s
 **CONDITIONAL GO**: 本番稼働・P1ゼロ・主要機能の受入条件達成・CI/監視/バックアップ運用成立。
 条件付きとする理由は、共有保存のフル有効化が Cloudflare Access Secret 登録と
 migration 0005/0006 の本番適用（いずれも人間決裁）を待つため。
+
+## 🚀 順次対応セッション（2026-08-06 午前〜午後）
+
+### 完了
+- Phase A: #141（409競合UX・apiErrorCode透過）・#142（スナップ配線＋設定UI）・#143（監査CSV数式注入対策）・#139（503文言/CI SHA固定/カバレッジ閾値/CHANGELOG・CONTRIBUTING・SECURITY/license判断資料）・#140（docs同期）
+- Phase B: #116（数量明細state化・実検出）・#115（アプリ層レート制限 token bucket）・#25（回転二重適用解消）・#23（Arc掃引規約・フィレット弧修正）・#26（React.lazyコード分割・初期ロード約18%減）・#120（キャンバスA11y）
+- 本番デプロイ: **v0.1.20**（main 9066e8c・Worker Version 22ee0438・スモーク全PASS）
+
+### 検証
+- ローカル最終: 1365 passed / 2 skipped・lint/typecheck/build PASS・main CI全チェックsuccess
+
+### 教訓（運用）
+- 並行エージェントがメイン作業ツリーのブランチを切り替える事故が2回発生（コミット混入・古いベース上書き）。以後、全エージェントは専用worktree必須を徹底し、リードのapply_patch作業もworktree内で完結させる（メイン作業ツリーはユーザー変更保護のため常時クリーンに保つ）。
