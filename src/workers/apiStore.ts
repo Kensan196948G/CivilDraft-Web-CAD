@@ -171,15 +171,17 @@ export interface ApiStore {
   // フックを持たない store（memory/dev）ではハンドラが Map を直接更新する。
   // 契約: フックが reject した場合、ローカルキャッシュは変更しないこと
   // （呼び出し側はエラーを 500 として伝播し、書き込み成功を偽装しない）。
-  persistProject?(project: ProjectRecord): Promise<void>
+  persistProject?(project: ProjectRecord, expectedVersion?: number): Promise<void>
   persistProjectMember?(member: ProjectMemberRecord): Promise<void>
-  persistDrawing?(drawing: DrawingRecord): Promise<void>
+  persistDrawing?(drawing: DrawingRecord, expectedVersion?: number): Promise<void>
   persistRevision?(revision: RevisionRecord): Promise<void>
-  persistContent?(content: ContentRecord): Promise<void>
-  persistQuantities?(snapshot: QuantitySnapshotRecord): Promise<void>
+  persistContent?(content: ContentRecord, expectedContentVersion?: number): Promise<void>
+  persistQuantities?(snapshot: QuantitySnapshotRecord, expectedQuantityVersion?: number): Promise<void>
   persistWorkflowAction?(action: WorkflowActionRecord): Promise<void>
   persistExportJob?(job: ExportJobRecord): Promise<void>
   persistAuditLog?(log: AuditLogRecord): Promise<void>
+  /** Issue #119: プロジェクトメンバー削除（存在しない場合は何もしない）。 */
+  removeProjectMember?(projectId: string, userId: string): Promise<void>
 
   // -- 複合永続化フック（#68） --
   // 2 レコードの書き込みが 1 つの操作として不可分であるべきハンドラ用。
@@ -189,10 +191,15 @@ export interface ApiStore {
   // （メモリ内更新は同期的でアトミックなため、疑似的な原子性が成立する）。
   persistProjectWithMember?(project: ProjectRecord, member: ProjectMemberRecord): Promise<void>
   persistRevisionWithDrawing?(revision: RevisionRecord, drawing: DrawingRecord): Promise<void>
-  persistContentWithRevision?(content: ContentRecord, revision: RevisionRecord): Promise<void>
+  persistContentWithRevision?(
+    content: ContentRecord,
+    revision: RevisionRecord,
+    expectedContentVersion?: number,
+  ): Promise<void>
   persistQuantitiesWithRevision?(
     snapshot: QuantitySnapshotRecord,
     revision: RevisionRecord,
+    expectedQuantityVersion?: number,
   ): Promise<void>
   persistWorkflowActionWithRevision?(
     action: WorkflowActionRecord,

@@ -27,6 +27,20 @@ import type {
 } from './apiStore'
 import { computeEntryHash } from './auditChain'
 
+/**
+ * DB 側で期待バージョン不一致を検出した場合のエラー（Issue #114 Phase 3）。
+ * handleRequest の catch で 409 Conflict へマッピングされる。
+ */
+export class VersionConflictError extends Error {
+  readonly entity: string
+
+  constructor(entity: string, expected: number) {
+    super(`${entity} のバージョンが一致しません（expected=${expected}）。並行更新の競合です`)
+    this.name = 'VersionConflictError'
+    this.entity = entity
+  }
+}
+
 // ---------------------------------------------------------------------------
 // SQL client type — compatible with `neon()` return
 // ---------------------------------------------------------------------------
@@ -43,6 +57,7 @@ export type SqlClient = ReturnType<typeof neon>
 export type NeonStoreScope =
   | { readonly kind: 'projects' }
   | { readonly kind: 'project'; readonly projectId: string }
+  | { readonly kind: 'projectMembers'; readonly projectId: string }
   | { readonly kind: 'projectDrawings'; readonly projectId: string }
   | { readonly kind: 'drawing'; readonly drawingId: string }
   | { readonly kind: 'revision'; readonly revisionId: string }
@@ -373,16 +388,30 @@ function rowToAuditLog(row: AuditLogRow): AuditLogRecord {
 function buildQuantitiesQueries(
   txn: NeonQueryFunctionInTransaction<boolean, boolean>,
   snapshot: QuantitySnapshotRecord,
+  expectedQuantityVersion?: number,
 ): NeonQueryInTransaction[] {
+  const snapshotUpsert =
+    expectedQuantityVersion === undefined
+      ? txn`
+          INSERT INTO quantity_snapshots (revision_id, quantity_version, updated_at, updated_by)
+          VALUES (${snapshot.revisionId}, ${snapshot.quantityVersion}, ${snapshot.updatedAt}, ${snapshot.updatedBy})
+          ON CONFLICT (revision_id) DO UPDATE SET
+            quantity_version = EXCLUDED.quantity_version,
+            updated_at = EXCLUDED.updated_at,
+            updated_by = EXCLUDED.updated_by
+        `
+      : txn`
+          INSERT INTO quantity_snapshots (revision_id, quantity_version, updated_at, updated_by)
+          VALUES (${snapshot.revisionId}, ${snapshot.quantityVersion}, ${snapshot.updatedAt}, ${snapshot.updatedBy})
+          ON CONFLICT (revision_id) DO UPDATE SET
+            quantity_version = EXCLUDED.quantity_version,
+            updated_at = EXCLUDED.updated_at,
+            updated_by = EXCLUDED.updated_by
+          WHERE quantity_snapshots.quantity_version = ${expectedQuantityVersion}
+          RETURNING revision_id
+        `
   const queries: NeonQueryInTransaction[] = [
-    txn`
-      INSERT INTO quantity_snapshots (revision_id, quantity_version, updated_at, updated_by)
-      VALUES (${snapshot.revisionId}, ${snapshot.quantityVersion}, ${snapshot.updatedAt}, ${snapshot.updatedBy})
-      ON CONFLICT (revision_id) DO UPDATE SET
-        quantity_version = EXCLUDED.quantity_version,
-        updated_at = EXCLUDED.updated_at,
-        updated_by = EXCLUDED.updated_by
-    `,
+    snapshotUpsert,
   ]
   for (const item of snapshot.items) {
     queries.push(txn`
@@ -613,6 +642,14 @@ export class NeonApiStore implements ApiStore {
           this.#loadAuditTail(),
         ])
         break
+      case 'projectMembers':
+        // メンバー管理（#119）: 対象案件 + メンバー一覧 + 監査末尾
+        await Promise.all([
+          this.#loadProjectById(scope.projectId),
+          this.#loadProjectMembersByProject(scope.projectId),
+          this.#loadAuditTail(),
+        ])
+        break
       case 'projectDrawings':
         // 図面一覧/作成: 対象案件 + メンバー + 対象案件の図面 + 監査末尾
         await Promise.all([
@@ -796,6 +833,17 @@ export class NeonApiStore implements ApiStore {
     }
   }
 
+  /** DB 上の最新 entry_hash を返す（並行チェーン直列化のため毎回 DB から読む）。 */
+  async #loadLatestAuditHash(): Promise<string | undefined> {
+    const rows = await this.#sql`
+      SELECT entry_hash
+      FROM audit_logs
+      ORDER BY occurred_at DESC, id DESC
+      LIMIT 1
+    ` as { entry_hash: string | null }[]
+    return rows[0]?.entry_hash ?? undefined
+  }
+
   /** quantity_snapshots/items/sources の行群を API 契約レコードへ組立てる。 */
   #rowsToQuantities(
     snapshots: readonly QuantitySnapshotRow[],
@@ -885,20 +933,42 @@ export class NeonApiStore implements ApiStore {
   // Write helpers (persist to Neon, then update local cache)
   // -----------------------------------------------------------------------
 
-  /** Insert a project into Neon and the local Map. */
-  async persistProject(project: ProjectRecord): Promise<void> {
-    await this.#sql`
-      INSERT INTO projects (id, project_number, name, client_name, status, created_at, created_by, updated_at, updated_by, version)
-      VALUES (${project.id}, ${project.projectNumber}, ${project.name}, ${project.clientName ?? null}, ${project.status}, ${project.createdAt}, ${project.createdBy}, ${project.updatedAt}, ${project.updatedBy}, ${project.version})
-      ON CONFLICT (id) DO UPDATE SET
-        project_number = EXCLUDED.project_number,
-        name = EXCLUDED.name,
-        client_name = EXCLUDED.client_name,
-        status = EXCLUDED.status,
-        updated_at = EXCLUDED.updated_at,
-        updated_by = EXCLUDED.updated_by,
-        version = EXCLUDED.version
-    `
+  /**
+   * Insert a project into Neon and the local Map.
+   * expectedVersion 指定時は DB 側で version 述語を強制し、不一致なら
+   * VersionConflictError を投げる（Issue #114 Phase 3・楽観ロックの DB 強制）。
+   */
+  async persistProject(project: ProjectRecord, expectedVersion?: number): Promise<void> {
+    if (expectedVersion !== undefined) {
+      const rows = await this.#sql`
+        UPDATE projects SET
+          project_number = ${project.projectNumber},
+          name = ${project.name},
+          client_name = ${project.clientName ?? null},
+          status = ${project.status},
+          updated_at = ${project.updatedAt},
+          updated_by = ${project.updatedBy},
+          version = ${project.version}
+        WHERE id = ${project.id} AND version = ${expectedVersion}
+        RETURNING id
+      ` as ProjectRow[]
+      if (rows.length === 0) {
+        throw new VersionConflictError('project', expectedVersion)
+      }
+    } else {
+      await this.#sql`
+        INSERT INTO projects (id, project_number, name, client_name, status, created_at, created_by, updated_at, updated_by, version)
+        VALUES (${project.id}, ${project.projectNumber}, ${project.name}, ${project.clientName ?? null}, ${project.status}, ${project.createdAt}, ${project.createdBy}, ${project.updatedAt}, ${project.updatedBy}, ${project.version})
+        ON CONFLICT (id) DO UPDATE SET
+          project_number = EXCLUDED.project_number,
+          name = EXCLUDED.name,
+          client_name = EXCLUDED.client_name,
+          status = EXCLUDED.status,
+          updated_at = EXCLUDED.updated_at,
+          updated_by = EXCLUDED.updated_by,
+          version = EXCLUDED.version
+      `
+    }
     this.projects.set(project.id, project)
   }
 
@@ -914,25 +984,45 @@ export class NeonApiStore implements ApiStore {
     this.projectMembers.set(memberMapKey(member.projectId, member.userId), member)
   }
 
-  /** Insert or update a drawing. */
-  async persistDrawing(drawing: DrawingRecord): Promise<void> {
+  /** Insert or update a drawing. expectedVersion 指定時は DB 側で version 述語を強制する。 */
+  async persistDrawing(drawing: DrawingRecord, expectedVersion?: number): Promise<void> {
     // settings は任意の JSON（配列やプリミティブを含む）を受けるため、
     // 明示的に JSON 文字列化して ::jsonb へキャストする（pg 系ドライバは
     // トップレベル配列を Postgres 配列リテラルとして直列化してしまうため）。
-    await this.#sql`
-      INSERT INTO drawings (id, project_id, drawing_number, name, drawing_type, settings, status, active_revision_id, created_at, created_by, updated_at, updated_by, version)
-      VALUES (${drawing.id}, ${drawing.projectId}, ${drawing.drawingNumber}, ${drawing.name}, ${drawing.drawingType}, ${JSON.stringify(drawing.settings ?? {})}::jsonb, ${drawing.status}, ${drawing.activeRevisionId ?? null}, ${drawing.createdAt}, ${drawing.createdBy}, ${drawing.updatedAt}, ${drawing.updatedBy}, ${drawing.version})
-      ON CONFLICT (id) DO UPDATE SET
-        drawing_number = EXCLUDED.drawing_number,
-        name = EXCLUDED.name,
-        drawing_type = EXCLUDED.drawing_type,
-        settings = EXCLUDED.settings,
-        status = EXCLUDED.status,
-        active_revision_id = EXCLUDED.active_revision_id,
-        updated_at = EXCLUDED.updated_at,
-        updated_by = EXCLUDED.updated_by,
-        version = EXCLUDED.version
-    `
+    if (expectedVersion !== undefined) {
+      const rows = await this.#sql`
+        UPDATE drawings SET
+          drawing_number = ${drawing.drawingNumber},
+          name = ${drawing.name},
+          drawing_type = ${drawing.drawingType},
+          settings = ${JSON.stringify(drawing.settings ?? {})}::jsonb,
+          status = ${drawing.status},
+          active_revision_id = ${drawing.activeRevisionId ?? null},
+          updated_at = ${drawing.updatedAt},
+          updated_by = ${drawing.updatedBy},
+          version = ${drawing.version}
+        WHERE id = ${drawing.id} AND version = ${expectedVersion}
+        RETURNING id
+      ` as DrawingRow[]
+      if (rows.length === 0) {
+        throw new VersionConflictError('drawing', expectedVersion)
+      }
+    } else {
+      await this.#sql`
+        INSERT INTO drawings (id, project_id, drawing_number, name, drawing_type, settings, status, active_revision_id, created_at, created_by, updated_at, updated_by, version)
+        VALUES (${drawing.id}, ${drawing.projectId}, ${drawing.drawingNumber}, ${drawing.name}, ${drawing.drawingType}, ${JSON.stringify(drawing.settings ?? {})}::jsonb, ${drawing.status}, ${drawing.activeRevisionId ?? null}, ${drawing.createdAt}, ${drawing.createdBy}, ${drawing.updatedAt}, ${drawing.updatedBy}, ${drawing.version})
+        ON CONFLICT (id) DO UPDATE SET
+          drawing_number = EXCLUDED.drawing_number,
+          name = EXCLUDED.name,
+          drawing_type = EXCLUDED.drawing_type,
+          settings = EXCLUDED.settings,
+          status = EXCLUDED.status,
+          active_revision_id = EXCLUDED.active_revision_id,
+          updated_at = EXCLUDED.updated_at,
+          updated_by = EXCLUDED.updated_by,
+          version = EXCLUDED.version
+      `
+    }
     this.drawings.set(drawing.id, drawing)
   }
 
@@ -952,28 +1042,52 @@ export class NeonApiStore implements ApiStore {
     this.revisions.set(revision.id, revision)
   }
 
-  /** Insert or update drawing content. */
-  async persistContent(content: ContentRecord): Promise<void> {
+  /** Insert or update drawing content. expectedContentVersion 指定時は DB 側で version 述語を強制する。 */
+  async persistContent(content: ContentRecord, expectedContentVersion?: number): Promise<void> {
     // content は図面 JSON 本体（配列・プリミティブ含む任意 JSON）のため、
     // JSON.stringify + ::jsonb キャストで直列化を確定させる。
     // storage_provider は ADR-0014（R2 スキップ・Neon 直接格納）に合わせ 'neon'。
-    await this.#sql`
-      INSERT INTO drawing_contents (revision_id, content, byte_size, content_checksum, mime_type, schema_version, content_version, updated_at, updated_by, storage_provider)
-      VALUES (${content.revisionId}, ${JSON.stringify(content.content ?? null)}::jsonb, ${content.byteSize}, ${content.contentChecksum}, ${content.mimeType}, ${content.schemaVersion}, ${content.contentVersion}, ${content.updatedAt}, 'system', 'neon')
-      ON CONFLICT (revision_id) DO UPDATE SET
-        content = EXCLUDED.content,
-        byte_size = EXCLUDED.byte_size,
-        content_checksum = EXCLUDED.content_checksum,
-        schema_version = EXCLUDED.schema_version,
-        content_version = EXCLUDED.content_version,
-        updated_at = EXCLUDED.updated_at
-    `
+    if (expectedContentVersion !== undefined) {
+      const rows = await this.#sql`
+        UPDATE drawing_contents SET
+          content = ${JSON.stringify(content.content ?? null)}::jsonb,
+          byte_size = ${content.byteSize},
+          content_checksum = ${content.contentChecksum},
+          mime_type = ${content.mimeType},
+          schema_version = ${content.schemaVersion},
+          content_version = ${content.contentVersion},
+          updated_at = ${content.updatedAt},
+          updated_by = 'system'
+        WHERE revision_id = ${content.revisionId} AND content_version = ${expectedContentVersion}
+        RETURNING revision_id
+      ` as ContentRow[]
+      if (rows.length === 0) {
+        throw new VersionConflictError('drawing_contents', expectedContentVersion)
+      }
+    } else {
+      await this.#sql`
+        INSERT INTO drawing_contents (revision_id, content, byte_size, content_checksum, mime_type, schema_version, content_version, updated_at, updated_by, storage_provider)
+        VALUES (${content.revisionId}, ${JSON.stringify(content.content ?? null)}::jsonb, ${content.byteSize}, ${content.contentChecksum}, ${content.mimeType}, ${content.schemaVersion}, ${content.contentVersion}, ${content.updatedAt}, 'system', 'neon')
+        ON CONFLICT (revision_id) DO UPDATE SET
+          content = EXCLUDED.content,
+          byte_size = EXCLUDED.byte_size,
+          content_checksum = EXCLUDED.content_checksum,
+          schema_version = EXCLUDED.schema_version,
+          content_version = EXCLUDED.content_version,
+          updated_at = EXCLUDED.updated_at
+      `
+    }
     this.contents.set(content.revisionId, content)
   }
 
   /** Insert or update a quantity snapshot with its items and sources (single transaction; #68). */
-  async persistQuantities(snapshot: QuantitySnapshotRecord): Promise<void> {
-    await this.#sql.transaction((txn) => buildQuantitiesQueries(txn, snapshot))
+  async persistQuantities(snapshot: QuantitySnapshotRecord, expectedQuantityVersion?: number): Promise<void> {
+    const results = (await this.#sql.transaction((txn) =>
+      buildQuantitiesQueries(txn, snapshot, expectedQuantityVersion),
+    )) as readonly unknown[][]
+    if (expectedQuantityVersion !== undefined && (results[0]?.length ?? 0) === 0) {
+      throw new VersionConflictError('quantity_snapshots', expectedQuantityVersion)
+    }
     this.quantities.set(snapshot.revisionId, snapshot)
   }
 
@@ -1005,23 +1119,56 @@ export class NeonApiStore implements ApiStore {
     this.exportJobs.set(job.id, job)
   }
 
-  /** Append an audit log entry. */
+  /**
+   * Append an audit log entry.
+   *
+   * ハッシュチェーンの並行分岐対策（Issue #114 Phase 4）: previous_hash は
+   * リクエストローカル末尾ではなく DB の最新 entry_hash から毎回取得する。
+   * migration 0006 の previous_hash 一意索引により、並行書き込みの片方が
+   * unique violation で失敗するため、再試行で新しい末尾を基準に挿入し直す。
+   * これによりチェーンは常に単一（分岐しない）ことが DB 制約で保証される。
+   */
   async persistAuditLog(log: AuditLogRecord): Promise<void> {
     // detail は任意 JSON（配列を含む）のため JSON.stringify + ::jsonb で確定させる。
     // 未指定は SQL NULL（jsonb 'null' ではなく列 NULL）として格納する。
     const detailJson = log.detail === undefined ? null : JSON.stringify(log.detail)
-    // hash chain（Issue #61 / ADR-0009）: 直前レコード（時系列ロード済みの末尾）の
-    // entry_hash を previous_hash として entry_hash を計算する。書き込みが直列化される
-    // 前提（同一 store インスタンス内の逐次 flush）でチェーンを維持する。
-    const previousRecord = this.auditLogs.length > 0 ? this.auditLogs[this.auditLogs.length - 1] : undefined
-    const previousHash = previousRecord?.entryHash
-    const entryHash = await computeEntryHash(previousHash, log)
-    const hashedLog: AuditLogRecord = { ...log, previousHash, entryHash }
-    await this.#sql`
-      INSERT INTO audit_logs (id, occurred_at, event_name, actor_id, project_id, entity_type, entity_id, result, correlation_id, detail, previous_hash, entry_hash, hash_algorithm)
-      VALUES (${hashedLog.id}, ${hashedLog.occurredAt}, ${hashedLog.eventName}, ${hashedLog.actorId}, ${hashedLog.projectId ?? null}, ${hashedLog.entityType ?? null}, ${hashedLog.entityId ?? null}, ${hashedLog.result}, ${hashedLog.correlationId}, ${detailJson}::jsonb, ${hashedLog.previousHash ?? null}, ${hashedLog.entryHash}, 'sha256')
-    `
-    this.auditLogs.push(hashedLog)
+    // 再試行上限: 並行衝突が集中しても 3 回で打ち切る（fail-visible 500 に落ちる）。
+    const MAX_ATTEMPTS = 3
+    for (let attempt = 0; attempt < MAX_ATTEMPTS; attempt += 1) {
+      const previousHash = await this.#loadLatestAuditHash()
+      const entryHash = await computeEntryHash(previousHash, log)
+      const hashedLog: AuditLogRecord = { ...log, previousHash, entryHash }
+      try {
+        await this.#sql`
+          INSERT INTO audit_logs (id, occurred_at, event_name, actor_id, project_id, entity_type, entity_id, result, correlation_id, detail, previous_hash, entry_hash, hash_algorithm)
+          VALUES (${hashedLog.id}, ${hashedLog.occurredAt}, ${hashedLog.eventName}, ${hashedLog.actorId}, ${hashedLog.projectId ?? null}, ${hashedLog.entityType ?? null}, ${hashedLog.entityId ?? null}, ${hashedLog.result}, ${hashedLog.correlationId}, ${detailJson}::jsonb, ${hashedLog.previousHash ?? null}, ${hashedLog.entryHash}, 'sha256')
+        `
+        this.auditLogs.push(hashedLog)
+        return
+      } catch (err) {
+        const uniqueViolation =
+          typeof err === 'object' &&
+          err !== null &&
+          (('code' in err && err.code === '23505') ||
+            ('message' in err && /duplicate key|already exists/i.test(String(err.message))))
+        if (uniqueViolation && attempt < MAX_ATTEMPTS - 1) {
+          continue
+        }
+        throw err
+      }
+    }
+  }
+
+  /** Delete a project member (Issue #119). 存在しない場合は何もしない。 */
+  async removeProjectMember(projectId: string, userId: string): Promise<void> {
+    const rows = await this.#sql`
+      DELETE FROM project_members
+      WHERE project_id = ${projectId} AND user_id = ${userId}
+      RETURNING project_id
+    ` as ProjectMemberRow[]
+    if (rows.length > 0) {
+      this.projectMembers.delete(memberMapKey(projectId, userId))
+    }
   }
 
   // -----------------------------------------------------------------------
@@ -1079,21 +1226,46 @@ export class NeonApiStore implements ApiStore {
   }
 
   /** Insert drawing content and update its revision's checksum/version in one transaction. */
-  async persistContentWithRevision(content: ContentRecord, revision: RevisionRecord): Promise<void> {
-    await this.#sql.transaction((txn) => [
-      txn`
-        INSERT INTO drawing_contents (revision_id, content, byte_size, content_checksum, mime_type, schema_version, content_version, updated_at, updated_by, storage_provider)
-        VALUES (${content.revisionId}, ${JSON.stringify(content.content ?? null)}::jsonb, ${content.byteSize}, ${content.contentChecksum}, ${content.mimeType}, ${content.schemaVersion}, ${content.contentVersion}, ${content.updatedAt}, 'system', 'neon')
-        ON CONFLICT (revision_id) DO UPDATE SET
-          content = EXCLUDED.content,
-          byte_size = EXCLUDED.byte_size,
-          content_checksum = EXCLUDED.content_checksum,
-          schema_version = EXCLUDED.schema_version,
-          content_version = EXCLUDED.content_version,
-          updated_at = EXCLUDED.updated_at
-      `,
+  async persistContentWithRevision(
+    content: ContentRecord,
+    revision: RevisionRecord,
+    expectedContentVersion?: number,
+  ): Promise<void> {
+    const contentQuery =
+      expectedContentVersion === undefined
+        ? (txn: NeonQueryFunctionInTransaction<boolean, boolean>) =>
+            txn`
+              INSERT INTO drawing_contents (revision_id, content, byte_size, content_checksum, mime_type, schema_version, content_version, updated_at, updated_by, storage_provider)
+              VALUES (${content.revisionId}, ${JSON.stringify(content.content ?? null)}::jsonb, ${content.byteSize}, ${content.contentChecksum}, ${content.mimeType}, ${content.schemaVersion}, ${content.contentVersion}, ${content.updatedAt}, 'system', 'neon')
+              ON CONFLICT (revision_id) DO UPDATE SET
+                content = EXCLUDED.content,
+                byte_size = EXCLUDED.byte_size,
+                content_checksum = EXCLUDED.content_checksum,
+                schema_version = EXCLUDED.schema_version,
+                content_version = EXCLUDED.content_version,
+                updated_at = EXCLUDED.updated_at
+            `
+        : (txn: NeonQueryFunctionInTransaction<boolean, boolean>) =>
+            txn`
+              INSERT INTO drawing_contents (revision_id, content, byte_size, content_checksum, mime_type, schema_version, content_version, updated_at, updated_by, storage_provider)
+              VALUES (${content.revisionId}, ${JSON.stringify(content.content ?? null)}::jsonb, ${content.byteSize}, ${content.contentChecksum}, ${content.mimeType}, ${content.schemaVersion}, ${content.contentVersion}, ${content.updatedAt}, 'system', 'neon')
+              ON CONFLICT (revision_id) DO UPDATE SET
+                content = EXCLUDED.content,
+                byte_size = EXCLUDED.byte_size,
+                content_checksum = EXCLUDED.content_checksum,
+                schema_version = EXCLUDED.schema_version,
+                content_version = EXCLUDED.content_version,
+                updated_at = EXCLUDED.updated_at
+              WHERE drawing_contents.content_version = ${expectedContentVersion}
+              RETURNING revision_id
+            `
+    const results = (await this.#sql.transaction((txn) => [
+      contentQuery(txn),
       buildRevisionQuery(txn, revision),
-    ])
+    ])) as readonly unknown[][]
+    if (expectedContentVersion !== undefined && (results[0]?.length ?? 0) === 0) {
+      throw new VersionConflictError('drawing_contents', expectedContentVersion)
+    }
     this.contents.set(content.revisionId, content)
     this.revisions.set(revision.id, revision)
   }
@@ -1102,11 +1274,15 @@ export class NeonApiStore implements ApiStore {
   async persistQuantitiesWithRevision(
     snapshot: QuantitySnapshotRecord,
     revision: RevisionRecord,
+    expectedQuantityVersion?: number,
   ): Promise<void> {
-    await this.#sql.transaction((txn) => [
-      ...buildQuantitiesQueries(txn, snapshot),
+    const results = (await this.#sql.transaction((txn) => [
+      ...buildQuantitiesQueries(txn, snapshot, expectedQuantityVersion),
       buildRevisionQuery(txn, revision),
-    ])
+    ])) as readonly unknown[][]
+    if (expectedQuantityVersion !== undefined && (results[0]?.length ?? 0) === 0) {
+      throw new VersionConflictError('quantity_snapshots', expectedQuantityVersion)
+    }
     this.quantities.set(snapshot.revisionId, snapshot)
     this.revisions.set(revision.id, revision)
   }
