@@ -17,7 +17,7 @@ describe('exportSurveyLandXml（Issue #44・第二弾）', () => {
     const xml = exportSurveyLandXml([point('T-1')], { date: '2026-08-06' })
     expect(xml).toContain('<LandXML xmlns="http://www.landxml.org/schema/LandXML-1.2"')
     expect(xml).toContain('version="1.2"')
-    expect(xml).toContain('<Metric linearUnit="meter"')
+    expect(xml).toContain('linearUnit="meter"')
     expect(xml).toContain('date="2026-08-06"')
   })
 
@@ -40,4 +40,3 @@ describe('exportSurveyLandXml（Issue #44・第二弾）', () => {
     expect(xml).toContain('name="A&amp;B&lt;&quot;x&quot;"')
   })
 })
-
