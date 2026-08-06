@@ -9,6 +9,7 @@ dist-ssr/
 coverage/
 playwright-report/
 test-results/
+tests/performance/results/
 *.tsbuildinfo
 
 # vite

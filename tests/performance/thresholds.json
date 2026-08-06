@@ -1,0 +1,15 @@
+{
+  "_comment": "性能閾値（Issue #63）。scripts/check-perf-thresholds.mjs が超過を warning として報告する（CI fail にはしない）。値は CI 環境（ubuntu-latest）での実測後に調整する。",
+  "node.geometryIndex10kLoadMs": 2000,
+  "node.geometryIndexSearch100Ms": 500,
+  "node.dxf10mbParseMs": 90000,
+  "node.dxf10mbEntityCount": 0,
+  "node.dxf10kExportMs": 15000,
+  "node.dxf10kOutputBytes": 0,
+  "node.pdf2kExportMs": 60000,
+  "node.history1000OpsMs": 10000,
+  "browser.homeLoadMs": 5000,
+  "browser.editorInitialRenderMs": 2000,
+  "browser.undoRedoCycleMs": 500,
+  "browser.render10kMs": 2000
+}

@@ -57,6 +57,38 @@ jobs:
 
       - run: npm run e2e
 
+      - name: Performance thresholds (browser)
+        run: node scripts/check-perf-thresholds.mjs --require tests/performance/results/browser-metrics.json --require tests/performance/results/browser-metrics-large.json
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: browser-perf-metrics
+          path: tests/performance/results/
+          if-no-files-found: warn
+          retention-days: 90
+
+  performance:
+    name: Performance Benchmarks
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 25
+          cache: npm
+
+      - run: npm ci
+
+      - run: npm run perf
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: perf-metrics
+          path: tests/performance/results/perf-metrics.json
+          if-no-files-found: error
+          retention-days: 90
+
   security:
     name: Dependency Audit
     runs-on: ubuntu-latest
