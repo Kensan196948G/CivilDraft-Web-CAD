@@ -26,6 +26,7 @@ export const COMMAND_TYPES = {
   FILLET_GEOMETRIES: 'FILLET_GEOMETRIES',
   CHAMFER_GEOMETRIES: 'CHAMFER_GEOMETRIES',
   TRIM_GEOMETRY: 'TRIM_GEOMETRY',
+  IMPORT_DOCUMENT: 'IMPORT_DOCUMENT',
 } as const
 
 export interface AddGeometryPayload {
@@ -94,6 +95,15 @@ export interface TrimGeometryPayload {
   readonly replacementIds: readonly GeometryId[]
   readonly original: Geometry
   readonly replacements: readonly Geometry[]
+}
+
+export interface ImportDocumentPayload {
+  /** 取込前の図面状態（undo で完全復元するためのスナップショット）。 */
+  readonly beforeGeometries: readonly Geometry[]
+  readonly beforeLayers: readonly DrawingLayer[]
+  /** 取込後の図面状態。 */
+  readonly afterGeometries: readonly Geometry[]
+  readonly afterLayers: readonly DrawingLayer[]
 }
 
 // --- 純粋なドキュメント操作ヘルパー（破壊的変更なし） ---
@@ -518,6 +528,38 @@ export function createTrimGeometryCommand(
       ...doc.geometries.filter((g) => !replacementIds.has(g.id)),
       original,
     ]),
+    ctx,
+  )
+}
+
+// --- ImportDocumentCommand ---
+
+/**
+ * DXF取込等で図面全体を置き換える複合コマンド（Issue #118）。
+ * execute で取込後状態へ置き換え、undo で取込前状態を完全復元する。
+ * 全図形スナップショットを保持するため大規模図面ではメモリを消費するが、
+ * 取込は明示的なファイル操作であり 1 操作 = 1 undo の可逆性を優先する。
+ */
+export function createImportDocumentCommand(
+  document: DocumentState,
+  importedGeometries: readonly Geometry[],
+  importedLayers: readonly DrawingLayer[],
+  ctx: GeometryCreationContext = defaultCreationContext,
+): EditorCommand<ImportDocumentPayload> {
+  const beforeGeometries = [...document.geometries]
+  const beforeLayers = [...document.layers]
+  const afterGeometries = [...importedGeometries]
+  const afterLayers = importedLayers.length > 0 ? [...importedLayers] : [...document.layers]
+  return createCommand<ImportDocumentPayload>(
+    COMMAND_TYPES.IMPORT_DOCUMENT,
+    {
+      beforeGeometries,
+      beforeLayers,
+      afterGeometries,
+      afterLayers,
+    },
+    () => ({ geometries: afterGeometries, layers: afterLayers }),
+    () => ({ geometries: beforeGeometries, layers: beforeLayers }),
     ctx,
   )
 }
