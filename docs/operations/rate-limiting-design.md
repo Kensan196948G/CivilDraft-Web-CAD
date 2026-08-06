@@ -1,7 +1,7 @@
 # レート制限設計（Issue #115）
 
 作成日: 2026-08-06
-状態: **設計確定・アプリ層実装推奨 / Cloudflare binding は人間承認待ち**
+状態: **アプリ層実装済み（Issue #115） / Cloudflare binding は人間承認待ち**
 
 ## 1. 目的
 
@@ -22,6 +22,8 @@
 
 - Workers の isolate 内にメモリベースの token bucket を実装する
   （`src/workers/rateLimit.ts` 新規）。
+- 実装済み: `TokenBucketRateLimiter` + 既定リミッター（`checkRateLimit`）を
+  `handleRequest` の認証後・store 解決前に組み込み済み。
 - キー: `actorId + ルート種別（read/write）`。
 - 初期値（保守的）:
   - 読み取り系: 120 req / 60秒 / ユーザー
@@ -29,6 +31,7 @@
 - 超過時: `429 Too Many Requests` + 構造化 JSON（`CD-RATE-LIMITED`）+ `Retry-After` ヘッダー。
 - 制約: isolate 単位・複数 isolate では完全な共有にならない（緩和策として
   Cloudflare binding が正解）。**正規ユーザーの誤ブロックを防ぐため、初期値は高めに設定**。
+  テストは `resetRateLimitState()` で既定リミッターを初期化して実行する。
 
 ### 3.2 Cloudflare Workers Rate Limiting binding（本番強化・人間承認必須）
 
@@ -42,7 +45,7 @@
 ## 4. 受入条件
 
 - [x] 設計方針・対象・閾値・超過時応答が本ドキュメントに定義された
-- [ ] アプリ層 token bucket が実装され、429 応答のユニットテストがある
+- [x] アプリ層 token bucket が実装され、429 応答のユニットテストがある
 - [ ] binding 設定の追加と staging/preview での動作確認（人間承認後）
 - [ ] 本番反映（人間承認後）
 
@@ -51,4 +54,3 @@
 - Issue #115
 - `docs/assessment/system-assessment-2026-08-03.md` §8 CD-4b
 - `docs/operations/monitoring-readiness.md` §3 アラート基準
-

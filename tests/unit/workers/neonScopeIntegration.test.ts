@@ -3,8 +3,9 @@
  * 解決され、全件 SELECT ではなく述語付き SELECT で必要サブセットだけが
  * 発行されることを handleRequest 経由で検証する。
  */
-import { beforeAll, describe, expect, it, vi } from 'vitest'
+import { beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
 import { handleRequest, type WorkerEnv } from '@/workers/index'
+import { resetRateLimitState } from '@/workers/rateLimit'
 import type { SqlClient } from '@/workers/neonApiStore'
 
 const TEAM_DOMAIN = 'https://civildraft.cloudflareaccess.com'
@@ -112,6 +113,10 @@ const FULL_SCAN_SQL = [
   'SELECT * FROM projects ORDER BY project_number',
   'SELECT * FROM project_members ORDER BY project_id, user_id',
 ]
+
+beforeEach(() => {
+  resetRateLimitState()
+})
 
 describe('Neon スコープ付きロードの配線（Issue #114 Phase 1/2）', () => {
   it('revision 内容取得は SELECT * を一切発行せず、SQL-first クエリのみで応答する', async () => {
