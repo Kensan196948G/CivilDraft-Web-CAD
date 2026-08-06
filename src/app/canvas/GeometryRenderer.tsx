@@ -137,8 +137,9 @@ function GeometryRendererImpl({
 
     case 'arc': {
       // Konva Arc: innerRadius=outerRadius=radius で外周円弧のみ描画。
-      // 暫定規約（掃引方向は Issue #23 で検討中）: rotation=startAngleDeg を起点に
-      // angle=(endAngleDeg - startAngleDeg を 0..360 に正規化) 度ぶん掃引する。
+      // 掃引方向規約（Issue #23 確定）: rotation=startAngleDeg を起点に
+      // angle=(endAngleDeg - startAngleDeg を 0..360 に正規化) 度ぶん正方向（画面時計回り）掃引する。
+      // 生成側（filletEngine 等）は小さい弧（≤180°）をこの表現で保証する。
       // 正規化結果が 0（始点=終点）のときは全円とみなす（継承元の `|| 360` を踏襲）。
       const sweep = ((geometry.endAngleDeg - geometry.startAngleDeg + 360) % 360) || 360
       return (

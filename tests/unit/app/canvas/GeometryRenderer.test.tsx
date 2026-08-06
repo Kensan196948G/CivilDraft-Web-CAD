@@ -140,6 +140,21 @@ describe('GeometryRenderer', () => {
       expect(lastProps(reactKonva.Arc as never).angle).toBe(360)
     })
 
+    it('フィレット弧（start=180/end=-90）は正方向90°掃引で描画される（Issue #23）', () => {
+      const g: ArcGeometry = {
+        ...base,
+        type: 'arc',
+        center: { x: 2, y: 2 },
+        radius: 2,
+        startAngleDeg: 180,
+        endAngleDeg: -90,
+      }
+      render(<GeometryRenderer geometry={g} />)
+      const p = lastProps(reactKonva.Arc as never)
+      expect(p.rotation).toBe(180)
+      expect(p.angle).toBe(90)
+    })
+
     it('ellipse を描画する', () => {
       const g: EllipseGeometry = {
         ...base,
