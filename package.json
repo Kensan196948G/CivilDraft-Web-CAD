@@ -14,6 +14,7 @@
     "preview": "vite preview",
     "test": "vitest run",
     "e2e": "playwright test",
+    "perf": "vitest run --config vitest.perf.config.ts && node scripts/check-perf-thresholds.mjs --require tests/performance/results/perf-metrics.json",
     "test:watch": "vitest",
     "lint": "eslint .",
     "typecheck": "tsc -b --noEmit",
