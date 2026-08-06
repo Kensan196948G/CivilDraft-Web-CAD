@@ -31,6 +31,7 @@ import {
   createUpdateGeometryCommand,
 } from '@/domain/commands/geometryCommands'
 import { importDxf } from '@/domain/dxf/dxfImporter'
+import { classifyMigrationFile, migrationAdvice } from '@/domain/migration/migrationAssistant'
 import { DEFAULT_CONSTRUCTION_STEPS } from '@/domain/construction-steps'
 import type { ToolType } from '@/domain/tools/draftGeometry'
 import { EDITING_TOOLS, PARAM_EDITING_TOOLS, SELECTION_REQUIRED_TOOLS } from '@/domain/tools/editGeometry'
@@ -714,6 +715,8 @@ export function CadEditorPage({
   const [commandPaletteOpen, setCommandPaletteOpen] = useState(false)
   const [shortcutHelpOpen, setShortcutHelpOpen] = useState(false)
   const [commandLineValue, setCommandLineValue] = useState('')
+  const [migrationNotice, setMigrationNotice] = useState<string | null>(null)
+  const [migrationIssues, setMigrationIssues] = useState<readonly ValidationIssue[]>([])
 
   const [textInputValue, setTextInputValue] = useState('')
   const [textFontSize, setTextFontSize] = useState(14)
@@ -726,16 +729,25 @@ export function CadEditorPage({
   const handleImportDxf = async (file: File | undefined) => {
     if (file === undefined) return
     setEditNotice(null)
+    const classification = classifyMigrationFile(file.name)
+    if (!classification.supported) {
+      setMigrationNotice(classification.message)
+      setMigrationIssues([])
+      return
+    }
+    setMigrationNotice(null)
     try {
       const content = await file.text()
       const result = importDxf(content, defaultCreationContext)
       if (!result.ok) {
-        setEditNotice(`DXF取込に失敗: ${result.error.message}`)
+        setMigrationNotice(`DXF取込に失敗: ${result.error.message}`)
+        setMigrationIssues([])
         return
       }
       const { geometries, layers, issues } = result.value
       if (geometries.length === 0) {
-        setEditNotice('DXF取込: 図形が見つかりませんでした')
+        setMigrationNotice('DXF取込: 図形が見つかりませんでした')
+        setMigrationIssues(issues)
         return
       }
       const state = storeApi.getState()
@@ -754,8 +766,10 @@ export function CadEditorPage({
       setEditNotice(
         `DXF取込完了: 図形 ${geometries.length} 件・レイヤー ${layers.length} 件${issueSummary}`,
       )
+      setMigrationIssues(issues)
     } catch (e) {
-      setEditNotice(`DXF取込に失敗しました: ${e instanceof Error ? e.message : String(e)}`)
+      setMigrationNotice(`DXF取込に失敗しました: ${e instanceof Error ? e.message : String(e)}`)
+      setMigrationIssues([])
     } finally {
       if (dxfInputRef.current !== null) dxfInputRef.current.value = ''
     }
@@ -1415,7 +1429,7 @@ export function CadEditorPage({
         <input
           ref={dxfInputRef}
           type="file"
-          accept=".dxf,application/dxf"
+          accept=".dxf,application/dxf,.dwg,.jww,.jwf,.sxf,.sima,.landxml,.pdf,.csv"
           style={{ display: 'none' }}
           aria-hidden="true"
           tabIndex={-1}
@@ -1489,6 +1503,53 @@ export function CadEditorPage({
               </div>
             ))
           )}
+        </div>
+      )}
+
+      {(migrationNotice !== null || migrationIssues.length > 0) && (
+        <div
+          role="status"
+          style={{
+            margin: '0 18px',
+            padding: '10px 14px',
+            borderRadius: 8,
+            background: migrationNotice !== null && migrationIssues.length === 0 ? '#FDECEA' : '#FFF7E8',
+            border: migrationNotice !== null && migrationIssues.length === 0 ? '1px solid #F2B8B5' : '1px solid #F0D9B0',
+            display: 'flex',
+            flexDirection: 'column',
+            gap: 6,
+          }}
+        >
+          <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+            <span style={{ fontSize: 12.5, fontWeight: 600, color: 'var(--ink)' }}>
+              {migrationNotice !== null && migrationIssues.length === 0 ? '📋 移行アシスタント' : '📋 移行レポート（DXF取込）'}
+            </span>
+            <span style={{ flex: 1 }} />
+            <button
+              type="button"
+              style={ghostButtonStyle}
+              onClick={() => {
+                setMigrationNotice(null)
+                setMigrationIssues([])
+              }}
+            >
+              閉じる
+            </button>
+          </div>
+          {migrationNotice !== null && (
+            <div style={{ fontSize: 12.5, color: migrationIssues.length === 0 ? '#B3261E' : '#8A5A00' }}>
+              {migrationNotice}
+            </div>
+          )}
+          {migrationIssues.map((issue) => (
+            <div key={issue.code} style={{ fontSize: 12, color: 'var(--ink2)' }}>
+              <span style={{ fontWeight: 600, color: issue.severity === 'error' ? '#B3261E' : issue.severity === 'warning' ? '#A15C00' : 'var(--muted)' }}>
+                {issue.severity === 'error' ? '🚨' : issue.severity === 'warning' ? '⚠️' : 'ℹ️'} {issue.code}
+              </span>
+              ：{issue.message}
+              <div style={{ marginTop: 2, color: 'var(--muted)' }}>💡 {migrationAdvice(issue)}</div>
+            </div>
+          ))}
         </div>
       )}
 
