@@ -23,6 +23,7 @@ import {
   tdStyle,
 } from './pageStyles'
 import type { CSSProperties } from 'react'
+import { escapeCsvCell } from '@/domain/csv/csvCell'
 
 const filterInputStyle: CSSProperties = {
   font: 'inherit',
@@ -124,10 +125,6 @@ function downloadBlob(blob: Blob, filename: string): void {
   URL.revokeObjectURL(url)
 }
 
-function escapeCsv(value: string): string {
-  return `"${value.replace(/"/g, '""')}"`
-}
-
 function escapeHtml(value: string): string {
   return value
     .replace(/&/g, '&amp;')
@@ -140,7 +137,7 @@ function escapeHtml(value: string): string {
 function exportCsv(rows: readonly AuditDisplayRow[]): void {
   const header = ['日時', '利用者', '操作', '対象', '結果']
   const csvRows = rows.map((row) => [row.time, row.actor, row.action, row.target, row.result])
-  const csv = [header, ...csvRows].map((row) => row.map(escapeCsv).join(',')).join('\r\n')
+  const csv = [header, ...csvRows].map((row) => row.map(escapeCsvCell).join(',')).join('\r\n')
   downloadBlob(new Blob([csv], { type: 'text/csv;charset=utf-8' }), 'civildraft-audit-log.csv')
 }
 
