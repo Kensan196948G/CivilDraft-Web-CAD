@@ -13,6 +13,7 @@
     "build": "tsc -b && vite build",
     "preview": "vite preview",
     "test": "vitest run",
+    "test:coverage": "vitest run --coverage",
     "e2e": "playwright test",
     "perf": "vitest run --config vitest.perf.config.ts && node scripts/check-perf-thresholds.mjs --require tests/performance/results/perf-metrics.json",
     "test:watch": "vitest",

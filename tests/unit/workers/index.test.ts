@@ -175,7 +175,8 @@ describe('§25.1 共通ヘッダー検証', () => {
     expect(res.status).toBe(503)
     const body = await json<ApiErrorBody>(res)
     expect(body.error.code).toBe('CD-SYS-002')
-    expect(body.error.message).toContain('binding')
+    expect(body.error.message).toContain('共有保存サービス')
+    expect(body.error.message).not.toMatch(/CIVILDRAFT_|NEON|binding/i)
   })
 
   it('CIVILDRAFT_API_MODE 未設定・タイポ時はインメモリへ無警告フォールバックせず 503 で停止する', async () => {
@@ -184,7 +185,8 @@ describe('§25.1 共通ヘッダー検証', () => {
       expect(res.status).toBe(503)
       const body = await json<ApiErrorBody>(res)
       expect(body.error.code).toBe('CD-SYS-002')
-      expect(body.error.message).toContain('CIVILDRAFT_API_MODE')
+      expect(body.error.message).toContain('共有保存サービス')
+      expect(body.error.message).not.toMatch(/CIVILDRAFT_|NEON|binding/i)
     }
   })
 
