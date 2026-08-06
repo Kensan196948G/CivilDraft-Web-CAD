@@ -5,7 +5,11 @@ import { CadEditorPage, type CloudDraftSession, type CloudSaveClient } from '@/a
 import { EditorStoreProvider } from '@/app/store/EditorStoreContext'
 import { createDefaultLayer, createEditorStore, type EditorStore } from '@/app/store/editorStore'
 import { MemoryAutosaveStore } from '@/infrastructure/autosave/autosaveStore'
-import { createAddGeometryCommand } from '@/domain/commands/geometryCommands'
+import {
+  createAddGeometryCommand,
+  createDeleteGeometriesCommand,
+  createUpdateGeometryCommand,
+} from '@/domain/commands/geometryCommands'
 import { defaultCreationContext } from '@/domain/geometry/geometryFactory'
 import type { Geometry, GeometryId } from '@/shared/types'
 
@@ -380,6 +384,46 @@ describe('CadEditorPage レイヤーパネル', () => {
     expect(store.getState().selectedIds).toEqual([])
     await userEvent.click(screen.getByRole('button', { name: '対象を選択' }))
     expect(store.getState().selectedIds).toEqual(['g-far'])
+  })
+
+  it('図形削除後の数量明細を unlinked-quantity として表示し、再計算で解消する（Issue #116）', async () => {
+    const store = createEditorStore()
+    const geometry = line('g-q')
+    store.getState().replaceDocument([geometry], [createDefaultLayer()])
+    const state = store.getState()
+    state.dispatchCommand(
+      createDeleteGeometriesCommand(
+        { geometries: state.geometries, layers: state.layers },
+        [geometry.id],
+      ),
+    )
+    const cloudApiClient: CloudSaveClient = { saveDraft: vi.fn(), getRevisionContent: vi.fn() }
+    renderPage(store, cloudApiClient)
+
+    await userEvent.click(screen.getByRole('button', { name: '図面健全性' }))
+    expect(screen.getByText(/根拠図形が存在しない数量明細が 1 件あります/)).toBeInTheDocument()
+
+    await userEvent.click(screen.getByRole('button', { name: '数量を再計算' }))
+    expect(screen.getByText('✅ 問題なし')).toBeInTheDocument()
+  })
+
+  it('図形変更後の数量明細を stale-quantity として表示し、再計算で解消する（Issue #116）', async () => {
+    const store = createEditorStore()
+    const geometry = line('g-q')
+    store.getState().replaceDocument([geometry], [createDefaultLayer()])
+    store
+      .getState()
+      .dispatchCommand(
+        createUpdateGeometryCommand(geometry, { ...geometry, end: { x: 2000, y: 0 } }),
+      )
+    const cloudApiClient: CloudSaveClient = { saveDraft: vi.fn(), getRevisionContent: vi.fn() }
+    renderPage(store, cloudApiClient)
+
+    await userEvent.click(screen.getByRole('button', { name: '図面健全性' }))
+    expect(screen.getByText(/再計算待ちまたは算出不能の数量明細が 1 件あります/)).toBeInTheDocument()
+
+    await userEvent.click(screen.getByRole('button', { name: '数量を再計算' }))
+    expect(screen.getByText('✅ 問題なし')).toBeInTheDocument()
   })
 })
 

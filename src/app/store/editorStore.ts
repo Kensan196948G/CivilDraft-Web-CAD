@@ -20,7 +20,9 @@ import { GeometryIndex } from '@/domain/geometry/spatialIndex'
 import { unionBBox } from '@/domain/geometry/shapeBBox'
 import type { EditorCommand } from '@/domain/commands/editorCommand'
 import type { DocumentState } from '@/domain/commands/editorCommand'
-import { createAddGeometryCommand } from '@/domain/commands/geometryCommands'
+import { COMMAND_TYPES, createAddGeometryCommand } from '@/domain/commands/geometryCommands'
+import { syncQuantityItemsByGeometryDiff } from '@/domain/quantities/recalculation'
+import { computeQuantitySummary } from '@/app/pages/quantitySummaryModel'
 import { defaultCreationContext, type GeometryCreationContext } from '@/domain/geometry/geometryFactory'
 import {
   AUTO_COMMIT_POINT_COUNT,
@@ -48,6 +50,7 @@ import type {
   GeometryStyle,
   LayerId,
   Point,
+  QuantityItem,
 } from '@/shared/types'
 
 export const MIN_ZOOM = 0.001
@@ -84,9 +87,17 @@ export function createDefaultLayer(): DrawingLayer {
 
 export interface DocumentSlice {
   readonly geometries: readonly Geometry[]
+  /**
+   * 数量明細の永続 state（Issue #116 Phase 3）。
+   * 都度再計算ではなく store が保持し、図形削除・変更を unlinked/stale として追跡する。
+   * 初期値は空で、replaceDocument / recalculateQuantities で現図面から算出される。
+   */
+  readonly quantityItems: readonly QuantityItem[]
   addGeometries: (geometries: readonly Geometry[]) => void
   updateGeometry: (geometry: Geometry) => void
   removeGeometries: (ids: readonly GeometryId[]) => void
+  /** 現在の図面から数量明細を再計算し status を valid に戻す（§17.3 再計算要求）。 */
+  recalculateQuantities: () => void
   /** 図面全体の置き換え（DXFインポート・ファイル読込）。索引も再構築する。 */
   replaceDocument: (geometries: readonly Geometry[], layers: readonly DrawingLayer[]) => void
 }
@@ -290,24 +301,36 @@ export function createEditorStore(ctx: GeometryCreationContext = defaultCreation
     // 以下の直接変更アクション（addGeometries/updateGeometry/removeGeometries/replaceDocument）は
     // 履歴に積まれないため、ツール未整備期間の暫定として後方互換で残す（既存呼び出し・DXF読込用）。
     geometries: [],
+    quantityItems: [],
     addGeometries: (geometries) => {
       for (const g of geometries) index.add(g)
       set((s) => ({ geometries: [...s.geometries, ...geometries] }))
     },
     updateGeometry: (geometry) => {
       index.update(geometry)
-      set((s) => ({
-        geometries: s.geometries.map((g) => (g.id === geometry.id ? geometry : g)),
-      }))
+      set((s) => {
+        const nextGeometries = s.geometries.map((g) => (g.id === geometry.id ? geometry : g))
+        return {
+          geometries: nextGeometries,
+          quantityItems: syncQuantityItemsByGeometryDiff(s.quantityItems, s.geometries, nextGeometries),
+        }
+      })
     },
     removeGeometries: (ids) => {
       const removed = new Set<GeometryId>(ids)
       for (const id of ids) index.remove(id)
-      set((s) => ({
-        geometries: s.geometries.filter((g) => !removed.has(g.id)),
-        selectedIds: s.selectedIds.filter((id) => !removed.has(id)),
-        hoveredId: s.hoveredId !== null && removed.has(s.hoveredId) ? null : s.hoveredId,
-      }))
+      set((s) => {
+        const nextGeometries = s.geometries.filter((g) => !removed.has(g.id))
+        return {
+          geometries: nextGeometries,
+          selectedIds: s.selectedIds.filter((id) => !removed.has(id)),
+          hoveredId: s.hoveredId !== null && removed.has(s.hoveredId) ? null : s.hoveredId,
+          quantityItems: syncQuantityItemsByGeometryDiff(s.quantityItems, s.geometries, nextGeometries),
+        }
+      })
+    },
+    recalculateQuantities: () => {
+      set({ quantityItems: computeQuantitySummary(get().geometries).items })
     },
     replaceDocument: (geometries, layers) => {
       index.load(geometries)
@@ -318,6 +341,7 @@ export function createEditorStore(ctx: GeometryCreationContext = defaultCreation
         activeLayerId: first !== undefined ? first.id : defaultLayer.id,
         selectedIds: [],
         hoveredId: null,
+        quantityItems: computeQuantitySummary(geometries).items,
       })
     },
 
@@ -513,6 +537,10 @@ export function createEditorStore(ctx: GeometryCreationContext = defaultCreation
       set({
         geometries: next.geometries,
         layers: next.layers,
+        quantityItems:
+          command.type === COMMAND_TYPES.IMPORT_DOCUMENT
+            ? computeQuantitySummary(next.geometries).items
+            : syncQuantityItemsByGeometryDiff(s.quantityItems, s.geometries, next.geometries),
         undoStack:
           undoStack.length > HISTORY_LIMIT
             ? undoStack.slice(undoStack.length - HISTORY_LIMIT)
@@ -530,6 +558,10 @@ export function createEditorStore(ctx: GeometryCreationContext = defaultCreation
       set({
         geometries: next.geometries,
         layers: next.layers,
+        quantityItems:
+          command.type === COMMAND_TYPES.IMPORT_DOCUMENT
+            ? computeQuantitySummary(next.geometries).items
+            : syncQuantityItemsByGeometryDiff(s.quantityItems, s.geometries, next.geometries),
         undoStack: s.undoStack.slice(0, -1),
         redoStack: [...s.redoStack, command],
         ...reconcileSelection(next.geometries, s.selectedIds, s.hoveredId),
@@ -544,6 +576,10 @@ export function createEditorStore(ctx: GeometryCreationContext = defaultCreation
       set({
         geometries: next.geometries,
         layers: next.layers,
+        quantityItems:
+          command.type === COMMAND_TYPES.IMPORT_DOCUMENT
+            ? computeQuantitySummary(next.geometries).items
+            : syncQuantityItemsByGeometryDiff(s.quantityItems, s.geometries, next.geometries),
         undoStack: [...s.undoStack, command],
         redoStack: s.redoStack.slice(0, -1),
         ...reconcileSelection(next.geometries, s.selectedIds, s.hoveredId),
