@@ -460,4 +460,43 @@ describe('EditorStore / 数量 state 同期（Issue #116 Phase 3）', () => {
     store.getState().dispatchCommand(createAddGeometryCommand(circle('b', 200, 200, 5)))
     expect(store.getState().quantityItems).toBe(before)
   })
+
+  describe('SnapSlice（Issue #24 配線）', () => {
+    it('既定値: 有効・許容差10px・端点/中点/中心/交点/グリッドON', () => {
+      const s = createEditorStore().getState()
+      expect(s.snapEnabled).toBe(true)
+      expect(s.snapTolerancePx).toBe(10)
+      expect(s.snapEndpoint).toBe(true)
+      expect(s.snapMidpoint).toBe(true)
+      expect(s.snapCenter).toBe(true)
+      expect(s.snapIntersection).toBe(true)
+      expect(s.snapGrid).toBe(true)
+      expect(s.snapPerpendicular).toBe(false)
+      expect(s.snapResult).toBeNull()
+    })
+
+    it('setSnapEnabled(false) はスナップ結果をクリアする', () => {
+      const store = createEditorStore()
+      store.getState().setSnapResult({ point: { x: 1, y: 2 }, type: 'endpoint' })
+      store.getState().setSnapEnabled(false)
+      expect(store.getState().snapResult).toBeNull()
+    })
+
+    it('setSnapTolerancePx は 1〜40px にクランプする', () => {
+      const store = createEditorStore()
+      store.getState().setSnapTolerancePx(0)
+      expect(store.getState().snapTolerancePx).toBe(1)
+      store.getState().setSnapTolerancePx(999)
+      expect(store.getState().snapTolerancePx).toBe(40)
+    })
+
+    it('toggleSnapType は指定種別のみ反転する', () => {
+      const store = createEditorStore()
+      store.getState().toggleSnapType('midpoint')
+      expect(store.getState().snapMidpoint).toBe(false)
+      expect(store.getState().snapEndpoint).toBe(true)
+      store.getState().toggleSnapType('midpoint')
+      expect(store.getState().snapMidpoint).toBe(true)
+    })
+  })
 })

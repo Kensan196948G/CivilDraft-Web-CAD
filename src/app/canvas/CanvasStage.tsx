@@ -26,11 +26,13 @@ import type { PaperOrientation, PaperSize } from '@/domain/canvas/paperSize'
 import { filterGeometriesByStep } from '@/domain/construction-steps'
 import { shapeBBox } from '@/domain/geometry/shapeBBox'
 import { getVisibleIds, shouldCull } from '@/domain/geometry/viewportCulling'
-import { draftPreviewGeometry } from '@/app/store/editorStore'
+import { computeSnap, type SnapOptions } from '@/domain/geometry/snapEngine'
+import { draftPreviewGeometry, type EditorState } from '@/app/store/editorStore'
 import { useEditorStore, useEditorStoreApi } from '@/app/store/useEditorStore'
 import { GeometryRenderer } from './GeometryRenderer'
 import { PaperBoundary } from './PaperBoundary'
 import { Ruler } from './Ruler'
+import { SnapMarker } from './SnapMarker'
 
 export interface CanvasStageProps {
   readonly paperSize?: PaperSize
@@ -57,6 +59,36 @@ const SELECTION_BBOX_COLOR = '#3b82f6'
 /** 数量根拠連動ハイライトの色（Issue #42）。選択枠と区別する。 */
 const HIGHLIGHT_BBOX_COLOR = '#E08A2B'
 
+/** スナップ設定に基づきカーソル位置を吸着する（Issue #24 配線）。 */
+function applySnap(
+  state: EditorState,
+  transformer: CoordinateTransformer,
+  point: { readonly x: number; readonly y: number },
+): { readonly x: number; readonly y: number } {
+  if (!state.snapEnabled) {
+    state.setSnapResult(null)
+    return point
+  }
+  const options: SnapOptions = {
+    snapGrid: state.snapGrid,
+    snapEndpoint: state.snapEndpoint,
+    snapMidpoint: state.snapMidpoint,
+    snapCenter: state.snapCenter,
+    snapIntersection: state.snapIntersection,
+    snapPerpendicular: state.snapPerpendicular,
+    snapTangent: state.snapTangent,
+    snapNearest: state.snapNearest,
+    toleranceMm: transformer.screenLengthToDomain(state.snapTolerancePx),
+  }
+  const snap = computeSnap(point, state.geometries, state.gridUnitMm, options)
+  if (snap.type === 'none') {
+    state.setSnapResult(null)
+    return point
+  }
+  state.setSnapResult(snap)
+  return snap.point
+}
+
 export function CanvasStage({ paperSize = 'A3', paperOrientation = 'landscape' }: CanvasStageProps) {
   const containerRef = useRef<HTMLDivElement>(null)
   const [size, setSize] = useState({ width: 800, height: 600 })
@@ -74,6 +106,7 @@ export function CanvasStage({ paperSize = 'A3', paperOrientation = 'landscape' }
   const activeTool = useEditorStore((s) => s.activeTool)
   const draftPoints = useEditorStore((s) => s.draftPoints)
   const draftCursor = useEditorStore((s) => s.draftCursor)
+  const snapResult = useEditorStore((s) => s.snapResult)
   const storeApi = useEditorStoreApi()
 
   // 作図途中プレビュー。draft状態のprimitive購読を依存にして再計算する
@@ -166,7 +199,10 @@ export function CanvasStage({ paperSize = 'A3', paperOrientation = 'landscape' }
         return
       }
       const state = storeApi.getState()
-      if (state.activeTool === 'select' || state.activeTool === 'hatch') return
+      if (state.activeTool === 'select' || state.activeTool === 'hatch') {
+        state.setSnapResult(null)
+        return
+      }
       const pointer = e.target.getStage()?.getPointerPosition()
       if (!pointer) return
       const transformer = new CoordinateTransformer({
@@ -174,7 +210,7 @@ export function CanvasStage({ paperSize = 'A3', paperOrientation = 'landscape' }
         panX: state.panX,
         panY: state.panY,
       })
-      state.updateDraftCursor(transformer.screenToDomain(pointer))
+      state.updateDraftCursor(applySnap(state, transformer, transformer.screenToDomain(pointer)))
     },
     [storeApi],
   )
@@ -195,7 +231,11 @@ export function CanvasStage({ paperSize = 'A3', paperOrientation = 'landscape' }
         panX: state.panX,
         panY: state.panY,
       })
-      const domainPoint = transformer.screenToDomain(pointer)
+      const rawPoint = transformer.screenToDomain(pointer)
+      const isDrawingOrEditing =
+        state.activeEditingTool !== null ||
+        (state.activeTool !== 'select' && state.activeTool !== 'hatch')
+      const domainPoint = isDrawingOrEditing ? applySnap(state, transformer, rawPoint) : rawPoint
 
       if (state.activeEditingTool !== null) {
         state.executeEditingOperation(domainPoint)
@@ -353,8 +393,9 @@ export function CanvasStage({ paperSize = 'A3', paperOrientation = 'landscape' }
             />
           ))}
         </Layer>
-        {/* 4. GuideLayer: 作図途中プレビュー（world座標系）。スナップ候補表示は後続対応 */}
+        {/* 4. GuideLayer: スナップ候補・作図途中プレビュー（world座標系、Issue #24） */}
         <Layer x={panX} y={panY} scaleX={zoom} scaleY={zoom} listening={false}>
+          {snapResult !== null && <SnapMarker snap={snapResult} zoom={zoom} />}
           {previewGeometry !== null && (
             <GeometryRenderer geometry={previewGeometry} isPreview />
           )}

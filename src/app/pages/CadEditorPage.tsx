@@ -677,6 +677,13 @@ export function CadEditorPage({
   const editingOffsetDistance = useEditorStore((s) => s.editingOffsetDistance)
   const editingFilletRadius = useEditorStore((s) => s.editingFilletRadius)
   const editingChamferDist = useEditorStore((s) => s.editingChamferDist)
+  const snapEnabled = useEditorStore((s) => s.snapEnabled)
+  const snapTolerancePx = useEditorStore((s) => s.snapTolerancePx)
+  const snapEndpoint = useEditorStore((s) => s.snapEndpoint)
+  const snapMidpoint = useEditorStore((s) => s.snapMidpoint)
+  const snapCenter = useEditorStore((s) => s.snapCenter)
+  const snapIntersection = useEditorStore((s) => s.snapIntersection)
+  const snapGrid = useEditorStore((s) => s.snapGrid)
   const gridVisible = useEditorStore((s) => s.gridVisible)
   const currentStepId = useEditorStore((s) => s.currentStepId)
   const draftCursor = useEditorStore((s) => s.draftCursor)
@@ -1394,6 +1401,69 @@ export function CadEditorPage({
                 )}
               </div>
             )}
+          </div>
+
+          <div style={{ marginBottom: 20 }}>
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 6 }}>
+              <div style={sectionLabelStyle}>スナップ</div>
+              <button
+                type="button"
+                aria-label="スナップ有効"
+                aria-pressed={snapEnabled}
+                style={snapEnabled ? toolButtonActiveStyle : toolButtonStyle}
+                onClick={() => storeApi.getState().setSnapEnabled(!snapEnabled)}
+              >
+                {snapEnabled ? 'ON' : 'OFF'}
+              </button>
+            </div>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 6 }}>
+              <span style={{ fontSize: 11.5, color: 'var(--ink2)', whiteSpace: 'nowrap' }}>許容差</span>
+              <input
+                type="number"
+                aria-label="スナップ許容差px"
+                value={snapTolerancePx}
+                min={1}
+                max={40}
+                style={{ ...editParamInputStyle, width: 56 }}
+                onChange={(e) => storeApi.getState().setSnapTolerancePx(Number(e.target.value) || 10)}
+              />
+              <span style={{ fontSize: 11, color: 'var(--muted)' }}>px</span>
+            </div>
+            <div style={{ display: 'flex', flexWrap: 'wrap', gap: 4 }}>
+              {(
+                [
+                  ['snapEndpoint', '端点'],
+                  ['snapMidpoint', '中点'],
+                  ['snapCenter', '中心'],
+                  ['snapIntersection', '交点'],
+                  ['snapGrid', 'グリッド'],
+                ] as const
+              ).map(([key, label]) => {
+                const active = key === 'snapEndpoint' ? snapEndpoint
+                  : key === 'snapMidpoint' ? snapMidpoint
+                  : key === 'snapCenter' ? snapCenter
+                  : key === 'snapIntersection' ? snapIntersection
+                  : snapGrid
+                return (
+                  <button
+                    key={key}
+                    type="button"
+                    aria-label={`スナップ: ${label}`}
+                    aria-pressed={active}
+                    disabled={!snapEnabled}
+                    style={{
+                      ...miniButtonStyle,
+                      background: active ? 'var(--hover)' : 'var(--surface)',
+                      color: active ? 'var(--ink)' : 'var(--muted)',
+                      opacity: snapEnabled ? 1 : 0.5,
+                    }}
+                    onClick={() => storeApi.getState().toggleSnapType(key === 'snapEndpoint' ? 'endpoint' : key === 'snapMidpoint' ? 'midpoint' : key === 'snapCenter' ? 'center' : key === 'snapIntersection' ? 'intersection' : 'grid')}
+                  >
+                    {label}
+                  </button>
+                )
+              })}
+            </div>
           </div>
 
           {activeTool === 'text' && draftPoints.length >= 1 && (
