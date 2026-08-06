@@ -68,6 +68,24 @@ describe('CadEditorPage cloud save', () => {
     await waitFor(() => expect(screen.getByRole('status').textContent).toContain('選択なし'))
   })
 
+  it('複数選択時に一括編集（線種）が1 undoで反映される（Issue #39）', async () => {
+    const store = createEditorStore()
+    store.getState().addGeometries([line('g-1'), line('g-2')])
+    store.getState().select(['g-1' as Geometry['id'], 'g-2' as Geometry['id']])
+    const cloudApiClient: CloudSaveClient = { saveDraft: vi.fn(), getRevisionContent: vi.fn() }
+    renderPage(store, cloudApiClient)
+
+    expect(screen.getByText(/2件選択中（一括編集）/)).toBeInTheDocument()
+
+    fireEvent.change(screen.getByLabelText('一括: 線種'), { target: { value: 'dashed' } })
+    await waitFor(() =>
+      expect(store.getState().geometries.every((g) => g.style.lineType === 'dashed')).toBe(true),
+    )
+
+    store.getState().undo()
+    expect(store.getState().geometries.every((g) => g.style.lineType === 'continuous')).toBe(true)
+  })
+
   it('図形が無い場合は共有保存を実行せず、画面に理由を表示する', async () => {
     const cloudApiClient: CloudSaveClient = { saveDraft: vi.fn(), getRevisionContent: vi.fn() }
     renderPage(createEditorStore(), cloudApiClient)

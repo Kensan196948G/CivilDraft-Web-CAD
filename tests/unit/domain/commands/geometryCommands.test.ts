@@ -12,6 +12,7 @@ import {
   createChamferGeometriesCommand,
   createTrimGeometryCommand,
   createImportDocumentCommand,
+  createBulkUpdateGeometriesCommand,
 } from '@/domain/commands/geometryCommands'
 import type { DocumentState } from '@/domain/commands/editorCommand'
 import type { GeometryCreationContext } from '@/domain/geometry/geometryFactory'
@@ -354,5 +355,30 @@ describe('ImportDocumentCommand（Issue #118）', () => {
     const executed = cmd.execute(d)
     expect(executed.layers).toHaveLength(1)
     expect(executed.layers[0]?.id).toBe('layer-1')
+  })
+})
+
+describe('BulkUpdateGeometriesCommand（Issue #39）', () => {
+  it('複数図形の一括更新をexecute/undoで往復できる', () => {
+    const ctx = seqContext()
+    const a = line('a', { x: 0, y: 0 }, { x: 10, y: 0 })
+    const b = circle('b', 0, 0, 5)
+    const afterA = { ...a, style: { ...a.style, strokeColor: '#ff0000' } }
+    const afterB = { ...b, style: { ...b.style, strokeColor: '#ff0000' } }
+    const d = doc([a, b])
+    const cmd = createBulkUpdateGeometriesCommand(
+      [
+        { before: a, after: afterA },
+        { before: b, after: afterB },
+      ],
+      ctx,
+    )
+
+    const executed = cmd.execute(d)
+    expect(executed.geometries.every((g) => g.style.strokeColor === '#ff0000')).toBe(true)
+
+    const undone = cmd.undo(executed)
+    expect(undone.geometries[0]?.style.strokeColor).toBe('#000000')
+    expect(undone.geometries[1]?.style.strokeColor).toBe('#000000')
   })
 })
