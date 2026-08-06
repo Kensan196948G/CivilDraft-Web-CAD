@@ -32,6 +32,7 @@ import { DEFAULT_CONSTRUCTION_STEPS } from '@/domain/construction-steps'
 import type { ToolType } from '@/domain/tools/draftGeometry'
 import { EDITING_TOOLS, PARAM_EDITING_TOOLS, SELECTION_REQUIRED_TOOLS } from '@/domain/tools/editGeometry'
 import { LAYER_TEMPLATES } from '@/domain/catalog/layerTemplates'
+import { CAD_COMMAND_HELP, parseCadCommand } from '@/domain/cadCommandLine'
 import { checkDrawingHealth, type DrawingHealthResult } from '@/domain/validation/drawingHealth'
 import { defaultCreationContext } from '@/domain/geometry/geometryFactory'
 import type { AutosaveStore } from '@/infrastructure/autosave/autosaveStore'
@@ -708,6 +709,8 @@ export function CadEditorPage({
   const [healthOpen, setHealthOpen] = useState(false)
   const [healthResult, setHealthResult] = useState<DrawingHealthResult | null>(null)
   const [commandPaletteOpen, setCommandPaletteOpen] = useState(false)
+  const [shortcutHelpOpen, setShortcutHelpOpen] = useState(false)
+  const [commandLineValue, setCommandLineValue] = useState('')
 
   const [textInputValue, setTextInputValue] = useState('')
   const [textFontSize, setTextFontSize] = useState(14)
@@ -831,6 +834,11 @@ export function CadEditorPage({
       if (mod && event.key.toLowerCase() === 'y') {
         event.preventDefault()
         if (state.redoStack.length > 0) state.redo()
+        return
+      }
+      if (event.key === '?') {
+        event.preventDefault()
+        setShortcutHelpOpen(true)
         return
       }
       if ((event.key === 'Delete' || event.key === 'Backspace') && state.selectedIds.length > 0) {
@@ -1008,6 +1016,51 @@ export function CadEditorPage({
   const handleRecalculateQuantities = () => {
     storeApi.getState().recalculateQuantities()
     runHealthCheck()
+  }
+
+  /** CADコマンドラインの実行（Issue #47）。 */
+  const runCommandLine = (raw: string) => {
+    const result = parseCadCommand(raw)
+    if (!result.ok) {
+      setEditNotice(result.message)
+      return
+    }
+    const state = storeApi.getState()
+    const command = result.command
+    switch (command.kind) {
+      case 'undo':
+        state.undo()
+        break
+      case 'redo':
+        state.redo()
+        break
+      case 'grid':
+        state.setGridVisible(command.visible)
+        break
+      case 'snap':
+        state.setSnapEnabled(command.enabled)
+        break
+      case 'selectAll':
+        state.select(state.geometries.map((g) => g.id))
+        break
+      case 'clearSelection':
+        state.clearSelection()
+        break
+      case 'layer': {
+        const existing = state.layers.find((l) => l.name === command.name)
+        if (existing) {
+          state.setActiveLayer(existing.id)
+        } else {
+          state.setActiveLayer(state.addLayer(command.name))
+        }
+        break
+      }
+      case 'help':
+        setShortcutHelpOpen(true)
+        break
+    }
+    setEditNotice(null)
+    setCommandLineValue('')
   }
 
   const healthSeverityColor = (severity: 'error' | 'warning' | 'info') =>
@@ -1508,6 +1561,33 @@ export function CadEditorPage({
             </div>
           </div>
 
+          <div style={{ marginBottom: 20 }}>
+            <div style={sectionLabelStyle}>コマンドライン</div>
+            <div style={{ display: 'flex', gap: 6 }}>
+              <input
+                type="text"
+                aria-label="CADコマンドライン"
+                placeholder="例: layer 施工ヤード / undo / grid on"
+                value={commandLineValue}
+                style={{ ...fieldInputStyle, flex: 1, textAlign: 'left' }}
+                onChange={(e) => setCommandLineValue(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter') runCommandLine(commandLineValue)
+                  if (e.key === 'Escape') setCommandLineValue('')
+                }}
+              />
+              <button
+                type="button"
+                style={ghostButtonStyle}
+                aria-label="コマンド一覧を表示"
+                title="コマンド一覧（?）"
+                onClick={() => setShortcutHelpOpen(true)}
+              >
+                ?
+              </button>
+            </div>
+          </div>
+
           {activeTool === 'text' && draftPoints.length >= 1 && (
             <div style={{ marginBottom: 20, padding: '12px 14px', borderRadius: 8, background: 'var(--subtle)', border: '1px solid var(--line)' }}>
               <div style={sectionLabelStyle}>文字入力</div>
@@ -1858,6 +1938,73 @@ export function CadEditorPage({
       </div>
       {commandPaletteOpen && (
         <CommandPalette open onClose={() => setCommandPaletteOpen(false)} items={paletteItems} />
+      )}
+      {shortcutHelpOpen && (
+        <div
+          role="dialog"
+          aria-modal="true"
+          aria-label="ショートカットとコマンド一覧"
+          style={{
+            position: 'fixed',
+            inset: 0,
+            background: 'rgba(0,0,0,0.35)',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            zIndex: 1000,
+          }}
+          onClick={() => setShortcutHelpOpen(false)}
+        >
+          <div
+            style={{
+              background: 'var(--surface)',
+              border: '1px solid var(--line)',
+              borderRadius: 12,
+              boxShadow: 'var(--shadow)',
+              padding: '18px 22px',
+              width: 520,
+              maxHeight: '80vh',
+              overflow: 'auto',
+            }}
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div style={{ fontSize: 14, fontWeight: 600, marginBottom: 10 }}>ショートカットとコマンド一覧</div>
+            <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 12 }}>
+              <tbody>
+                {[
+                  ['Ctrl/Cmd+Z', '元に戻す'],
+                  ['Ctrl/Cmd+Y / Ctrl+Shift+Z', 'やり直す'],
+                  ['Ctrl/Cmd+K', 'コマンドパレット'],
+                  ['Delete / Backspace', '選択図形を削除'],
+                  ['1〜8', '作図ツール切替'],
+                  ['Esc', '作図取消 / 選択解除'],
+                  ['Arrow（キャンバスfocus時）', 'パン'],
+                  ['Space（押下中）', 'パンモード'],
+                  ['?', 'この一覧を表示'],
+                ].map(([key, desc]) => (
+                  <tr key={key}>
+                    <td style={{ padding: '4px 8px', color: 'var(--ink)', whiteSpace: 'nowrap', fontWeight: 600 }}>{key}</td>
+                    <td style={{ padding: '4px 8px', color: 'var(--ink2)' }}>{desc}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+            <div style={{ fontSize: 12, fontWeight: 600, margin: '12px 0 4px' }}>CADコマンドライン</div>
+            <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 12 }}>
+              <tbody>
+                {CAD_COMMAND_HELP.map((item) => (
+                  <tr key={item.command}>
+                    <td style={{ padding: '3px 8px', color: 'var(--ink)', whiteSpace: 'nowrap', fontWeight: 600 }}>{item.command}</td>
+                    <td style={{ padding: '3px 8px', color: 'var(--ink2)' }}>{item.description}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+            <button type="button" style={{ ...primaryButtonStyle, marginTop: 12 }} onClick={() => setShortcutHelpOpen(false)}>
+              閉じる
+            </button>
+          </div>
+        </div>
       )}
     </div>
   )

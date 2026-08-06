@@ -68,6 +68,43 @@ describe('CadEditorPage cloud save', () => {
     await waitFor(() => expect(screen.getByRole('status').textContent).toContain('選択なし'))
   })
 
+  it('コマンドラインから undo / layer / help を実行できる（Issue #47）', async () => {
+    const store = createEditorStore()
+    store.getState().dispatchCommand(createAddGeometryCommand(line('g-1'), defaultCreationContext))
+    store.getState().dispatchCommand(createAddGeometryCommand(line('g-2'), defaultCreationContext))
+    const cloudApiClient: CloudSaveClient = { saveDraft: vi.fn(), getRevisionContent: vi.fn() }
+    renderPage(store, cloudApiClient)
+
+    const input = screen.getByLabelText('CADコマンドライン')
+    fireEvent.change(input, { target: { value: 'undo' } })
+    fireEvent.keyDown(input, { key: 'Enter' })
+    await waitFor(() => expect(store.getState().geometries).toHaveLength(1))
+
+    fireEvent.change(input, { target: { value: 'layer 施工ヤード' } })
+    fireEvent.keyDown(input, { key: 'Enter' })
+    await waitFor(() => {
+      expect(store.getState().layers.some((l) => l.name === '施工ヤード')).toBe(true)
+      expect(store.getState().activeLayerId).toBe(
+        store.getState().layers.find((l) => l.name === '施工ヤード')?.id,
+      )
+    })
+
+    fireEvent.keyDown(window, { key: '?' })
+    expect(screen.getByRole('dialog', { name: 'ショートカットとコマンド一覧' })).toBeInTheDocument()
+  })
+
+  it('不明なコマンドはエラーメッセージを表示する（Issue #47）', () => {
+    const store = createEditorStore()
+    const cloudApiClient: CloudSaveClient = { saveDraft: vi.fn(), getRevisionContent: vi.fn() }
+    renderPage(store, cloudApiClient)
+
+    const input = screen.getByLabelText('CADコマンドライン')
+    fireEvent.change(input, { target: { value: 'foo bar' } })
+    fireEvent.keyDown(input, { key: 'Enter' })
+
+    expect(screen.getByText(/不明なコマンド: foo bar/)).toBeInTheDocument()
+  })
+
   it('図形が無い場合は共有保存を実行せず、画面に理由を表示する', async () => {
     const cloudApiClient: CloudSaveClient = { saveDraft: vi.fn(), getRevisionContent: vi.fn() }
     renderPage(createEditorStore(), cloudApiClient)
