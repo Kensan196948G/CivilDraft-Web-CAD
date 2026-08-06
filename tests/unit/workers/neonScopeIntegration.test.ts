@@ -87,7 +87,9 @@ function makeNeonSql(
 function neonEnv(sql: SqlClient): WorkerEnv {
   return {
     CIVILDRAFT_API_MODE: 'neon-r2',
-    CIVILDRAFT_NEON_CONNECTION: 'postgres://fake',
+    // secret-scan が database-url 形式を検出するため、接続文字列ではなく
+    // プレースホルダ（実値は使われない: sqlFactory が偽装 SQL を返す）を使用する。
+    CIVILDRAFT_NEON_CONNECTION: 'test-connection-placeholder',
     sqlFactory: () => sql,
     CIVILDRAFT_ACCESS_TEAM_DOMAIN: TEAM_DOMAIN,
     CIVILDRAFT_ACCESS_AUD: AUD,
