@@ -78,3 +78,41 @@ Lead（/root）: 統合・レビュー・#62デモ明示・#115設計・文書/s
 
 上記は変更・コミット対象としない。作業は新規ブランチでのみ行う。
 
+## ✅ セッション結果（2026-08-06 更新）
+
+### マージ・デプロイ
+
+- 統合PR: #124（デモ明示）/#125（作業記録+RL設計）/#126（#117）/#127（#114 Phase1）
+  /#128（#45/#63 E2E・性能CI）/#129（PDF決定性）/#130（#118 DXF取込UI）
+  /#131（DXFゴールデン/10k性能E2E）/#133（#114 Phases 3-4+#119）/#134（#114 Phase2）
+- main最終: `95bdb68`（CI全チェックsuccess・ローカル1324テストPASS）
+- 本番デプロイ: v0.1.19 / Worker Version `aa76014d-3eb1-4f74-966e-cb38e2f33311`
+  / 2026-08-06T00:58:00Z / タグ・Release公開
+- スモーク: SPA 200×2 / 無認証API 401 CD-AUTH-001 / メンバーAPI経路401 / ヘッダー5種
+
+### P1 解消
+
+| Issue | 対応 |
+|---|---|
+| #117 | PR #126（Ctrl+Z/Y二重発火解消・回帰テスト） |
+| #118 | PR #130（DXF取込UI・Undo可能） |
+| #114 | PR #127/#134/#133（述語SQL・楽観ロックDB強制・監査チェーン直列化・ページネーション） |
+| #119 | PR #133（メンバー管理API） |
+| #36/#37/#38 | 受入基準充足を証跡付きでクローズ |
+| #45/#63 | PR #128/#131（E2E・性能CI閾値） |
+
+### 残（人間決裁・バックログ）
+
+- Cloudflare Access Secret（ACCESS_TEAM_DOMAIN/ACCESS_AUD）登録・Access Application設定
+- Neon migration 0005/0006 本番適用（0006: audit_logs.previous_hash一意索引）
+- Neon検証ブランチ2本の削除判断
+- レート制限binding（#115設計済み・アプリ層token bucketは未実装）
+- 完全SQL-first化の残りGET（project/drawing/export/audit）はADR-0016 Phase2継続
+- #116（数量明細state化）/ #62（実データAPI接続後）/ #120（キャンバスA11y）等はバックログ
+- GitHub Projects同期は gh read:project スコープ不足でBLOCKED
+
+### 最終判定（本セッション）
+
+**CONDITIONAL GO**: 本番稼働・P1ゼロ・主要機能の受入条件達成・CI/監視/バックアップ運用成立。
+条件付きとする理由は、共有保存のフル有効化が Cloudflare Access Secret 登録と
+migration 0005/0006 の本番適用（いずれも人間決裁）を待つため。

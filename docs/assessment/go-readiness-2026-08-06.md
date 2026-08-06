@@ -12,9 +12,9 @@ P0/P1・品質ゲート・本番健全性の観点でリリース可否を妨げ
 | P0 ゼロ | ✅ | オープン Issue は P2/P3 のみ（P0 なし） |
 | P1 解消 / 管理可能な残課題化 | ✅ | #114（Phase 1〜4）・#117・#118・#38 CLOSED。オープン P1 ゼロ |
 | 選定機能の受入条件達成 | ✅ | #45（E2E/性能基盤）・#63（大規模性能閾値）・#119（メンバー管理 API）CLOSED（PR #128/#130/#131/#133） |
-| 全テスト・lint・typecheck・build・CI | ✅ | main CI 全ジョブ success（#133 マージ後 run 31061095541）。ローカル最終ゲート: テスト 1312 passed・build・perf 5/5 |
+| 全テスト・lint・typecheck・build・CI | ✅ | main CI 全ジョブ success（#133 マージ後 run 31061095541）。ローカル最終ゲート: テスト 1324 passed・build・perf 5/5 |
 | PR 作成・マージ | ✅ | #124〜#134 全マージ・オープン PR なし |
-| 本番確認 | ✅ | Worker Version `aa76014d`（2026-08-06T00:56:53Z・wrangler 100%）。SPA 200（カスタムドメイン/workers.dev）・API 401 CD-AUTH-001（fail-closed）・本番バンドルに「📥 取込」「DXF取込完了」「コマンドパレット」を確認 |
+| 本番確認 | ✅ | Worker Version `aa76014d`（2026-08-06T00:58:00Z・wrangler 100%）。SPA 200（カスタムドメイン/workers.dev）・API 401 CD-AUTH-001（fail-closed）・メンバーAPI経路401・本番バンドルに「📥 取込」「DXF取込完了」「コマンドパレット」を確認 |
 | 監視 | ✅ | 合成監視（30 分毎）success 継続・Production Health Check success |
 | 運用引継ぎ | ✅ | `docs/operations/`（production-deployment・monitoring-readiness・operations-manual・rollback-procedure・release-procedure・incident-response 等）整備済み |
 

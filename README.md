@@ -618,6 +618,7 @@ timeline
 | 2026-08-02 | 🚀 **v0.1.16 本番デプロイ**（PR #106/#107・事前承認）: キーボードショートカット（Ctrl/Cmd+Z=Undo・Ctrl/Cmd+Y=Redo・Esc=取消/選択解除）+ ツールバーA11y（role/aria-label）。main最終`35802bf`のCI全5ジョブsuccess → wrangler deploy（Worker Version `39e2e95d`）。スモーク全PASS（[Release v0.1.16](../../releases/tag/v0.1.16)） |
 | 2026-08-02 | 🚀 **v0.1.17 本番デプロイ**（PR #110/#111・事前承認）: コマンドパレット（Ctrl/Cmd+K・ファジー検索・↑/↓/Enter/Esc・WAI-ARIA combobox/listbox/option・#47）、Delete/Backspace選択削除（Undo可）、数字キー1-8ツール切替。併せて合成監視workflowのpush誤トリガー真因（`--body`複数行文字列のインデント崩れによるYAML構文エラー）を修正し、CIにworkflow YAML検証（`scripts/validate-workflows.py`）を追加。main最終`7679c7b`のCI全5ジョブsuccess → wrangler deploy（Worker Version `b6ae0a7f`）。スモーク全PASS・テスト113ファイル/1287件（[Release v0.1.17](../../releases/tag/v0.1.17)） |
 | 2026-08-04 | 🚀 **v0.1.18 本番デプロイ**（PR #113/#121/#122・PR #121はユーザー承認Y→通常マージ経路）: 図面健全性チェック第二弾（Issue #59・未接続数量/stale数量/未対応DXF要素/デフォルトレイヤー配置/未承認改訂の5チェック+`DrawingHealthContext`経由の数量連動配線バグ修正、PR #121）、actorId偽装対策・リクエストボディ上限・依存更新（PR #113）、docs実態同期（PR #122）。CLOUDFLARE_API_TOKENローテーション（Workers Scripts:Edit付与）でデプロイBLOCKERを解消し、main最終`4033a44`のCI全チェックsuccess → wrangler deploy（Worker Version `a959db6f`、2026-08-04T13:32:55Z）。スモーク全PASS（SPA 200×2/API 401 CD-AUTH-001/ヘッダー5種）・Observability健全・テスト113ファイル/1300件（[Release v0.1.18](../../releases/tag/v0.1.18)） |
+| 2026-08-06 | 🚀 **v0.1.19 本番デプロイ**（PR #124〜#134・/goal事前承認）: **P1全解消**。Issue #117（Ctrl+Z/Y二重発火・PR #126）、#118（DXF取込UI配線・PR #130）、#114（Neon永続化層: Phase1スコープ付きロード #127 / Phase2リビジョン読み取りSQL-first #134 / Phase3楽観ロックDB強制・Phase4監査ハッシュチェーン直列化（migration 0006）・一覧ページネーション・#119メンバー管理API #133）、#45/#63（PlaywrightライフサイクルE2E・性能ベンチマークCI閾値・DXF取込ゴールデン/10k性能E2E・#128/#131）、#129（PDF出力メタデータ決定性）、#36/#37/#38（受入基準充足を証跡付きクローズ）。main最終`95bdb68`のCI全チェックsuccess・ローカル1324テストPASS → wrangler deploy（Worker Version `aa76014d`、2026-08-06T00:58:00Z）。スモーク全PASS（SPA 200×2/API 401 CD-AUTH-001/メンバーAPI経路401/ヘッダー5種）（[Release v0.1.19](../../releases/tag/v0.1.19)） |
 
 ### 🛠️ 次に閉じるべき実務ワークフロー
 
@@ -698,8 +699,18 @@ timeline
 | [#111](../../pull/111) | **v0.1.17**: コマンドパレット・Delete削除・数字キーツール切替（#47） | ✅ マージ済み（2026-08-02・admin squash `7679c7b`）→ v0.1.17本番デプロイ済み |
 | [#121](../../pull/121) | Issue #59第二弾: 未接続数量／stale数量／未対応DXF要素／デフォルトレイヤー配置／未承認改訂の5チェック（`DrawingHealthContext`）+ CadEditorPage配線バグ修正 | ✅ マージ済み（2026-08-04・squash `506be8c`、admin bypassなしの通常マージ経路）→ **v0.1.18本番デプロイ済み**（2026-08-04・Worker Version `a959db6f`、CLOUDFLARE_API_TOKENローテーション後にwrangler deploy） |
 | [#122](../../pull/122) | v0.1.17マージ状態・Issue #59クローズのdocs実態同期（当時デプロイBLOCKEDと記録） | ✅ マージ済み（2026-08-04・`4033a44`）→ v0.1.18に内包し本番反映済み。デプロイBLOCKED記述は本v0.1.18同期で解消 |
+| [#124](../../pull/124) | ホーム画面のデモデータ明示バナー（Issue #62の最小対応） | ✅ マージ済み（2026-08-06・`27e3d89`）→ v0.1.19 |
+| [#125](../../pull/125) | 本番完成セッション作業記録＋レート制限設計（#115） | ✅ マージ済み（2026-08-06・`ec906c9`） |
+| [#126](../../pull/126) | **Issue #117**: Ctrl+Z/Y二重発火解消（リスナー一元化＋回帰テスト） | ✅ マージ済み（2026-08-06・`ca89e44`）→ v0.1.19 |
+| [#127](../../pull/127) | **Issue #114 Phase 1**: Neon永続化層のスコープ付きロード＋ADR-0016 | ✅ マージ済み（2026-08-06・`276332c`）→ v0.1.19 |
+| [#128](../../pull/128) | **Issue #45/#63**: PlaywrightライフサイクルE2E・性能ベンチマーク・CI閾値監視 | ✅ マージ済み（2026-08-06・`3b1ebbf`）→ v0.1.19 |
+| [#129](../../pull/129) | PDF出力メタデータ決定性（CI flaky解消） | ✅ マージ済み（2026-08-06・`8bab882`）→ v0.1.19 |
+| [#130](../../pull/130) | **Issue #118**: DXF取込UI配線（Undo可能な1操作・README乖離解消） | ✅ マージ済み（2026-08-06・`9e532f7`）→ v0.1.19 |
+| [#131](../../pull/131) | **Issue #45/#63**: DXF取込ゴールデンE2E・10k図形/10MB級取込性能E2E | ✅ マージ済み（2026-08-06・`89decac`）→ v0.1.19 |
+| [#133](../../pull/133) | **Issue #114 Phases 3-4・#119**: 楽観ロックDB強制・監査チェーン直列化（migration 0006）・一覧ページネーション・メンバー管理API | ✅ マージ済み（2026-08-06・`95bdb68`）→ v0.1.19 |
+| [#134](../../pull/134) | **Issue #114 Phase 2**: リビジョン読み取り経路のSQL-first化 | ✅ マージ済み（2026-08-06・`73ea308`）→ v0.1.19 |
 
-> マージ済みPRは人間の明示承認（選択式Y判断）を得てマージ済み。レビュー承認1件必須はPR作成者の自己承認不可のため、PR #111までは マージ実行時に enforce_admins を一時解除し完了後に即復元していた。PR #121以降は、branch protectionの `required_approving_review_count` を 1→0 へ恒久変更（2026-08-04・人間承認済み、他の保護設定は変更なし）したため、admin bypassを伴わない通常マージ経路を使用する。
+> マージ済みPRは人間の明示承認（選択式Y判断）を得てマージ済み。レビュー承認1件必須はPR作成者の自己承認不可のため、PR #111までは マージ実行時に enforce_admins を一時解除し完了後に即復元していた。PR #121以降は、branch protectionの `required_approving_review_count` を 1→0 へ恒久変更（2026-08-04・人間承認済み、他の保護設定は変更なし）したため、admin bypassを伴わない通常マージ経路を使用する。PR #124〜#134は2026-08-06の /goal 指示（品質条件達成後のマージ・本番デプロイの事前承認）に基づき通常マージ経路で統合・v0.1.19として本番反映済み。
 
 進捗の詳細は[GitHub Projects「CivilDraft-Web-CAD 開発司令盤」](../../projects)、Issue一覧は[Issues](../../issues)を参照してください。
 
