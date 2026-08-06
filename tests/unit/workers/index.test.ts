@@ -186,9 +186,10 @@ describe('§25.1 共通ヘッダー検証', () => {
   it('neon-r2 モードで全ルート（読み書き）が接続不能時に 503 fail-closed（#66 配線後も無言フォールバックしない）', async () => {
     // #66 で書き込み系の一時停止ゲート（isPersistedWriteRoute）は撤去済み。
     // 撤去後も「アダプタ未接続で成功を偽装しない」性質は維持されることを、
-    // 19 経路全数で確認する（『一時停止』応答が残っていないことも見る）。
+    // 23 経路全数で確認する（『一時停止』応答が残っていないことも見る）。
     // ※19経路目は GET /api/v1/audit-logs/verify（Issue #61 監査チェーン検証）。
-    expect(API_ROUTES).toHaveLength(19)
+    //   #119 でメンバー管理 4 経路を追加（計 23 経路）。
+    expect(API_ROUTES).toHaveLength(23)
 
     for (const r of API_ROUTES) {
       const res = await handleRequest(
@@ -213,9 +214,11 @@ describe('§25.1 共通ヘッダー検証', () => {
 })
 
 describe('§25.2 ルーティング', () => {
-  it('エンドポイント一覧が仕様の18経路+監査チェーン検証（計19経路）を網羅する', () => {
-    expect(API_ROUTES).toHaveLength(19)
+  it('エンドポイント一覧が仕様の22経路+監査チェーン検証（計23経路）を網羅する', () => {
+    expect(API_ROUTES).toHaveLength(23)
     expect(API_ROUTES.some((r) => r.template === '/api/v1/audit-logs/verify')).toBe(true)
+    expect(API_ROUTES.some((r) => r.template === '/api/v1/projects/{projectId}/members')).toBe(true)
+    expect(API_ROUTES.some((r) => r.template === '/api/v1/projects/{projectId}/members/{userId}')).toBe(true)
   })
 
   it('P0縦線: Project作成 → Drawing作成 → Revision作成 → Content/数量保存 → 承認 → Export → Audit記録', async () => {
@@ -397,7 +400,10 @@ describe('§25.2 ルーティング', () => {
       env,
     )
     expect(outsiderListRes.status).toBe(200)
-    expect(await json<{ readonly projects: unknown[] }>(outsiderListRes)).toEqual({ projects: [] })
+    expect(await json<{ readonly projects: unknown[] }>(outsiderListRes)).toEqual({
+      projects: [],
+      pagination: { limit: 50, offset: 0, total: 0 },
+    })
 
     const outsiderGetRes = await handleRequest(
       authedRequestAs('outsider@example.test', 'GET', `/api/v1/projects/${projectBody.project.id}`),
@@ -1258,5 +1264,119 @@ describe('#66 永続化フック配線（persistX wiring）', () => {
     expect(body.auditChain.valid).toBe(true)
     expect(body.auditChain.checkedCount).toBe(0)
     expect(body.auditChain.legacyCount).toBe(0)
+  })
+
+  describe('プロジェクトメンバー管理 API（Issue #119）', () => {
+    interface MemberBody {
+      readonly member: { readonly userId: string; readonly role: string }
+    }
+
+    async function createProjectWithManager(
+      env: WorkerEnv,
+      manager = 'owner@example.test',
+    ): Promise<string> {
+      const res = await handleRequest(
+        authedRequestAs(manager, 'POST', '/api/v1/projects', {
+          projectNumber: 'P-MEMBERS',
+          name: 'メンバー管理テスト案件',
+        }),
+        env,
+      )
+      const body = await json<ProjectBody>(res)
+      return body.project.id
+    }
+
+    it('manager がメンバーを追加・一覧取得・ロール変更・削除できる', async () => {
+      const env = testEnv()
+      const projectId = await createProjectWithManager(env)
+
+      // 追加
+      const addRes = await handleRequest(
+        authedRequestAs('owner@example.test', 'POST', `/api/v1/projects/${projectId}/members`, {
+          userId: 'editor@example.test',
+          role: 'editor',
+        }),
+        env,
+      )
+      expect(addRes.status).toBe(201)
+      const addBody = await json<MemberBody>(addRes)
+      expect(addBody.member.role).toBe('editor')
+
+      // 一覧
+      const listRes = await handleRequest(
+        authedRequestAs('owner@example.test', 'GET', `/api/v1/projects/${projectId}/members`),
+        env,
+      )
+      expect(listRes.status).toBe(200)
+      const listBody = await json<{ readonly members: readonly { readonly userId: string }[] }>(listRes)
+      expect(listBody.members.map((m) => m.userId)).toEqual([
+        'owner@example.test',
+        'editor@example.test',
+      ])
+
+      // ロール変更
+      const patchRes = await handleRequest(
+        authedRequestAs('owner@example.test', 'PATCH', `/api/v1/projects/${projectId}/members/editor@example.test`, {
+          role: 'reviewer',
+        }),
+        env,
+      )
+      expect(patchRes.status).toBe(200)
+      const patchBody = await json<MemberBody>(patchRes)
+      expect(patchBody.member.role).toBe('reviewer')
+
+      // 削除
+      const deleteRes = await handleRequest(
+        authedRequestAs('owner@example.test', 'DELETE', `/api/v1/projects/${projectId}/members/editor@example.test`),
+        env,
+      )
+      expect(deleteRes.status).toBe(200)
+      const deleteBody = await json<{ readonly removed: boolean }>(deleteRes)
+      expect(deleteBody.removed).toBe(true)
+    })
+
+    it('manager 以外のメンバー操作は 403 で拒否される', async () => {
+      const env = testEnv()
+      const projectId = await createProjectWithManager(env)
+      const addRes = await handleRequest(
+        authedRequestAs('viewer@example.test', 'POST', `/api/v1/projects/${projectId}/members`, {
+          userId: 'someone@example.test',
+          role: 'viewer',
+        }),
+        env,
+      )
+      expect(addRes.status).toBe(403)
+    })
+
+    it('最後の manager のロール変更・削除は 409 で拒否される', async () => {
+      const env = testEnv()
+      const projectId = await createProjectWithManager(env)
+
+      const patchRes = await handleRequest(
+        authedRequestAs('owner@example.test', 'PATCH', `/api/v1/projects/${projectId}/members/owner@example.test`, {
+          role: 'viewer',
+        }),
+        env,
+      )
+      expect(patchRes.status).toBe(409)
+
+      const deleteRes = await handleRequest(
+        authedRequestAs('owner@example.test', 'DELETE', `/api/v1/projects/${projectId}/members/owner@example.test`),
+        env,
+      )
+      expect(deleteRes.status).toBe(409)
+    })
+
+    it('存在しないメンバーへの更新・削除は 404', async () => {
+      const env = testEnv()
+      const projectId = await createProjectWithManager(env)
+      const patchRes = await handleRequest(
+        authedRequestAs('owner@example.test', 'PATCH', `/api/v1/projects/${projectId}/members/nobody@example.test`, {
+          role: 'viewer',
+        }),
+        env,
+      )
+      expect(patchRes.status).toBe(404)
+    })
   })
 })

@@ -73,4 +73,15 @@ describe('Neon migrations', () => {
     expect(sql).not.toMatch(/\bDELETE\s+FROM\b/i)
     expect(sql).not.toMatch(/\bALTER\s+TABLE\b[\s\S]*\bDROP\s+COLUMN\b/i)
   })
+
+  it('0006 は監査ハッシュチェーンの previous_hash 一意索引を追加する（#114 Phase 4）', () => {
+    const sql = readMigration('0006_audit_log_previous_hash_unique.sql')
+
+    expect(sql).toContain('CREATE UNIQUE INDEX IF NOT EXISTS audit_logs_previous_hash_unique')
+    expect(sql).toContain('ON audit_logs (previous_hash)')
+    expect(sql).toMatch(/WHERE previous_hash IS NOT NULL/)
+    expect(sql).not.toMatch(/\bDROP\s+(TABLE|COLUMN|SCHEMA|DATABASE)\b/i)
+    expect(sql).not.toMatch(/\bTRUNCATE\b/i)
+    expect(sql).not.toMatch(/\bDELETE\s+FROM\b/i)
+  })
 })

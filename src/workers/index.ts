@@ -15,7 +15,12 @@ import { revisionTransitionTarget } from '../domain/revisions'
 import { resolveAccessJwtConfig, verifyAccessJwt } from './accessJwt'
 import { verifyAuditChain } from './auditChain'
 import { createMemoryStore } from './apiStore'
-import { createNeonApiStore, inspectProductionPersistenceReadiness, resolvePersistenceMode } from './persistence'
+import {
+  createNeonApiStore,
+  inspectProductionPersistenceReadiness,
+  resolvePersistenceMode,
+} from './persistence'
+import { VersionConflictError } from './neonApiStore'
 import type { NeonStoreScope } from './neonApiStore'
 import type { R2BucketBinding } from './r2ContentStore'
 import type {
@@ -167,6 +172,15 @@ interface UpdateDrawingBody {
   readonly status?: unknown
 }
 
+interface AddProjectMemberBody {
+  readonly userId?: unknown
+  readonly role?: unknown
+}
+
+interface UpdateProjectMemberBody {
+  readonly role?: unknown
+}
+
 interface CreateRevisionBody {
   readonly revisionNumber?: unknown
   readonly changeSummary?: unknown
@@ -221,6 +235,10 @@ export const API_ROUTES: readonly ApiRoute[] = [
   route('POST', '/api/v1/projects', '案件作成'),
   route('GET', '/api/v1/projects/{projectId}', '案件取得'),
   route('PATCH', '/api/v1/projects/{projectId}', '案件更新'),
+  route('GET', '/api/v1/projects/{projectId}/members', 'メンバー一覧'),
+  route('POST', '/api/v1/projects/{projectId}/members', 'メンバー招待・追加'),
+  route('PATCH', '/api/v1/projects/{projectId}/members/{userId}', 'メンバーロール変更'),
+  route('DELETE', '/api/v1/projects/{projectId}/members/{userId}', 'メンバー削除'),
   route('GET', '/api/v1/projects/{projectId}/drawings', '図面一覧'),
   route('POST', '/api/v1/projects/{projectId}/drawings', '図面作成'),
   route('GET', '/api/v1/drawings/{drawingId}', '図面取得'),
@@ -251,6 +269,10 @@ function resolveStoreScope(matched: RouteMatch): NeonStoreScope | undefined {
       return { kind: 'projects' }
     case '/api/v1/projects/{projectId}':
       return { kind: 'project', projectId: requireParam(matched.params, 'projectId') }
+    case '/api/v1/projects/{projectId}/members':
+      return { kind: 'projectMembers', projectId: requireParam(matched.params, 'projectId') }
+    case '/api/v1/projects/{projectId}/members/{userId}':
+      return { kind: 'projectMembers', projectId: requireParam(matched.params, 'projectId') }
     case '/api/v1/projects/{projectId}/drawings':
       return { kind: 'projectDrawings', projectId: requireParam(matched.params, 'projectId') }
     case '/api/v1/drawings/{drawingId}':
@@ -491,6 +513,28 @@ function optionalPositiveInteger(value: unknown, field: string): number | undefi
   return requiredPositiveInteger(value, field)
 }
 
+/** 一覧系ページネーション（Issue #114）: limit 既定・最大値を抑止しつつ解釈する。 */
+function parsePagination(
+  searchParams: URLSearchParams,
+  defaultLimit: number,
+  maxLimit: number,
+): { readonly limit: number; readonly offset: number } {
+  const limit = Math.min(
+    optionalPositiveInteger(searchParams.get('limit'), 'limit') ?? defaultLimit,
+    maxLimit,
+  )
+  const offset = optionalNonNegativeInteger(searchParams.get('offset'), 'offset') ?? 0
+  return { limit, offset }
+}
+
+function parseProjectRole(value: unknown): ProjectRole {
+  const role = requiredString(value, 'role') as ProjectRole
+  if (!['viewer', 'editor', 'reviewer', 'approver', 'manager'].includes(role)) {
+    throw new ValidationError('role must be one of viewer, editor, reviewer, approver, manager')
+  }
+  return role
+}
+
 async function sha256Hex(input: string): Promise<string> {
   const bytes = new TextEncoder().encode(input)
   const digest = await globalThis.crypto.subtle.digest('SHA-256', bytes)
@@ -588,19 +632,47 @@ async function flushPendingAuditLogs(
 // 途中失敗時はどちらも永続化しない（部分永続化を防ぐ）。
 // ---------------------------------------------------------------------------
 
-async function commitProject(store: ApiStore, project: ProjectRecord): Promise<void> {
+async function commitProject(
+  store: ApiStore,
+  project: ProjectRecord,
+  expectedVersion?: number,
+): Promise<void> {
   if (store.persistProject) {
-    await store.persistProject(project)
+    await store.persistProject(project, expectedVersion)
   } else {
     store.projects.set(project.id, project)
   }
 }
 
-async function commitDrawing(store: ApiStore, drawing: DrawingRecord): Promise<void> {
+async function commitDrawing(
+  store: ApiStore,
+  drawing: DrawingRecord,
+  expectedVersion?: number,
+): Promise<void> {
   if (store.persistDrawing) {
-    await store.persistDrawing(drawing)
+    await store.persistDrawing(drawing, expectedVersion)
   } else {
     store.drawings.set(drawing.id, drawing)
+  }
+}
+
+async function commitProjectMember(store: ApiStore, member: ProjectMemberRecord): Promise<void> {
+  if (store.persistProjectMember) {
+    await store.persistProjectMember(member)
+  } else {
+    store.projectMembers.set(memberKey(member.projectId, member.userId), member)
+  }
+}
+
+async function commitRemoveProjectMember(
+  store: ApiStore,
+  projectId: string,
+  userId: string,
+): Promise<void> {
+  if (store.removeProjectMember) {
+    await store.removeProjectMember(projectId, userId)
+  } else {
+    store.projectMembers.delete(memberKey(projectId, userId))
   }
 }
 
@@ -642,9 +714,10 @@ async function commitContentWithRevision(
   store: ApiStore,
   content: ContentRecord,
   revision: RevisionRecord,
+  expectedContentVersion?: number,
 ): Promise<void> {
   if (store.persistContentWithRevision) {
-    await store.persistContentWithRevision(content, revision)
+    await store.persistContentWithRevision(content, revision, expectedContentVersion)
   } else {
     store.contents.set(content.revisionId, content)
     store.revisions.set(revision.id, revision)
@@ -655,9 +728,10 @@ async function commitQuantitiesWithRevision(
   store: ApiStore,
   snapshot: QuantitySnapshotRecord,
   revision: RevisionRecord,
+  expectedQuantityVersion?: number,
 ): Promise<void> {
   if (store.persistQuantitiesWithRevision) {
-    await store.persistQuantitiesWithRevision(snapshot, revision)
+    await store.persistQuantitiesWithRevision(snapshot, revision, expectedQuantityVersion)
   } else {
     store.quantities.set(snapshot.revisionId, snapshot)
     store.revisions.set(revision.id, revision)
@@ -929,7 +1003,13 @@ function listProjects(store: ApiStore, ctx: RequestContext): Response {
       .map((member) => member.projectId),
   )
   const projects = [...store.projects.values()].filter((project) => projectIds.has(project.id))
-  return jsonResponse(200, { projects }, ctx.correlationId)
+  const { limit, offset } = parsePagination(ctx.url.searchParams, 50, 200)
+  const page = projects.slice(offset, offset + limit)
+  return jsonResponse(
+    200,
+    { projects: page, pagination: { limit, offset, total: projects.length } },
+    ctx.correlationId,
+  )
 }
 
 function getProject(store: ApiStore, ctx: RequestContext, projectId: string): Response {
@@ -999,7 +1079,7 @@ async function updateProject(
     updatedBy: ctx.actorId,
     version: project.version + 1,
   }
-  await commitProject(store, updatedProject)
+  await commitProject(store, updatedProject, expectedVersion)
   appendAudit(store, ctx, {
     eventName: 'project.updated',
     projectId,
@@ -1071,7 +1151,137 @@ function listDrawings(store: ApiStore, ctx: RequestContext, projectId: string): 
   const denied = authorizeProject(store, ctx, projectId, 'view')
   if (denied) return denied
   const drawings = [...store.drawings.values()].filter((d) => d.projectId === projectId)
-  return jsonResponse(200, { drawings }, ctx.correlationId)
+  const { limit, offset } = parsePagination(ctx.url.searchParams, 100, 500)
+  const page = drawings.slice(offset, offset + limit)
+  return jsonResponse(
+    200,
+    { drawings: page, pagination: { limit, offset, total: drawings.length } },
+    ctx.correlationId,
+  )
+}
+
+// ---------------------------------------------------------------------------
+// Project members（Issue #119）
+// ---------------------------------------------------------------------------
+
+function listProjectMembers(store: ApiStore, ctx: RequestContext, projectId: string): Response {
+  if (!store.projects.has(projectId)) {
+    return errorResponse(404, ERROR_CODES.notFound, '案件が見つかりません', ctx.correlationId)
+  }
+  const denied = authorizeProject(store, ctx, projectId, 'view')
+  if (denied) return denied
+  const members = [...store.projectMembers.values()].filter((m) => m.projectId === projectId)
+  return jsonResponse(200, { members }, ctx.correlationId)
+}
+
+async function addProjectMember(
+  store: ApiStore,
+  ctx: RequestContext,
+  projectId: string,
+  body: AddProjectMemberBody,
+): Promise<Response> {
+  if (!store.projects.has(projectId)) {
+    return errorResponse(404, ERROR_CODES.notFound, '案件が見つかりません', ctx.correlationId)
+  }
+  const denied = authorizeProject(store, ctx, projectId, 'manage')
+  if (denied) return denied
+  const userId = requiredString(body.userId, 'userId')
+  const role = parseProjectRole(body.role)
+  if (store.projectMembers.has(memberKey(projectId, userId))) {
+    return errorResponse(409, ERROR_CODES.conflict, 'このユーザーは既にメンバーです', ctx.correlationId)
+  }
+  const timestamp = nowIso()
+  const member: ProjectMemberRecord = { projectId, userId, role, createdAt: timestamp, updatedAt: timestamp }
+  await commitProjectMember(store, member)
+  appendAudit(store, ctx, {
+    eventName: 'project.member.added',
+    projectId,
+    entityType: 'project_member',
+    entityId: `${projectId}:${userId}`,
+    result: 'success',
+    detail: { userId, role },
+  })
+  return jsonResponse(201, { member }, ctx.correlationId)
+}
+
+async function updateProjectMember(
+  store: ApiStore,
+  ctx: RequestContext,
+  projectId: string,
+  userId: string,
+  body: UpdateProjectMemberBody,
+): Promise<Response> {
+  const member = store.projectMembers.get(memberKey(projectId, userId))
+  if (!member) {
+    return errorResponse(404, ERROR_CODES.notFound, 'メンバーが見つかりません', ctx.correlationId)
+  }
+  const denied = authorizeProject(store, ctx, projectId, 'manage')
+  if (denied) return denied
+  const role = parseProjectRole(body.role)
+  if (role === member.role) {
+    return jsonResponse(200, { member }, ctx.correlationId)
+  }
+  if (member.role === 'manager' && role !== 'manager' && !hasAnotherManager(store, projectId, userId)) {
+    return errorResponse(
+      409,
+      ERROR_CODES.conflict,
+      '最後の管理者（manager）のロールは変更できません',
+      ctx.correlationId,
+    )
+  }
+  const updated: ProjectMemberRecord = { ...member, role, updatedAt: nowIso() }
+  await commitProjectMember(store, updated)
+  appendAudit(store, ctx, {
+    eventName: 'project.member.roleChanged',
+    projectId,
+    entityType: 'project_member',
+    entityId: `${projectId}:${userId}`,
+    result: 'success',
+    detail: { userId, fromRole: member.role, toRole: role },
+  })
+  return jsonResponse(200, { member: updated }, ctx.correlationId)
+}
+
+async function deleteProjectMember(
+  store: ApiStore,
+  ctx: RequestContext,
+  projectId: string,
+  userId: string,
+): Promise<Response> {
+  const member = store.projectMembers.get(memberKey(projectId, userId))
+  if (!member) {
+    return errorResponse(404, ERROR_CODES.notFound, 'メンバーが見つかりません', ctx.correlationId)
+  }
+  const denied = authorizeProject(store, ctx, projectId, 'manage')
+  if (denied) return denied
+  if (member.role === 'manager' && !hasAnotherManager(store, projectId, userId)) {
+    return errorResponse(
+      409,
+      ERROR_CODES.conflict,
+      '最後の管理者（manager）は削除できません',
+      ctx.correlationId,
+    )
+  }
+  await commitRemoveProjectMember(store, projectId, userId)
+  appendAudit(store, ctx, {
+    eventName: 'project.member.removed',
+    projectId,
+    entityType: 'project_member',
+    entityId: `${projectId}:${userId}`,
+    result: 'success',
+    detail: { userId, role: member.role },
+  })
+  return jsonResponse(200, { removed: true, userId }, ctx.correlationId)
+}
+
+function hasAnotherManager(
+  store: ApiStore,
+  projectId: string,
+  exceptUserId: string,
+): boolean {
+  return [...store.projectMembers.values()].some(
+    (m) => m.projectId === projectId && m.role === 'manager' && m.userId !== exceptUserId,
+  )
 }
 
 function getDrawing(store: ApiStore, ctx: RequestContext, drawingId: string): Response {
@@ -1142,7 +1352,7 @@ async function updateDrawing(
     updatedBy: ctx.actorId,
     version: drawing.version + 1,
   }
-  await commitDrawing(store, updatedDrawing)
+  await commitDrawing(store, updatedDrawing, expectedVersion)
   appendAudit(store, ctx, {
     eventName: 'drawing.updated',
     projectId: drawing.projectId,
@@ -1301,13 +1511,18 @@ async function putRevisionContent(
     updatedAt: nowIso(),
   }
   // content と revision（contentVersion/checksum 更新）は単一トランザクションとして永続化する（#68）。
-  await commitContentWithRevision(store, content, {
-    ...latestRevision,
-    contentChecksum: checksum,
-    contentVersion: content.contentVersion,
-    updatedAt: content.updatedAt,
-    updatedBy: ctx.actorId,
-  })
+  await commitContentWithRevision(
+    store,
+    content,
+    {
+      ...latestRevision,
+      contentChecksum: checksum,
+      contentVersion: content.contentVersion,
+      updatedAt: content.updatedAt,
+      updatedBy: ctx.actorId,
+    },
+    previous?.contentVersion,
+  )
   appendAudit(store, ctx, {
     eventName: 'revision.content.updated',
     projectId: drawing.projectId,
@@ -1400,11 +1615,16 @@ async function putRevisionQuantities(
     updatedBy: ctx.actorId,
   }
   // snapshot と revision（updatedAt 更新）は単一トランザクションとして永続化する（#68）。
-  await commitQuantitiesWithRevision(store, snapshot, {
-    ...revision,
-    updatedAt,
-    updatedBy: ctx.actorId,
-  })
+  await commitQuantitiesWithRevision(
+    store,
+    snapshot,
+    {
+      ...revision,
+      updatedAt,
+      updatedBy: ctx.actorId,
+    },
+    previous?.quantityVersion,
+  )
   appendAudit(store, ctx, {
     eventName: 'revision.quantities.updated',
     projectId: drawing.projectId,
@@ -1747,6 +1967,10 @@ export async function handleRequest(request: Request, env: WorkerEnv = {}): Prom
       response = errorResponse(413, ERROR_CODES.invalidRequest, err.message, correlationId)
     } else if (err instanceof ValidationError) {
       response = errorResponse(400, ERROR_CODES.invalidRequest, err.message, correlationId)
+    } else if (err instanceof VersionConflictError) {
+      // DB 側で検出した楽観ロック競合（Issue #114 Phase 3）。アプリ層チェックを
+      // 通過しても DB 上で version 不一致の場合は 409 を返す（TOCTOU 解消）。
+      response = errorResponse(409, ERROR_CODES.conflict, err.message, correlationId)
     } else {
       // 既知のバリデーション以外（実装バグ等）は詳細をクライアントへ漏らさず、
       // 監査・調査のためログにだけ残す（§CD-SYS-003）。
@@ -1781,6 +2005,30 @@ async function dispatchApiRoute(
         ctx,
         requireParam(matched.params, 'projectId'),
         await readJsonObject(request),
+      )
+    case 'GET /api/v1/projects/{projectId}/members':
+      return listProjectMembers(store, ctx, requireParam(matched.params, 'projectId'))
+    case 'POST /api/v1/projects/{projectId}/members':
+      return await addProjectMember(
+        store,
+        ctx,
+        requireParam(matched.params, 'projectId'),
+        await readJsonObject(request),
+      )
+    case 'PATCH /api/v1/projects/{projectId}/members/{userId}':
+      return await updateProjectMember(
+        store,
+        ctx,
+        requireParam(matched.params, 'projectId'),
+        requireParam(matched.params, 'userId'),
+        await readJsonObject(request),
+      )
+    case 'DELETE /api/v1/projects/{projectId}/members/{userId}':
+      return await deleteProjectMember(
+        store,
+        ctx,
+        requireParam(matched.params, 'projectId'),
+        requireParam(matched.params, 'userId'),
       )
     case 'GET /api/v1/projects/{projectId}/drawings':
       return listDrawings(store, ctx, requireParam(matched.params, 'projectId'))

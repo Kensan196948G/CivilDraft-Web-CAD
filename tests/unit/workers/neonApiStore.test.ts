@@ -771,7 +771,20 @@ describe('NeonApiStore', () => {
   })
 
   it('persistAuditLog appends an audit entry and updates the local list', async () => {
-    const sql = vi.fn().mockResolvedValue([]) as unknown as SqlClient
+    // #114 Phase 4: previous_hash は毎回 DB から取得するため、挿入結果を模倣する
+    // ステートフルなモックで「DB 上の最新 entry_hash」を再現する。
+    let latestEntryHash: string | null = null
+    const sql = vi.fn((strings: TemplateStringsArray, ...values: unknown[]) => {
+      const query = strings[0] ?? ''
+      if (query.includes('SELECT entry_hash')) {
+        return Promise.resolve(latestEntryHash === null ? [] : [{ entry_hash: latestEntryHash }])
+      }
+      if (query.includes('INSERT INTO audit_logs')) {
+        const hex64 = values.find((v) => typeof v === 'string' && /^[0-9a-f]{64}$/.test(v))
+        if (typeof hex64 === 'string') latestEntryHash = hex64
+      }
+      return Promise.resolve([])
+    }) as unknown as SqlClient
     const store = new NeonApiStore(sql)
 
     const log: AuditLogRecord = {
@@ -1193,5 +1206,108 @@ describe('NeonApiStore scoped initialize（Issue #114 Phase 1）', () => {
     expect(store.projects.size).toBe(0)
     expect(store.drawings.size).toBe(0)
     expect(queryTexts(sql).every((t) => t.includes('FROM audit_logs'))).toBe(true)
+  })
+
+  describe('optimistic locking at DB level（Issue #114 Phase 3）', () => {
+    const project: ProjectRecord = {
+      id: 'proj-1',
+      projectNumber: 'P-001',
+      name: '更新案件',
+      status: 'active',
+      createdAt: now,
+      createdBy: 'user@test',
+      updatedAt: now,
+      updatedBy: 'user@test',
+      version: 2,
+    }
+
+    it('expectedVersion 一致時は UPDATE ... WHERE version で更新する', async () => {
+      // パラメータ挿入後（strings[0] 以外）に RETURNING が現れるため、
+      // 全テンプレート断片を結合してマッチするモックを使う。
+      const sql = vi.fn((strings: TemplateStringsArray) => {
+        const query = strings.join('?')
+        return Promise.resolve(query.includes('RETURNING id') ? [{ id: 'proj-1' }] : [])
+      }) as unknown as SqlClient
+      const store = new NeonApiStore(sql)
+      await store.persistProject(project, 1)
+
+      expect(store.projects.get('proj-1')?.version).toBe(2)
+      const queries = sqlCalls(sql).map(([strings]) => strings[0] ?? '')
+      expect(queries.some((q) => q.includes('UPDATE projects SET'))).toBe(true)
+      const params = sqlCalls(sql).flatMap((call) => call.slice(1) as unknown[])
+      // WHERE id = $1 AND version = $2 のパラメータ（project.id=proj-1, expectedVersion=1, version=2）
+      expect(params).toContain('proj-1')
+      expect(params).toContain(1)
+      expect(params).toContain(2)
+    })
+
+    it('expectedVersion 不一致（0行更新）時は VersionConflictError を投げ、キャッシュを更新しない', async () => {
+      const sql = makeSqlClient() // RETURNING に一致する行なし
+      const store = new NeonApiStore(sql)
+      await expect(store.persistProject(project, 99)).rejects.toThrow('バージョンが一致しません')
+      expect(store.projects.has('proj-1')).toBe(false)
+    })
+  })
+
+  it('persistAuditLog は previous_hash 一意違反を検出して新しい末尾で再試行し単一チェーンを維持する', async () => {
+    // 1回目の INSERT は unique violation、2回目は成功するモック。
+    // previous_hash 取得は DB 状態を模倣し、1回目の試行後は挿入済み entry_hash を返す。
+    let latestEntryHash: string | null = null
+    let insertAttempt = 0
+    const sql = vi.fn((strings: TemplateStringsArray, ...values: unknown[]) => {
+      const query = strings[0] ?? ''
+      if (query.includes('SELECT entry_hash')) {
+        return Promise.resolve(latestEntryHash === null ? [] : [{ entry_hash: latestEntryHash }])
+      }
+      if (query.includes('INSERT INTO audit_logs')) {
+        const hex64 = values.find((v) => typeof v === 'string' && /^[0-9a-f]{64}$/.test(v))
+        if (typeof hex64 === 'string') {
+          insertAttempt += 1
+          if (insertAttempt === 1) {
+            const err = new Error('duplicate key value violates unique constraint') as Error & { code?: string }
+            err.code = '23505'
+            return Promise.reject(err)
+          }
+          latestEntryHash = hex64
+        }
+      }
+      return Promise.resolve([])
+    }) as unknown as SqlClient
+    const store = new NeonApiStore(sql)
+
+    const log: AuditLogRecord = {
+      id: 'audit-concurrent',
+      occurredAt: now,
+      eventName: 'drawing.created',
+      actorId: 'user@test',
+      projectId: 'proj-1',
+      entityType: 'drawing',
+      entityId: 'draw-1',
+      result: 'success',
+      correlationId: 'corr-x',
+    }
+
+    await store.persistAuditLog(log)
+    expect(store.auditLogs).toHaveLength(1)
+    expect(store.auditLogs[0]?.entryHash).toMatch(/^[0-9a-f]{64}$/)
+    expect(sql).toHaveBeenCalledTimes(4) // tail取得 → INSERT失敗 → tail再取得 → INSERT成功
+  })
+
+  it('removeProjectMember は RETURNING 行があればローカル Map から削除する（#119）', async () => {
+    const sql = vi.fn((strings: TemplateStringsArray) => {
+      const query = strings.join('?')
+      return Promise.resolve(query.includes('RETURNING project_id') ? [{ project_id: 'proj-1' }] : [])
+    }) as unknown as SqlClient
+    const store = new NeonApiStore(sql)
+    store.projectMembers.set('proj-1:user@test', {
+      projectId: 'proj-1',
+      userId: 'user@test',
+      role: 'editor',
+      createdAt: now,
+      updatedAt: now,
+    })
+
+    await store.removeProjectMember('proj-1', 'user@test')
+    expect(store.projectMembers.has('proj-1:user@test')).toBe(false)
   })
 })

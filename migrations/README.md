@@ -11,6 +11,7 @@ SQL ファイルは**定義のみ**であり、本リポジトリからの自動
 | `0002_api_contract_alignment.sql` | Workers API P0契約に合わせた前方互換拡張（quantity_snapshots、quantityVersion、Exportメタ、R2メタ、監査ハッシュチェーン列、索引追加） | `src/workers/index.ts`・ADR-0009 |
 | `0003_persistence_schema_drift_fix.sql` | R2スキップ決定（Neon直接格納への切替）に合わせたスキーマ追随。`drawing_contents.content` 列追加、`object_key` の NOT NULL 緩和、`quantity_items.name`/`quantity` の NOT NULL 緩和 | `src/workers/neonApiStore.ts`・ADR-0014 |
 | `0004_id_type_alignment.sql` | アプリ生成の接頭辞付きID（`project_<uuid>`等）に合わせ、ID列を `uuid`→`text` へ整合（FKは同一トランザクション内で再作成、`audit_logs.project_id` のFKのみ監査記録保護のため撤去、変換列の `gen_random_uuid()` DEFAULT 撤去） | `src/workers/index.ts` `createId()`・ADR-0015 |
+| `0006_audit_log_previous_hash_unique.sql` | 監査ハッシュチェーンの並行分岐防止。`audit_logs.previous_hash` に部分一意索引を追加し、並行書き込みを unique violation + 再試行で単一チェーンに直列化（#114 Phase 4） | `src/workers/neonApiStore.ts` `persistAuditLog()`・ADR-0009 |
 
 命名規約: `NNNN_説明.sql`（4桁連番・前方互換で追記）。適用済み番号は巻き戻さない。
 
