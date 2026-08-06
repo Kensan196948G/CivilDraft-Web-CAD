@@ -36,7 +36,6 @@ import { checkDrawingHealth, type DrawingHealthResult } from '@/domain/validatio
 import { defaultCreationContext } from '@/domain/geometry/geometryFactory'
 import type { AutosaveStore } from '@/infrastructure/autosave/autosaveStore'
 import { scheduleAutosave } from '@/infrastructure/autosave/autosaveScheduler'
-import { computeQuantitySummary } from './quantitySummaryModel'
 import {
   createCivilDraftApiClient,
   type CloudContent,
@@ -971,15 +970,26 @@ export function CadEditorPage({
 
   /**
    * 図面健全性チェックを実行して結果パネルを開く（Issue #59）。
-   * quantities は都度再計算のため unlinked/stale-quantity は現状発火しない
-   * （sources は常に現存図形を指し、算出明細は常に status: 'valid'。真に検出するには
-   * 数量明細の state 化と invalidateByGeometryChange 連携が要る。follow-up Issueで対応）。
+   * quantities は editor store が保持する state を参照する（Issue #116 Phase 3）。
+   * 図形削除で sources が残った明細は unlinked-quantity、幾何変更で stale 化された
+   * 明細は stale-quantity として検出される。
    */
   const runHealthCheck = () => {
+    const state = storeApi.getState()
     setHealthResult(
-      checkDrawingHealth({ geometries, layers }, {}, { quantities: computeQuantitySummary(geometries).items }),
+      checkDrawingHealth(
+        { geometries: state.geometries, layers: state.layers },
+        {},
+        { quantities: state.quantityItems },
+      ),
     )
     setHealthOpen(true)
+  }
+
+  /** 数量明細を現在の図面から再計算し、チェック結果を更新する（§17.3 再計算要求）。 */
+  const handleRecalculateQuantities = () => {
+    storeApi.getState().recalculateQuantities()
+    runHealthCheck()
   }
 
   const healthSeverityColor = (severity: 'error' | 'warning' | 'info') =>
@@ -1095,7 +1105,7 @@ export function CadEditorPage({
           checkDrawingHealth(
             { geometries: s.geometries, layers: s.layers },
             {},
-            { quantities: computeQuantitySummary(s.geometries).items },
+            { quantities: s.quantityItems },
           ),
         )
         setHealthOpen(true)
@@ -1253,6 +1263,9 @@ export function CadEditorPage({
             )}
             <button style={ghostButtonStyle} onClick={runHealthCheck}>
               再チェック
+            </button>
+            <button style={ghostButtonStyle} onClick={handleRecalculateQuantities}>
+              数量を再計算
             </button>
             <button style={ghostButtonStyle} onClick={() => setHealthOpen(false)}>
               閉じる
