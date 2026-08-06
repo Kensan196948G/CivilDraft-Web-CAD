@@ -2,9 +2,14 @@
 
 | 項目 | 値 |
 | --- | --- |
-| Status | Proposed（Issue #114 着手判断のための設計） |
+| Status | Accepted（Phase 1・3・4 実装済み、Phase 2 は部分実装・継続中） |
 | 関連 | ADR-0009（監査ハッシュチェーン）、ADR-0014（Neon直接格納）、Issue #36 / #61 / #63 / #68 / #114 |
 | 決定日 | 2026-08-06 |
+
+> 進捗（2026-08-06）: PR #127 で Phase 1（スコープ付きロード）を実装。
+> PR #133 で Phase 3（楽観ロック DB 強制）、Phase 4（previous_hash 一意索引による
+> 並行直列化）、Phase 2 の一部（一覧系ページネーション）を実装。
+> Phase 2 の完全 SQL-first 化（全ハンドラの async クエリ化・SQL 側 LIMIT pushdown）は継続中。
 
 ## Context
 
