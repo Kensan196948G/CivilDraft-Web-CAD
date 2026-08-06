@@ -632,7 +632,7 @@ timeline
 | P1 | レイヤー・寸法・印刷の実務化 | 線種/線幅/ロック/印刷尺度/寸法/注記を納品図面として確認できる |
 | P1 | 土木差別化の図面連動 | 数量表・測点・横断・施工ステップから該当図形をハイライト/更新できる |
 | P1 | ファイル互換方針 | DXF対応範囲、JWW/SXF調査、DWG変換方針（ODA等）を明記する |
-| P2 | E2E/性能試験 | 🟡 基礎整備済み: Playwright E2E（作成→作図→自動保存→復元→DXF/PDF出力・照査承認）と性能ベンチマーク（10k空間索引・10MB DXF取込・10k DXF出力・2k PDF出力・1k Undo/Redo）を追加。10,000図形のブラウザ復元描画はIndexedDBシード方式で計測中。`npm run e2e` / `npm run perf` で実行し、閾値超過はCI warningとして監視（#45/#63）。残: DXF取込UI配線（#118）後のインポートE2E・クラウド保存E2E |
+| P2 | E2E/性能試験 | 🟡 基礎整備済み: Playwright E2E（作成→作図→自動保存→復元→DXF/PDF出力・照査承認）と性能ベンチマーク（10k空間索引・10MB DXF取込・10k DXF出力・2k PDF出力・1k Undo/Redo）を追加。10,000図形のブラウザ描画はIndexedDBシード方式＋DXF取込UI経由（10MB級）で計測。`npm run e2e` / `npm run perf` で実行し、閾値超過はCI warningとして監視（#45/#63）。残: クラウド保存E2E（Access Secret設定後） |
 
 ### Pull Request
 
