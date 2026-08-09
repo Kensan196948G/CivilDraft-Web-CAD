@@ -322,4 +322,30 @@ describe('exportDxf / 追加カバレッジ（double線種・縦長ellipse・左
     expect(dxf).toContain('LINE')
     expect(dxf).toContain('注記')
   })
+
+  it('cloud（改訂雲）を閉ポリライン近似で出力する', () => {
+    const cloud: Geometry = {
+      ...base, id: id('CL'), type: 'cloud',
+      x1: 0, y1: 0, x2: 200, y2: 100, arcSize: 15,
+    }
+    const dxf = exportDxf([cloud], [LAYER])
+    expect(dxf).toContain('LWPOLYLINE')
+    expect(dxf).toContain('POLYLINE')
+    // 閉フラグ（70=1）を含むこと
+    expect(dxf).toContain('70')
+  })
+
+  it('mline（平行2線）を2本のLINEで出力する', () => {
+    const mline: Geometry = {
+      ...base, id: id('ML'), type: 'mline',
+      start: { x: 0, y: 0 }, end: { x: 100, y: 0 }, offset: 10,
+    }
+    const dxf = exportDxf([mline], [LAYER])
+    const lineCount = (dxf.match(/\nLINE\n/g) ?? []).length
+    // エンティティセクションの LINE が 2 本（ヘッダー/テーブル以外）
+    expect(lineCount).toBeGreaterThanOrEqual(2)
+    // オフセット線の Y 座標（±10）が出力されている
+    expect(dxf).toContain('-10')
+    expect(dxf).toContain('10')
+  })
 })

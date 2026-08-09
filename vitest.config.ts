@@ -6,6 +6,10 @@ export default mergeConfig(
   defineConfig({
     test: {
       globals: false,
+      // 並列実行時に jsdom + 遅延ロードページのタイムアウト（5s）が不安定になるため
+      // 15s へ拡張（2026-08-09 統合セッションで実測。CI でも同一設定を使用）。
+      testTimeout: 15000,
+      hookTimeout: 20000,
       projects: [
         {
           extends: true,

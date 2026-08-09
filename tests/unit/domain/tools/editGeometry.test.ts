@@ -102,7 +102,9 @@ describe('EDITING_TOOLS registry', () => {
     expect(names).toContain('offset')
     expect(names).toContain('fillet')
     expect(names).toContain('chamfer')
-    expect(names).toHaveLength(9)
+    expect(names).toContain('array')
+    expect(names).toContain('scale')
+    expect(names).toHaveLength(11)
   })
 
   it('各ツールにiconとlabelがある', () => {

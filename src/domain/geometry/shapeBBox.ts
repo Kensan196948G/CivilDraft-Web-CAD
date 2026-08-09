@@ -28,6 +28,43 @@ export function shapeBBox(geometry: Geometry): BBox | null {
         maxX: Math.max(geometry.start.x, geometry.end.x),
         maxY: Math.max(geometry.start.y, geometry.end.y),
       }
+    case 'mline': {
+      const dx = geometry.end.x - geometry.start.x
+      const dy = geometry.end.y - geometry.start.y
+      const len = Math.hypot(dx, dy)
+      // ゼロ長の場合は offset 分の縦幅だけ確保する。
+      const nx = len < 1e-12 ? 0 : (-dy / len) * geometry.offset
+      const ny = len < 1e-12 ? geometry.offset : (dx / len) * geometry.offset
+      const xs = [
+        geometry.start.x,
+        geometry.end.x,
+        geometry.start.x + nx,
+        geometry.end.x + nx,
+        geometry.start.x - nx,
+        geometry.end.x - nx,
+      ]
+      const ys = [
+        geometry.start.y,
+        geometry.end.y,
+        geometry.start.y + ny,
+        geometry.end.y + ny,
+        geometry.start.y - ny,
+        geometry.end.y - ny,
+      ]
+      return {
+        minX: Math.min(...xs),
+        minY: Math.min(...ys),
+        maxX: Math.max(...xs),
+        maxY: Math.max(...ys),
+      }
+    }
+    case 'cloud':
+      return {
+        minX: Math.min(geometry.x1, geometry.x2),
+        minY: Math.min(geometry.y1, geometry.y2),
+        maxX: Math.max(geometry.x1, geometry.x2),
+        maxY: Math.max(geometry.y1, geometry.y2),
+      }
     case 'rectangle':
       return {
         minX: geometry.origin.x,

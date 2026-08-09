@@ -1,0 +1,336 @@
+ad76b9b1056571d55591291729b3c9d99ffd0374 2026-06-13T15:09:11+09:00 feat(demo): WebUI デモ環境（モックデータ）+ Docker常駐公開 + README非エンジニア向け刷新 (#271)
+6f35bb1ad17b45290f6b2c632300cefd0f4aa04a 2026-06-03T18:12:55+09:00 feat(DRAW-001-005): CALLOUT/CLOUD/ELLIPSE/SPLINE/MLINE 5ツール統合
+2726b66795709365c19706ab4d7ceca547a26889 2026-06-03T18:12:31+09:00 fix(e2e): CommandPalette listbox locator を aria-label で一意指定
+d8277c83e3c2de641010b2fdda19a2716a22e153 2026-06-03T18:11:55+09:00 feat(DRAW-001-005): CALLOUT/CLOUD/ELLIPSE/SPLINE/MLINE 5ツール統合実装
+1fd6f17425ea482bf98430e531f929bbcc4c25ba 2026-06-03T18:00:50+09:00 fix(e2e): CommandPalette listboxロケーターをstrict-mode対応に修正
+60135278a1ea91ac5fffabf8b211360e27f0695a 2026-06-02T03:57:46+09:00 docs(ROADMAP): Release Conditions テストカバレッジ指標を v0.99-rc13 時点に更新
+a174352c214cc92cd8da6182e580606e0587a923 2026-06-02T03:52:27+09:00 docs(CONTRIBUTING): 新描画ツール実装チェックリスト追加 — 9ファイルの変更手順を文書化
+c8f7abd2b0618c041f65bdab7dc8197c1cd65c11 2026-06-02T03:50:10+09:00 docs(DEPLOY_GUIDE): バージョン表記を v0.99-rc1 → v0.99-rc13 に更新
+8e088f6a5e31854854feea72a5e5e13b268da25a 2026-06-02T03:47:04+09:00 docs(ROADMAP): Phase 5.5 セクション追加 — DRAW-001〜005 + Coverage/CI 改善記録
+065c38343cca6ed42272f4832d51f0748a73cbad 2026-06-02T03:45:44+09:00 docs(CHANGELOG): v1.0.0 ドラフト指標を rc13 時点に更新 + 既知制限修正
+1005f289f1d6aa9ec0d1cc5da030eff2648e1543 2026-06-02T02:47:29+09:00 docs(CHANGELOG): v0.99-rc13 エントリを main に追加 — 5ツール + カバレッジ改善 + CI改善
+a8628e60309636ac9323f104f664b594d9449c22 2026-06-02T01:16:01+09:00 feat(DRAW-001): PropertyPanel に callout プロパティエディタ追加 — X1/Y1/X2/Y2/文字サイズ 編集可
+2360e5c5270f224f854514ef0c692ac724564dc4 2026-06-01T21:23:48+09:00 feat(DRAW-001): callout DXF エクスポート対応 — LINE + TEXT にフォールバック
+f660bb78611827d99a159a1cafbd48ddffd73948 2026-06-01T21:21:21+09:00 feat(DRAW-001): CALLOUT（引出線）ツール実装 — 矢印付き引き出し注釈
+6255d916e2e460065acf9023bc99634d13af776b 2026-06-02T02:42:06+09:00 docs(ARCHITECTURE): Shape Type System に Phase 5.5 の 5 型追加 — Callout/Cloud/Ellipse/Spline/MLine
+ee3acb1fee32caec5507d1d72074280067afd716 2026-06-02T02:41:07+09:00 test(e2e): CLOUD tool E2E を disabled 状態に対応 — PR merge 前後両対応
+3f87a2520175e24816b7a598d0ea6cd458616ca4 2026-06-02T02:40:14+09:00 test(e2e): 新描画ツール E2E spec 追加 — CALLOUT/CLOUD/ELLIPSE/SPLINE/MLINE (6テスト)
+bf58ab5441d01cc0c86f9aefb075dfdfd428ff7a 2026-06-02T02:39:19+09:00 ci(playwright): retries 2→1 / CI timeout 30s→20s — e2e 実行時間を最大 63 分に削減
+f29bd1c745672cd811b26e789e5cbc6913f8281b 2026-06-02T02:38:38+09:00 ci: e2e-test timeout を 20 → 45 分に拡張 — 95 E2E テスト + retries を考慮
+f901656d8726b30070acd30c5a0774fceb721d94 2026-06-02T02:37:12+09:00 ci: e2e-test job に timeout-minutes: 20 を追加してハング防止
+d6f30a1a0d0a3adc37e81a7114805e54c2305546 2026-06-02T02:35:36+09:00 ci: Node.js 20 deprecated 警告を解消 — FORCE_JAVASCRIPT_ACTIONS_TO_NODE24=true 追加
+96d944906e8c916b37d432cf4318f63cb7ae9572 2026-06-02T02:34:09+09:00 docs(RELEASE): v0.99-rc13 リリースノート作成 — DRAW-001〜005 / Coverage 99%+
+8376b9dd80af4d2a5910ffa0baa7a2a81ed6ea4a 2026-06-02T02:32:23+09:00 docs(DEMO): シナリオ G 追加 — DRAW-001〜005 新描画ツール デモ手順
+5d01a08a1aae891b20b96d4571714956bd8e4080 2026-06-02T02:31:10+09:00 docs(USER_MANUAL): 新描画ツール5件ドキュメント追加 — CALLOUT/CLOUD/ELLIPSE/SPLINE/MLINE
+b07d63e99565df49195934b4fbf4d11158995dbf 2026-06-02T02:29:29+09:00 test(COVERAGE): dxfImporter 4エッジケーステスト追加 — Branches 99.28% 達成
+6212589c661920b2ef0ea4b82a8b03dc71fe71e5 2026-06-02T02:24:30+09:00 test(COVERAGE): dxfImporter fallbackToShapes エッジケース追加 (+3テスト) — Branches 98.92%
+46151d4830d150f2af96659683c55ea86b815c22 2026-06-02T02:22:39+09:00 test(COVERAGE): dxfImporter 追加3テスト — Branches 98.20% → 98.56%
+126dc6dc24cf3929bcdf81861f1b172b3f3fb9ba 2026-06-02T02:19:25+09:00 docs(HelpDialog): 新ツール操作ガイド追加 — CALLOUT/CLOUD/ELLIPSE/SPLINE/MLINE/PAN
+1c1c6fd680373502b039ba8bb72d07616bf1dfb2 2026-06-02T02:15:53+09:00 docs(UAT): シナリオ9追加 — DRAW-001〜005 新描画ツール (CALLOUT/CLOUD/ELLIPSE/SPLINE/MLINE)
+c8a50051ce538d01ab2369ba471d563c8f13940b 2026-06-02T02:09:37+09:00 docs: README カバレッジバッジ更新 — Lines/Funcs 100%、Statements 99.94%、Branches 98.20%、Tests 1047
+12eb5a0d44f7f53660ae9955791e7a87a0a80a32 2026-06-02T02:08:48+09:00 test(COVERAGE): dxfImporter 境界ケーステスト追加 (+4件) — Branches 97.30% → 98.20%
+ccc38ad95b8c2664c1695e18a327d6a532f4d1ae 2026-06-02T02:05:30+09:00 test(COVERAGE): dxfImporter code 62 color パスカバレッジ追加 — Lines 100% 達成
+e1ed8e53523b69e38d7b89671642fbe3d59b3cd0 2026-06-02T02:01:29+09:00 test(COVERAGE): dxfImporter POLYLINE+VERTEX+SEQEND / LAYER TABLE パス追加 (+2テスト)
+7e8e579e9369b9d74be5824af1784dc5dc5ecdf5 2026-06-02T01:59:13+09:00 test(COVERAGE): dxfImporter.ts LWPOLYLINE/ARC fallback パスカバレッジ追加 (+2テスト)
+62a5ab4bce61b8e547ffce8cd6f391176f5fb9c4 2026-06-02T01:57:26+09:00 test(COVERAGE): dxfImporter.ts カバレッジ 59% → 82% 改善 (+4テスト)
+0e652b7b0f1f3314e69495fa14fbc769e4a399ae 2026-06-02T01:52:32+09:00 test(COVERAGE): layerStore restoreSnapshot empty-layers ?? branch カバレッジ追加 (L593)
+2da25d4eeca0faa84558660d000df0752b6efe6c 2026-06-01T21:24:18+09:00 feat(UX-014): PAN コマンド — ビューパンツールの実装 (#257)
+427dad12f745977e5b3c012cdec244259e483f27 2026-05-26T14:21:38+09:00 docs(Phase5): README に Phase 5 セクション追加 + state.json 更新 (#256)
+c7e095bf8155665e6e9e78ff4cc3b8eeeb839f45 2026-05-26T14:15:52+09:00 feat(SNAP-001): 名前付きスナップショット保存/復元機能 (#255)
+e0ea821eeff304d74f8376e3a4d0a149691c63e4 2026-05-26T14:03:05+09:00 feat(UX-017): AutoSave インジケータ + Ctrl+Shift+F + CHANGELOG 更新 (#254)
+b23c721db69ea27cbf8f6b8ced7285d7427acef2 2026-05-26T13:51:35+09:00 docs(UX-016): README ショートカット表をカテゴリ別に再編 + 機能インベントリ HTML 追加 (#253)
+764a3fef9f367aa7c5e3940b82bb9c166ecc389a 2026-05-26T13:46:17+09:00 feat(UX-015): キーボードショートカット拡充 + JWW/不明拡張子検出 + ヘルプ充実 (#252)
+a584c43547237a9de30a93af77644cf264c5b7cf 2026-05-26T11:36:24+09:00 fix(DXF-007): km スケール DXF が極小 zoom で不可視になる問題を解消 (#251)
+f7d85d90afc9e50c436520be78a2c81fbbfcffed 2026-05-26T11:12:28+09:00 fix(DXF-006): ライトモードで DXF が不可視 + 紛らわしいアラート文言 + DWG 未対応 (#250)
+c742a1d04f9798590293f6363b20bdbd11e3670f 2026-05-26T10:45:09+09:00 fix(DXF-005): CoolUtils 製変換器 / 大規模建設 DXF を読み込み可能に (#249)
+cc80dd6f1df3c38e76ddbacf5582b33977e2bd21 2026-05-26T10:03:21+09:00 feat(PAPER-001): 用紙領域を視覚化する境界矩形 + ドロップシャドウ (#248)
+edef10c92ea076db8d993a9729261ae7dfd116bb 2026-05-26T09:23:24+09:00 chore(gitignore): claude-mem 自動生成 CLAUDE.md を design/** でも ignore (#246)
+0d1628355721353f495816a8621c8e987c30dc97 2026-05-25T17:19:09+09:00 fix(GRID-001): ルーラー目盛とグリッド線の完全同期 + 用紙中央配置 (#245)
+01b940b2d2c4031acaa3a5b278d009bdf26175aa 2026-05-25T13:25:09+09:00 test(COVERAGE): achieve 100% branch coverage — zoomFit zero-width + shapeBBox default (#210) (#244)
+b766911cbfb8beb1ffb1f27ea0254333fed1fc73 2026-05-25T13:19:42+09:00 feat(UX-013): persist CommandPalette command history in canvasStore (#243)
+868edf0d9897e23150817fe9476a2b4f2bc05855 2026-05-25T13:12:12+09:00 feat(UX-011): ZOOM_FIT / ZOOM_FIT_SELECTION — zoom to fit all or selected shapes (#242)
+c44d23789bddc26a835a59b68b0dee3df1c3c3ca 2026-05-25T12:59:18+09:00 chore(state): consecutive_success 201→203 / last_stable_pr=239 / UX-009+UX-010 complete / 1003 tests (#240)
+bf7b7c32df4b3927fa544307115bcd5dedb0608c 2026-05-25T12:55:02+09:00 feat(UX-009): StatusBar ツール名を日本語表示に修正 (TOOL_LABEL 活用) (#237)
+b717524dcff97fbd3bd407f6bfc2f0424a530ef8 2026-05-25T12:54:46+09:00 feat(UX-010): 操作履歴パネルにクリックジャンプ機能を追加 (#238) (#239)
+8bc8703b8ee56fd053f110effb7f4ba7fd26a88c 2026-05-25T12:36:35+09:00 chore(state): consecutive_success 199→201 / last_stable_pr=235 / UX-008 BulkMetrics complete
+d7eeebff0823d9580f74c7691f5cfd429de1ecbf 2026-05-25T12:36:20+09:00 feat(UX-008): BulkPanel に集計メトリクス追加 — タイプ別内訳・総延長・総面積 (#234) (#235)
+f4e46b60a5f67939d6e2aed83ecac9f515659054 2026-05-25T12:23:47+09:00 chore(state): consecutive_success 197→199 / last_stable_pr=233 / SEC-003 merged + README 968 tests updated
+ae6d8b359fdb53cb8f4380ed8e6071093f3def03 2026-05-25T12:22:05+09:00 Merge pull request #233 from Kensan196948G/feature/SEC-003-vite-dev-security-headers
+6f071c578e01d0f560eae5a3272435b45c5bfa57 2026-05-25T12:22:00+09:00 chore(state): consecutive_success 195→197 / last_stable_pr=231 / UX-007 merged + SEC-003 PR#233 pending
+d49021818b02311efd3b6c53554c353385c52e3b 2026-05-25T12:19:07+09:00 feat(UX-007): PropertyPanel に LayerIndicator を追加 — 選択図形のレイヤー属性を表示 (#231)
+0d607392085a7b63ca5d5ddbeb83485a502cc9c9 2026-05-25T12:18:40+09:00 sec(SEC-003): Vite dev/preview server に本番相当のセキュリティヘッダーを追加
+976e9cdf5eb55440ada64ce18b1ce9cd06c84f48 2026-05-25T12:10:48+09:00 chore(state): consecutive_success 193→195 / last_stable_pr=229 / UX-006 merged
+45d5584a2dfd97524a4dc7a3179530baf3e3d5dd 2026-05-25T12:10:29+09:00 feat(ux): UX-006 — スナップ設定UIインタラクティブ化 + グリッド間隔セレクター (#229)
+fb549aebc5762155e7f39fa15645537631b3850c 2026-05-25T12:02:53+09:00 feat(ux): UX-005 — 選択図形の面積・周長リアルタイム表示 (#227)
+0d062ad425548ae8d3fae85d5e1a8c8cb8febb86 2026-05-25T11:53:19+09:00 feat(security): SEC-002 — HSTS + CSP worker-src 'none' 追加 (#224) (#226)
+4780a4e0ec4b3d66187be52fb0b95eeb70650037 2026-05-25T11:36:13+09:00 docs(README): update hatch patterns 4→10種 (HATCH-001 拡充済)
+7e38bcb32eeff897c081ba456bea8c2a70b2a633 2026-05-25T11:32:41+09:00 docs(readme): シンボルライブラリ 8種 → 30種/5カテゴリ に更新 (SYM-001 拡充済)
+3f0c7ce3cd6f257012dc313a0e85aff1368b0fb3 2026-05-25T11:31:16+09:00 chore(state): docs sync 完了 / consecutive_success root-level 189→191 / last_stable_pr 222→223 / phase Improve
+b0edefdf623288d9dc6e9fdc27e3cd9d81f97893 2026-05-25T11:29:35+09:00 docs(readme): STABLE 191回以上 / E2E 95 / UAT v0.99-rc3 / CMD 60+ に同期
+c5bec8e44e71f653f59438279953a420b6ec2472 2026-05-25T11:25:11+09:00 docs(changelog): CHANGELOG v1.0.0 ドラフトセクション追加 (Issue #216)
+63391cce450f428019403afb3be08c836712b326 2026-05-25T11:22:59+09:00 docs(uat): シナリオ8 ACC-001 キーボードアクセシビリティ追加 / バージョン v0.99-rc3 更新
+fa64a991a6c5121118b03e3d266893f408a877c0 2026-05-25T11:18:38+09:00 docs(perf): PERF-001 実測完了 — 10,000図形 60fps達成記録 + ROADMAP更新
+f996294d0a7958216475c9ad9d2bfcee5f475fd2 2026-05-25T11:15:17+09:00 docs(release): CHANGELOG v0.99-rc3 + ROADMAP M4 ACC-001 完了マーク
+6edd46c88b06db965d9b51d1f953c7d0ed7c5f13 2026-05-25T11:09:46+09:00 chore(state): consecutive_success 189→191 / last_stable_pr=223 / ACC-001 E2E merged
+98651642ed81b1d4f233a51f34c990f3ac4238f6 2026-05-25T11:09:13+09:00 Merge pull request #223 from Kensan196948G/feat/acc-001-keyboard-a11y
+88aca05a964c0d1024e9a5e7ae320fdb10d74366 2026-05-25T11:06:22+09:00 docs(roadmap): M4 進捗更新 — PERF-003 完了 / ACC-001 PR#223 / v0.99-rc2 進行中
+85ab376137630bcbf7c89de93063a84f43d1daf4 2026-05-25T11:05:21+09:00 fix(e2e): CommandPalette tests — canvas focus before Ctrl+K + scope option query in listbox
+a2056b5a2f08b2f68178e8cda62a28a08d5e12f8 2026-05-25T11:00:44+09:00 test(e2e): ACC-001 keyboard accessibility audit — HelpDialog/CommandPalette/RightPanel/Toolbar/StatusBar
+74f1324f2f859810ebe4cd80d22b0ede76f247b4 2026-05-25T10:49:38+09:00 chore(state): consecutive_success 187→189 / last_stable_pr=222 / E2E F8 fix merged
+f295965b2e26505d113ab04493d0b225994089d7 2026-05-25T10:48:24+09:00 feat(e2e): Ctrl+A / Ctrl+D / F8 ortho E2E tests + M3 complete (#222)
+a87585a95038ece98e0be9b612f857ed223a0d09 2026-05-25T10:28:54+09:00 chore(state): consecutive_success 183→185 / last_stable_pr=221 / Ctrl+A select-all merged
+52acc3d3ad1942fd6607a6ffb15650e37faf135b 2026-05-25T10:25:18+09:00 feat(ux): add Ctrl+A select-all shortcut (visible & non-locked shapes) (#221)
+5f989332b5b12f70ef7052a36cbb55c1bd8f838d 2026-05-25T10:14:16+09:00 chore(state): consecutive_success 181→183 / last_stable_pr=220 / v0.99-rc1 pre-release tag
+e224ef10aeea0d1acb5d1dd7072c3e9afb557097 2026-05-25T10:13:02+09:00 docs(release): CHANGELOG v0.99-rc1 + README 4指標100%達成バッジ (#216) (#220)
+c90e11d06e4329bd430c8980ec09e3774cae1cc9 2026-05-25T10:04:37+09:00 test(COVERAGE): branch 100% — 933 tests covering all false-branch paths (#219) (#219)
+beec46b075a2297bfd8c0128a1a21d2ea4bb2b4d 2026-05-25T09:43:53+09:00 chore(state): consecutive_success 177→179 / last_stable_pr=218 / 100% coverage
+ff651b40510c8e364993d0b833448af9268e4345 2026-05-25T09:43:25+09:00 test(COVERAGE): 100% stmt/func/line — SSR guards + degenerate geometry (#217) (#218)
+502327f7d29da6575d381db1a716f207c1701623 2026-05-25T09:27:48+09:00 chore(state): consecutive_success 175→177 / last_stable_pr=213 / PR#213 merged
+fa8fe614621a6dc174ba92add617720f8fbae72b 2026-05-25T09:27:25+09:00 docs(improve): post-PR#212 state/README/CHANGELOG + UAT-001 + M6 docs (#213)
+25e9a6da138d1faae79c04b1c3a01ef280d8d81a 2026-05-25T09:05:21+09:00 chore: add AGENTS.md / normalize CLAUDE.md LF endings / gitignore .codex .agents
+4b10f1659479b532db3c8a35a995937f4406d7e7 2026-05-25T08:59:21+09:00 chore(DEP-001): upgrade vite@5→8 / vitest@2→4 — 921 tests / 0 CVEs (#212)
+73433edf3a5df05021bb35639643944e0ee29463 2026-05-25T08:34:24+09:00 feat(WIN-001): Windows 開発環境セットアップを整備 (Phase 1 + Phase 2) (#210)
+d8b26d0d97c645373fb3fa28f5f912cbf924470f 2026-05-21T14:30:27+09:00 fix(STARTUP-002): タスクスケジューラ実行を完全バックグラウンド化 (#209)
+93f2a0b8f5213cabf05a7cf5cc9409019ceac841 2026-05-19T12:43:02+09:00 chore(state): consecutive_success 171→173 / last_stable_pr=208 / Node.js 24 upgrade complete
+9c3544895212ecbbf4846dd516f87a8824e23b1c 2026-05-19T12:42:34+09:00 chore(ci): upgrade Node.js 20 → 24 ahead of GitHub June 2nd forced migration (#208)
+2089c39d6350081ae072a7e0cf2d04ed5bd27fb1 2026-05-19T12:09:24+09:00 test(COVERAGE): canvasStore.ts 100% func coverage — funcs 100% overall (869 tests) (#207)
+c772ff802b55bef95a202ba8f565f0fe2d25a833 2026-05-19T12:03:19+09:00 test(COVERAGE): toolStore.ts 100% func coverage (856 tests / 98.36% funcs overall) (#206)
+cc397ccfac1dd5e9b88623e4b362a99ae381a4c8 2026-05-19T11:58:26+09:00 test(COVERAGE): autosave.ts 100% branch coverage (848 tests / 99.82% overall) (#205)
+a08f3abcbb39bdb2a10e91f96e56e15ac168d9ac 2026-05-19T11:52:47+09:00 fix(SEC-003+CI-001): harden CSP headers and enforce npm audit gate (#204)
+874e6d2096790e57c1dcb65c0f8080bc2c7ffae4 2026-05-19T11:44:53+09:00 fix(e2e): update print-hires spec for PRINT-001 dialog flow (#201)
+f217f32a87865975e9b8cf9d61330c5988525d13 2026-05-19T11:39:16+09:00 feat(PRINT-001): scale printing dialog with physical CSS dimensions (#200)
+36022ff0d96534ed0704f9916b832ff0a5e09ab6 2026-05-19T11:20:52+09:00 feat(IO-001+DEPLOY-001+SEC-002): DXF parallel dim fix + IIS 9-site deployment + security audit M5
+dacbae3b4d3c460b3b7ef477bb8e4145eef5857a 2026-05-19T10:56:22+09:00 feat(dt-007): 3-click interactive dimension tool with H/V/parallel modes (#198)
+c7ab0fd6a0fd31b52a288828f45040931aa25c0b 2026-05-19T10:42:56+09:00 test(E2E): E2E-001 m6-uat.spec.ts — 22 Playwright シナリオ (🔴 must-have) (#197)
+c2c09f56689b63d01be9b042e51ec853bba45deb 2026-05-18T12:04:05+09:00 chore(state): consecutive_success 156→160 / last_stable_pr=196 / 99.27% branch / 825 tests
+b1fc0fef6a73f67d33411237457a2cafef0bec9c 2026-05-18T12:03:01+09:00 test(COVERAGE): chamferEngine + filletEngine 100% branch (99.27% overall) (#196)
+daf2ef521db70c6ea1c4e59444b62e3335cf73a6 2026-05-18T11:52:39+09:00 chore(state): consecutive_success 154→156 / 825 tests / 98.37% branch
+f8e126d906b5beb982f2e9d7e4842a5bf966d41b 2026-05-18T11:52:13+09:00 test(COVERAGE): trimEngine 100% branch (825 tests / 98.37% overall)
+1fd51ca579169f946d9c0fefe528186f94ecedb6 2026-05-18T11:49:52+09:00 docs(ROADMAP): M5 完了状態を更新 (2026-05-18 前倒し完了) + DEPLOY_GUIDE.md 追記
+b85c3b33671467356c484426c92a1d18922693a8 2026-05-18T11:47:56+09:00 chore(state): consecutive_success 152→154 / last_stable_pr=195 / PR#195 ZOOM/PANEL cmds merged
+7ae9486fdb8bf8d454096d877536121551600ad3 2026-05-18T11:47:26+09:00 feat(M5): ZOOM/PROPS/HISTORY/TEMPLATES/COORDS コマンド追加 — 右パネル全タブナビゲーション (823 tests)
+90c03b91611b90bd542058a782dcb3b78e17ccbf 2026-05-18T11:47:10+09:00 docs(README): DEPLOY_GUIDE.md リンクを追加
+8c562504ba010355b57a7e1ad22a8bb74d144139 2026-05-18T11:46:45+09:00 docs(M6): DEPLOY_GUIDE.md 追加 — 3拠点展開手順・nginx設定・localStorage仕様
+5efdc32fba722d18f69d7cbb8707511a801ef0fa 2026-05-18T11:40:19+09:00 chore(state): consecutive_success 148→152 / last_stable_pr=193 / 823 tests / M5完了
+c75e87dd82fbe90b31a9086caf3759eac45f7afd 2026-05-18T11:39:27+09:00 feat(M5): LAYER コマンド有効化 / RightPanel store連携 / canvasStore rightPanelTab (821 tests)
+4332ad216b5b75e9c3dc00ef3c358ea72bdacc52 2026-05-18T11:37:59+09:00 docs(README): npm run test 説明を 818+ に更新 + Vitest 429→818+ ダイアグラム修正
+d89ba5a46cb7bd77e3059c7cc626be97a5f753c8 2026-05-18T11:32:40+09:00 docs(CHANGELOG): v0.95-beta M5完了エントリ追加 (COVERAGE-022 + LAYER cmd)
+21dfe0542b85adb1acafe656c879d46e45b86c45 2026-05-18T11:31:37+09:00 chore(state): consecutive_success 144→148 / last_stable_pr=191 / 98.19% branch / 818 tests
+9722e7315068007c6d473dff6ebdbd3d838d3106 2026-05-18T11:30:24+09:00 test(COVERAGE-022): branch coverage 97.74%→98.19% / hatch/chamfer/fillet/extend/trim / 818 tests
+d7add90896335b6088f74e4712ac30a81d5ec67d 2026-05-18T11:14:38+09:00 feat(M5): TRIM/EXTEND/CHAMFER/FILLET/OFFSET有効化・PropertyPanel全属性編集・StatusBar・theme.css修正 (816 tests / 97.74% branch)
+bc32e89cb537e34070c26515e018695c251dc708 2026-05-18T10:35:58+09:00 feat(DIMALL+DXF): 自動寸法配置・ACI 255色テーブル・テキスト高さ修正 + coverage 97.65% (#188)
+b46ecef0aa811e7df9a6811d65c890f9503753e3 2026-05-18T10:20:34+09:00 docs+test(COVERAGE-019): README M4完了更新 + dxfExporter 100% branch
+fd234d7030d6b9c1b417da1318440ccb31520ced 2026-05-18T10:06:05+09:00 chore(state): consecutive_success 130→132 / last_stable_pr=186 / 97.48% branch / 779 tests
+1f934748c5ec1d8957fa562b52d99f8c5c82c53e 2026-05-18T10:05:27+09:00 test(COVERAGE-018): layerStore 99.16% + dxfImporter 100% branch coverage (93.89%→97.48%)
+48f832e32ed4eb77f0e53a058d31fbd17fc3ca3b 2026-05-18T09:28:39+09:00 test(COVERAGE-017): extendEngine L117 + perfHarness L26 branch coverage
+ebad80cf87ae030b45bc661b9c65cf4819c68c85 2026-05-18T09:17:39+09:00 chore(state): consecutive_success 122→130 / last_stable_pr=184 / 741 tests / branch 93.66%
+64767c948617d7f617a82f2ffd0287dd796b7ee2 2026-05-18T09:16:37+09:00 feat(GRID-001): グリッドサイズ設定 UI 追加 (#184)
+2b3099ed381393a18fe3cbebe2d74bd39715a14f 2026-05-18T09:09:41+09:00 feat(SCALE-001): スケール変換コマンド追加 + ScaleDialog (#182)
+a12fbb49d98ffa8ddc9ce1f9203f9c456d9e769e 2026-05-18T09:00:13+09:00 feat(ARRAY-001): 線形配列複写コマンド追加 + ArrayDialog 強化 (#180)
+1e02110febc4eea6fc364a9d2c8c71dfe4db8e8c 2026-05-18T08:44:48+09:00 test(COVERAGE-015): offsetEngine 100% branch + shapeTransform 100% branch (665 tests / overall branch 92.17%) (#178)
+2db86298f2b9a1ef2316cf37110896e18a26f97c 2026-05-14T11:55:19+09:00 fix(JSOX-001): WebUI表示修正 + dev server スクリプト整備 (#176)
+0281ea26b286dd0d7ef81d603c4681d06851c51b 2026-05-14T11:38:43+09:00 chore(state): consecutive_success 114→118 / last_stable_pr=175 / 99.64% coverage / 646 tests
+855284743b40f886b28e95f0d55233e5d0055798 2026-05-14T11:37:47+09:00 test(COVERAGE-014): dxfImporter LINE startPoint/endPoint + null parser (644 tests / dxfImporter 99.62% / overall 99.60%) (#175)
+94aef6f51c86508ffb6b1fc15dfba13972095210 2026-05-14T11:37:32+09:00 test: rulerUtils calcTickInterval normalized≥7.5 branch (L17) → rulerUtils 100% coverage (99.32%→99.35%)
+bfe73b7fe624e40eaca3e355fefe5eeaec5741f3 2026-05-14T11:36:12+09:00 test: autosave getLastSavedTimestamp catch branch defensive test (v8 catch limitation acknowledged)
+d8aae62fd507404f520d5b84cc00d795b5e61ef5 2026-05-14T11:32:43+09:00 chore(state): consecutive_success 112→114 / v0.9.2-alpha tagged / COVERAGE-014 PR#175 作成 / 99.53% (643 tests)
+c23e8b3cfb6a2da4f02802f74a9898398ed0b879 2026-05-14T11:25:33+09:00 chore(state): consecutive_success 110→112 / last_stable_pr=174 / COVERAGE-013 merged / 642 tests / coverage 99%
+033723224a165c42a0b4cdbc55bc99a94de95922 2026-05-14T11:24:53+09:00 test(COVERAGE-013): filletEngine pickAwaySide x/y tie-break branches (639 tests / 99.07%) (#174)
+30e2ae6dc997511204426b2b6bc37bddd3124d66 2026-05-14T11:23:11+09:00 chore(state): consecutive_success 108→110 / last_stable_pr=173 / COVERAGE-012 merged (640 tests) / COVERAGE-013 PR#174
+8b28ee70daab88fd89f44aa1fb2fe7e8d14ef11a 2026-05-14T11:22:31+09:00 test(COVERAGE-012): reorderLayer + moveShapes rect/text (640 tests / layerStore 100%) (#173)
+a992f86ab3b0d4c45537613ccd90274ab891f6ef 2026-05-14T11:20:01+09:00 chore(state): consecutive_success 106→108 / last_stable_pr=172 / layerStore 100% statement coverage / PR#173 CI中
+2283ab162b547426298dcfdbf0a02492f836aaf3 2026-05-14T11:17:51+09:00 test(COVERAGE-011): moveShapes hatch/symbol + paste text/circle + fillet extra shape (98.99%) (#172)
+763a466e5567c91919aaff66209c0c27bcd2484f 2026-05-14T11:15:51+09:00 chore(state): consecutive_success 104→106 / last_stable_pr=171 / COVERAGE-011 PR#172 作成
+fab1c857bd1d99fb802a67589333fd2ffa35b6ac 2026-05-14T11:13:16+09:00 test(COVERAGE-010): filletSelected layerStore テスト 4件追加 (632 tests / 98.71%) (#171)
+54fcad5d0cf4ea6ed2a8157c7d4468f7a913da20 2026-05-14T11:11:21+09:00 chore(state): consecutive_success 102→104 / last_stable_pr=170 / COVERAGE-009 merged / COVERAGE-010 PR#171
+119ad759d53933f7809e9fc566f11b2a9dfc1d53 2026-05-14T11:09:01+09:00 test(COVERAGE-009): layerStore paste/dup type branches + trimEngine non-line cutter (98.80%) (#170)
+5a2adff05d06c5869c62ac2824b05a7ec196f550 2026-05-14T11:07:22+09:00 chore(state): consecutive_success 100→102 / last_stable_pr=169 / FILLET-001 merged / COVERAGE-009 PR#170 CI中
+9e44861654c7f16efb3c37049742df237cd99014 2026-05-14T11:06:38+09:00 feat(FILLET-001): フィレット（丸角）機能を追加 (#169)
+1998678c1f19ae21c7db2df33336bf18b6e1e770 2026-05-14T11:01:36+09:00 chore(state): consecutive_success 96→100 / last_stable_pr=168 / FILLET-001 PR#169 作成 (post-merge COVERAGE-007/008)
+2c27e156ed026852ae4aac60ef68fa332018ffca 2026-05-14T11:00:27+09:00 test(COVERAGE-008): chamferEngine cornerIsE2=true ブランチ (611→612 / 98.66%) (#168)
+8aaa3510cff01f73e39ebe656d7f1b1832a35a4f 2026-05-14T11:00:21+09:00 test(COVERAGE-007): shapeTransform dimension 変換テスト (tests 606→608 / 全体 98%) (#166)
+40144d455bf72db8f5e0b8ac223f165c6e4d4edd 2026-05-14T10:48:58+09:00 chore(state): consecutive_success 92→96 / last_stable_pr=164 / COVERAGE-006 (post-merge) + docs更新
+e497b20121cd9795a1ab614513d315ed0f2b5829 2026-05-14T10:48:05+09:00 feat+test(COVERAGE-006): 測量基準点/管渠テンプレート追加 + layerStore カバレッジ改善 (tests 599→604) (#164)
+3e96827b5d352f241874a4914cf5ac30142f0047 2026-05-14T10:45:04+09:00 chore(state): consecutive_success 88→92 / last_stable_pr=160 / COVERAGE-004 (post-merge) + docs更新
+1b89d3c7c27e27ee8b5dd1544b74fc2db62ae1a0 2026-05-14T10:44:10+09:00 fix+test(COVERAGE-004): TEXT/MText DXF インポートバグ修正 + edge case テスト (tests 578→585) (#160)
+44411421b07952967ac72214e282bf0e2f52abde 2026-05-14T10:32:13+09:00 docs(CHANGELOG-SYNC-002): COVERAGE-003/005 エントリ追記 + README バッジ 578→599 / 93→96%
+9472471ea47d56692d12a7eb351014165c14e19b 2026-05-14T10:31:31+09:00 chore(state): consecutive_success 84→88 / last_stable_pr=162 / COVERAGE-003+005 (post-merge)
+0539497e3ae56cfd1c13f0d1af6bbb5869c84515 2026-05-14T10:30:55+09:00 test(COVERAGE-005): snapEngine 100% + trimSelectedLine + download DOM モック (tests 578→588) (#162)
+95096fef41873dd6989cc03f92ac61aa300d169d 2026-05-14T10:28:39+09:00 test(COVERAGE-003): themeStore ブランチ 53%→77% / chamferSelected テスト追加 (tests 578→589) (#158)
+19ebd64628c5d9f8acca744a19ded829224c7e20 2026-05-14T10:07:26+09:00 docs(CHANGELOG-SYNC): SNAP-001 arc接線スナップテスト (#156) + README バッジ 576→578
+97b2247f30677da4e76ab296bba0dc6542e6e246 2026-05-14T10:06:33+09:00 chore(state): consecutive_success 78→84 / last_stable_pr=156 / SNAP-001+UX-003 (post-merge)
+a650229b946525581564a8c4765a0bba7e85b0fd 2026-05-14T10:03:50+09:00 feat(UX-003): 相対極座標入力 @distance<angle 対応 (AutoCAD互換) (#155)
+4919b27fb5080981d32315143aa634ead7dfd685 2026-05-14T09:58:01+09:00 test(SNAP-001): snapEngine arc 接線スナップテスト追加 (92%→93%) (#156)
+9f320b2418ba12c56f1cca2b30e3730c00e2ea0d 2026-05-14T09:19:54+09:00 docs(UAT-001): UAT シナリオ集作成 (v0.9.1-alpha α版テスト用) (#153)
+0f6d260db2761f176d3b1cf3e5f26855f898c13e 2026-05-14T09:13:56+09:00 chore(state): consecutive_success 75→78 / last_stable_pr=151 / COVERAGE-002 (post-merge)
+b8b033563bdffa33b31f11a30971798be7ef7be9 2026-05-14T09:13:18+09:00 test(COVERAGE-002): layerStore テストカバレッジ改善 (79%→84%) (#151)
+c59655c6fe868c7089cb03d06858d00d14a640dd 2026-05-14T09:12:57+09:00 test(COVERAGE-001): dxfExporter symbol/hatch テストカバレッジ改善 (65%→88%) (#149)
+aedc1ec98eab29a561f3f36e73d2aac16a10460d 2026-05-14T09:07:30+09:00 docs(CHANGELOG): AUTH-002 E2E / JSOX-001 / COVERAGE-001/002 を追記 (#150)
+2d3db94b59754855aec9adf588c76257f69f4cca 2026-05-14T08:49:33+09:00 docs(JSOX-001): J-SOX 監査証跡設計書を作成 (#146)
+126cb60f05cfe93d25301b1e676f42d04a363110 2026-05-14T08:44:20+09:00 feat(AUTH-002): アクセスログ記録 + E2E 認証テスト (ISO 27001 §A.12.4) (#142)
+31571b7c07f2744355bb0a266cc68ede7cfd2a76 2026-05-14T08:40:22+09:00 chore(state): consecutive_success 74→75 / last_stable_pr=144 / ISO-001 (post-merge)
+201707f6b6c09a8e9e8fcac8faf863d499e21ff1 2026-05-14T08:40:02+09:00 docs(ISO-001): ISO 27001:2022 準拠チェックリスト作成 (#144)
+2c868d89becf4491f8d0a3fda4dc094c21d05aa7 2026-05-14T08:39:40+09:00 docs(CHANGELOG): MANUAL-001/ISO-001/AUTH-002 を追記
+dd12af9d0db008e90c860c68f3a938448e4200fd 2026-05-14T08:39:07+09:00 chore(state): consecutive_success 73→74 / last_stable_pr=141 / MANUAL-001 (post-merge)
+c6e4bd5d90a6029256d830d22712d8010efd40b8 2026-05-14T08:38:42+09:00 docs(MANUAL-001): ユーザー操作マニュアル初版作成 (#141)
+bec40f02fa4dc8a201920bb44b054f6794e234b3 2026-05-14T08:38:22+09:00 docs(README): テスト数・フェーズ・ドキュメントリンク更新 (Tests 543, M2完了, USER_MANUAL/ISO27001)
+89b3ea8b82999e05298349bd374c3606804c3014 2026-05-14T08:35:46+09:00 chore(state): consecutive_success 72→73 / last_stable_pr=139 / AUTH-002 (post-merge)
+093d134e34beae54912e0b143f51b0d5ec5ad46e 2026-05-14T08:34:58+09:00 feat(AUTH-002): アクセスログ記録 (ISO 27001 §A.12.4 対応) (#139)
+dd5e18b2716f21876aa992e690b3896b2d1decd2 2026-05-14T08:32:16+09:00 docs(AUTH_DESIGN): 実装状況更新 (AUTH-001/#137 ✅ / AUTH-002/#139 ✅ / IT部門AppReg待ち)
+cc2cb0c7a19b8770014a818bda3ffc84903fc09d 2026-05-14T08:31:37+09:00 chore(.gitignore): claude-mem 生成 CLAUDE.md を除外 (src/**/CLAUDE.md)
+55479b508ff1a52e82c311b6f7a52b0c283af34a 2026-05-14T08:25:27+09:00 chore(state): consecutive_success 71→72 / last_stable_pr=137 / AUTH-001 (post-merge)
+af6099551d01dc3ba6ad31bd42e234d22a7667a3 2026-05-14T08:24:56+09:00 feat(AUTH-001): MSAL.js PoC Entra ID 認証基盤 (#137)
+8898dace10a81437161e7cf64e513fd9a800f47d 2026-05-14T08:23:13+09:00 chore(docs): CHANGELOG・README・state更新 (STARTUP-001/#136 + AUTH-001/#137)
+3c87b854e655d51e963e369d63b65e89143ada03 2026-05-14T08:21:42+09:00 chore(state): consecutive_success 70→71 / last_stable_pr=136 / STARTUP-001 (post-merge)
+dacabcf16b305d242bd6400e9ceeee422322c3b5 2026-05-14T08:20:55+09:00 feat(STARTUP-001): Windows タスクスケジューラー自動起動スクリプト追加 (#136)
+c94176bb95a3adf73b0e006f5fb4661eced74b80 2026-05-13T18:30:08+09:00 chore(state): consecutive_success 69→70 / last_stable_pr=134 / CHANGELOG-SYNC-001 (post-merge)
+e62b1d06e485f9cf75bc558b30363ac1cf2a2bcd 2026-05-13T18:29:45+09:00 docs(CHANGELOG-SYNC-001): M5 未掲載 PR 7件を CHANGELOG に追記 (#134)
+394e24697a27161c1a42ef71d9ed30265e3970ff 2026-05-13T18:21:24+09:00 chore(state): consecutive_success 67→69 / last_stable_pr=132 / DOCKER-002 (post-merge)
+b262c212fbca21f7283101f4e4083a5d8060a8ac 2026-05-13T18:20:59+09:00 feat(DOCKER-002): alpine nginx 193MB→49MB・CI Docker ビルド統合・SBOM (#132)
+f411d06303bf66d46781db989169b8069ab173ad 2026-05-13T18:16:44+09:00 feat(DOCKERIZE-001): Docker 構成 (dev/preview/prod/e2e/ci) を追加 (#130)
+253c28ce1b036ef27e88cd78632fedf77a7c2826 2026-05-13T17:44:21+09:00 chore(state): consecutive_success 66→67 / last_stable_pr=128 / TYPE-001 (post-merge)
+94d329fec800afb83ca7cf8afc55e7bcbcc0dfb3 2026-05-13T17:41:57+09:00 refactor(TYPE-001): engine の重複 Pt interface を canonical Point に統一 (#128)
+9a5b47a3a2e1c419941239415a2a50a0e89a702c 2026-05-13T17:31:28+09:00 chore(state): consecutive_success 65→66 / last_stable_pr=126 / HOUSEKEEP-001 (post-merge)
+2a6c9971c9c5007f56fa30ea9c33e46caeb01217 2026-05-13T17:30:04+09:00 chore(HOUSEKEEP-001): .gitignore に state.json.bak.* を追加 (#126)
+592484b1c158bb49ce0627e8575daabf5ef7c78b 2026-05-13T17:24:08+09:00 chore(state): consecutive_success 64→65 / last_stable_pr=125 / JSDOM-001 (post-merge)
+7320a3749dce69a236c23b4be2e1493f19a12a5d 2026-05-13T17:21:08+09:00 fix(JSDOM-001): Node25 experimental WebStorage と jsdom の衝突を回避 (#125)
+6be32cb61f12065042c6ea09cc2ff621eb6c4639 2026-05-13T17:01:37+09:00 chore(state): consecutive_success 63→64 / last_stable_pr=123 / PALETTE-001 (post-merge)
+83678041251c72657d73396cf90f10e8a413ebf5 2026-05-13T16:59:15+09:00 fix(PALETTE-001): CommandPalette の useEffect 内同期 setState を解消 (#123)
+a174993a4b787c5a3736375edd07bdb36882e763 2026-05-13T16:35:02+09:00 chore(state): consecutive_success 62→63 / last_stable_pr=121 / TRIM-002 (#121) (post-merge)
+936eb3796a89cb7b605eb6c2c4106ed099416d88 2026-05-13T16:32:32+09:00 feat(TRIM-002): トリムツールに stacked-geometry fall-through を適用 (#120) (#121)
+1ed9b83bd7dff7f6d90219a0edb6c699aef70be8 2026-05-13T16:16:50+09:00 chore(state): consecutive_success 61→62 / last_stable_pr=116 / EXTEND-001 (#116) (post-merge)
+70d62eed72ea81588c8de96bfbcd4917e5557d27 2026-05-13T16:15:11+09:00 feat(EXTEND-001): 延長ツール — 線分を境界まで延長 (#116)
+44dfd433ce9de0a3c22095a5a1f15b1fa2903159 2026-05-13T14:48:49+09:00 chore(state): consecutive_success 59→61 / last_stable_pr=119 / CHAMFER-001 (#118) + PORT-5174 (#119) (post-merge)
+3aaf14cf507406441b40e29fdd6f777b0a5fe8e7 2026-05-13T14:44:20+09:00 chore(dev-server): Civil-Draw 専用ポートを 5174 に固定 (#119)
+05cb855a62b754635347e081194e0acb7a574e3c 2026-05-13T14:41:32+09:00 feat(CHAMFER-001): 面取りツール (Chamfer) 実装 — 線2本+距離で隅切り (#118)
+8481dbdf7a4e270b7d736688be206eb4d41efaef 2026-05-07T13:20:28+09:00 chore(state): consecutive_success 58→59 / last_stable_pr=114 (post-merge)
+87c8fb454b6eeea7c0ae5d6c8c384e7ada82143c 2026-05-07T13:19:14+09:00 Merge pull request #114 from Kensan196948G/feat/trim-001-trim
+4840da719c534229691271b3b4644bbebf189f0f 2026-05-07T13:15:52+09:00 fix(TRIM-001): StatusBar TOOL_LABEL に 'trim' エントリを追加 (CI fix)
+93aa2e7dcc6d0cf458031f3bf98882f52f8fe5f4 2026-05-07T13:14:44+09:00 chore(state): OFFSET-001(#113) マージ / TRIM-001(#114) CI待機 / tests 483
+ab47f5e77546ea6a669b550bbd3cc8ae2b0e8782 2026-05-07T13:11:08+09:00 feat(TRIM-001): トリムツール (line 交点切断) を実装
+bc121898390b7c828e39a4205b632ce1b176eb6f 2026-05-07T13:11:35+09:00 feat(OFFSET-001): オフセットダイアログを実装 (line/circle/arc/rect)
+180a57f07e28eebaa8e40a352732bae282f01067 2026-05-07T13:05:53+09:00 docs(README): ディレクトリ構成とツール機能表にoffsetEngine/ArrayDialog/OffsetDialog/配列複写/オフセット追加
+6443766b6aa7b2e4801c3583caf12b33fca57b83 2026-05-07T13:03:15+09:00 docs: HelpDialog にオフセット操作ガイド追加 / テスト数 457→471 / state 更新
+4769f5c0af542f29e1b6fae270f75845d84b6b0b 2026-05-07T13:02:30+09:00 docs: E2E-004 を CHANGELOG に追記
+6a10f3321c5eaa9e999330e5e61fce5aa0883f04 2026-05-07T13:01:46+09:00 feat(E2E-004): SNAP-004/005/ARRAY-001 E2E スモークテスト追加
+01696d506a84dc5c41f94373102dd79194fee285 2026-05-07T12:56:11+09:00 chore(state): consecutive_success 62→64 / last_stable_pr=111 / ARRAY-001 CHANGELOG・README 更新
+171153007c78bbb720b9fb08856aba933bf659dd 2026-05-07T12:55:32+09:00 feat(ARRAY-001): 配列複写ダイアログを実装
+7c6b168df459f7e83e082b94b90b990dc26e7390 2026-05-07T12:55:11+09:00 docs(HelpDialog): 配列複写の操作ガイドを追加
+fb8da3fe4105b26eb2d9c6677a6150ae65b14289 2026-05-07T12:53:26+09:00 chore(state): consecutive_success 58→62 / last_stable_pr=110 (post-merge)
+5d70e5cf6e26596ce0ad15e29345f75ea4f962d7 2026-05-07T12:52:28+09:00 feat(SNAP-005): circle/arc の最近点スナップ対応
+e2e75710695411c6f1d9587e0d8ead9982b61822 2026-05-07T12:48:39+09:00 docs: SNAP-004/005 を CHANGELOG・README に反映 (Tests 452, スナップ 8種)
+9bca68fe361531ce01bd4e2365d82b8dcfe1b9f2 2026-05-07T12:46:46+09:00 feat(SNAP-004): 最近点スナップ (nearest-on-segment) を追加
+077a8457b7af4b56b21c2e55882c64fc605980af 2026-05-07T12:35:00+09:00 chore(state): consecutive_success 56→58 / last_stable_pr=106 (post-merge)
+6331d42a626e18572ccfa9e75e53e451c1355bc1 2026-05-07T12:34:42+09:00 feat(SNAP-003): 接線スナップ実装 — 円・円弧への外部点接線 (#106)
+a50697e49d6c178d6d86bac52a37b364b53f5905 2026-05-07T12:16:37+09:00 chore(state): consecutive_success 54→56 / last_stable_pr=104 (post-merge)
+93285940452ed58f62b6f9ff4e749b5b9e8e71f6 2026-05-07T12:16:10+09:00 feat(DIM-001): 寸法線テキストにスケール反映 + formatters 共有ユーティリティ抽出 (#104)
+1df481ffd678467affb2e9153e84f592cb589f45 2026-05-07T12:05:20+09:00 chore(state): consecutive_success 52→54 / last_stable_pr=102 (post-merge)
+65813e5fc3ef45c84571437346664968322813a3 2026-05-07T12:04:52+09:00 test(E2E-003): M5 新機能 E2E テスト追加 — arc / measure / measureArea / ortho / perpendicular snap (#102)
+2df2dd59ae8560bf6a82a0ce96cda05e2b76ebc7 2026-05-07T11:52:57+09:00 docs(CHANGELOG): arc / SNAP-001 / MEASURE-001 / MEASURE-002 / SNAP-002 の変更履歴追記
+e60d39e8c7303b11ee1343853a42d5899f47553a 2026-05-07T11:51:32+09:00 chore(state): consecutive_success 50→52 / last_stable_pr=100 (post-merge)
+02bfe91331e52ba93f586ebb1fc125aeb28b88a1 2026-05-07T11:51:03+09:00 feat(SNAP-002): 垂直スナップ実装 + README/HelpDialog 更新 (#100)
+8c4efbceb8813811defcbdc22890ab3e660126ca 2026-05-07T11:24:05+09:00 chore(state): consecutive_success 48→50 / last_stable_pr=98 (post-merge)
+a770e7a7b75f95eb8eb56d2334ad53543ff6ac65 2026-05-07T11:23:34+09:00 feat(MEASURE-002): 面積計測ツール実装 — Shoelace 公式・多角形 UI・StatusBar 表示 (#98)
+6c6559a26d93b264b72c48907a180d888ee66d40 2026-05-07T11:04:57+09:00 chore(state): consecutive_success 46→48 / last_stable_pr=96 (measure-001 post-merge)
+20c1fa1350f23d4dafae53200fb96ffa2887b0a3 2026-05-07T11:04:35+09:00 feat(MEASURE-001): 距離計測ツール — 2点間距離/方位角を StatusBar に表示 (#96)
+ce9f9822e496d8708a44868add0db3ab4fb2c734 2026-05-07T11:03:58+09:00 test(Toolbar): 「作図補助」グループラベルをリボンテスト確認リストに追加
+e4b3335dc4f3a7099c5ca4599f4f12f0955512cb 2026-05-07T10:57:59+09:00 feat(MenuBar): 描画メニューに円弧 (ARC) 追加 + ツールメニュー距離計測を MEASURE に更新
+7fa379d63bdc3a35f8fe55c7f6490889ebc27605 2026-05-07T10:50:29+09:00 docs(HelpDialog): F8 オルソモード + 円弧ツール操作説明を追加
+ecb74142e1a587146f0ba40a61956694aa2b8c82 2026-05-07T10:49:18+09:00 feat(CommandBar): arc ツール対応 — 3ステップのコンテキスト依存ヒント表示
+f265556366d15b5564eefc14842d879b5df999bd 2026-05-07T10:47:59+09:00 chore(state): consecutive_success 44→46 / last_stable_pr=94 (snap-001 post-merge)
+f8dd74675cc2a4d36d755e7d8c3e8cce970077e6 2026-05-07T10:47:24+09:00 feat(SNAP-001): 中心スナップ (center snap) & オルソモード (F8) 実装 (#94)
+b5ca6797f1c10f44d5d2c0a571fb5f40c77757d7 2026-05-07T10:41:14+09:00 chore(state): consecutive_success 42→44 / last_stable_pr=92 (arc-tool post-merge)
+c855090a18fc43e49a6c5c2e5cca78b87c0bdad6 2026-05-07T10:40:45+09:00 feat(arc-tool): 円弧描画ツール実装 — 3クリック操作 / DXF入出力 / スナップ対応 (#92)
+4f3459c0b07f265a429450ee7056615fe3f3cbf6 2026-05-07T10:17:03+09:00 chore(state): consecutive_success 40→42 / last_stable_pr=91 (post-merge)
+90407dcbedb2cbf006592c764a8f6977d65e1289 2026-05-07T10:16:23+09:00 feat(PropertyPanel): 形状計測値表示 — 長さ/面積/角度の読み取り専用パネル追加 (#91)
+a231e47a5bce54168f1f2cad3597d4911a045027 2026-05-07T10:09:19+09:00 chore(state): consecutive_success 38→40 / last_stable_commit=981a6b4
+981a6b40bced5f9f6d55786194c327083b23f228 2026-05-07T10:08:46+09:00 fix: コードレビュー High 指摘2件を解消
+c657da9c11cd614011fb29cc6b1555abee17dc64 2026-05-07T10:06:36+09:00 test(viewportCulling): getVisibleIds の R-tree 範囲クエリテストを追加
+cd28dce4eacd76f864fd850311d880088682a6cf 2026-05-07T10:05:06+09:00 docs: CHANGELOG + README を PR #88-#90 の成果反映で更新
+27c7a5d31ece7aa23acd53ce11d8189ae2dedafa 2026-05-07T10:03:54+09:00 chore(state): consecutive_success 35→38 / last_stable_pr=90 (post-merge)
+b47cb277e3e7f9b9b0d0351fcf67aa56df89284d 2026-05-07T10:03:20+09:00 refactor(REDESIGN-004): Toolbar から forwardRef/useImperativeHandle を削除 (#90)
+ccc2eed61c4077918237a3d0f8218296b0520d39 2026-05-07T10:02:01+09:00 feat(DXF-002): HATCH エンティティ読込 — dxf-parser 未対応を自作 group code パーサで補完 (#89)
+fe4e1973b29c98528d8dd00c94f16e7016ec4c4a 2026-05-07T09:52:35+09:00 docs(CLAUDE.md): セッション時間管理・WebUI機能確認・CodeRabbit強化を追加 (#88)
+43652afe891e297f740fc7e8d6e0aa15d546239a 2026-05-07T09:37:13+09:00 docs(README): テスト数 330→379 / バンドル 104→115KB / アイコン数 35→62 に更新
+b4a8facd8786193048bbbde6c1ad78e497110b7a 2026-05-07T09:35:47+09:00 docs: CHANGELOG + PERF_REPORT に 2026-05-07 改善を追記
+0d2f1fb108709bc0d695304862c5562b2b0c12ea 2026-05-07T09:33:39+09:00 chore(state): consecutive_success 32→35 / last_stable_pr=87 (post-merge)
+c4ed2c29c0bffcdd01c44cbcdce21d51526518f7 2026-05-07T09:33:18+09:00 feat(REDESIGN-008): SVG アイコン 22 個追加 + 絵文字を SVG に置換 (#87)
+e9a153acdc32b8d54ad4d421144a841b00588ec8 2026-05-07T09:31:24+09:00 fix(CI-002): package.json に NODE_OPTIONS='--disable-wasm-trap-handler' を追加 (#85)
+3e559512ab8f860ce5ea82ff023ede1ec3ce1af4 2026-05-07T09:25:25+09:00 docs(A11Y_AUDIT): 2026-05-07改善 — RibbonButton ariaLabel/ContextMenu role=menu/Ruler aria-hidden を記録 (#84)
+3594a9c741722eb4ac394893858ee51d992301ad 2026-05-07T09:25:15+09:00 chore(state): consecutive_success 30→32 / last_stable_pr=83 (post-merge)
+eae7d0083b2b2653cfac08b414406dbf267f974f 2026-05-07T09:24:39+09:00 perf: R-tree 空間インデックスで selection/hit-test 高速化 (#83)
+ad6628f38d64b466ac5a3d24f8f48119419319b3 2026-05-07T08:58:13+09:00 chore(state): consecutive_success 25→30 / last_stable_pr=81 (post-merge) (#75 #77 #79 #80 #81)
+6480dc0dedb8c10629eaaac76ac7bb4e87fbf31a 2026-05-07T08:57:21+09:00 docs(CHANGELOG): M5 2026-05-07 の新機能を追記 — Ruler/Minimap/ContextMenu/a11y (#81)
+4e6fb9716ecbddd86792d0f84136488247705f8d 2026-05-07T08:57:17+09:00 docs(README): M5 UI強化の新機能を反映 — Ruler/Minimap/ContextMenu追加 (#80)
+d3adebdc82f5c5101cdc3595fe70016e21cea36a 2026-05-07T08:57:07+09:00 feat: Canvas 右クリックコンテキストメニュー実装 (#79)
+9bf4b3c8900d1947d80d9bbb1190e0e4d9fd4a7a 2026-05-07T08:55:47+09:00 feat(M5/REDESIGN-007): ルーラー・ミニマップ実装 (#75)
+8fa082a209c33ddf84c58ce9cf0e798fbf250e93 2026-05-07T08:55:28+09:00 a11y: RibbonButton ariaLabel prop 追加 — WCAG 2.1 AA (#77)
+8a71a08f773ba8639e10045c7261c135f61c819c 2026-05-06T23:26:00+09:00 chore(state): consecutive_success 24→25 / last_stable_pr=73 (post-merge)
+b3a78f3a1291e3de66e86425d7b5b05cc0b6bdd8 2026-05-06T23:25:26+09:00 fix(theme): ライトモード非対応のハードコード Tailwind 色クラスを CSS Variable トークンに置換 (#73)
+f6e103acc8abba730a8573b2f6253d76a5244af3 2026-05-06T23:03:34+09:00 docs(README): badge / tests 229→249 / Toolbar リボン UI 説明追加
+46535b2e1f9ccb78589f305d8554b27482c1c5d6 2026-05-06T22:49:19+09:00 chore(state): consecutive_success 23→24 / last_stable_pr=72 (post-merge) (#72)
+3e286bdde1c63c41f951152aad7127bcd3cf8627 2026-05-06T22:48:36+09:00 feat(M5/REDESIGN-006): リボン UI — 9 グループ Toolbar リデザイン (#71) (#72)
+7108d0d1a6df31efffe149a63632b49f11bc81bb 2026-05-06T22:21:51+09:00 Merge pull request #70 from Kensan196948G/feat/redesign-008-icon-system
+db8992a85192565ea32b80ac2ab9135e7214f913 2026-05-06T22:19:13+09:00 feat(M5/REDESIGN-008): SVG アイコンライブラリ + ToolPanel/Toolbar アイコン化
+5994a300fa99371d464bc0ef27de9c7fc31f3a5c 2026-05-06T22:15:20+09:00 chore(state): consecutive_success 21→22 / last_stable_pr=69 (post-merge)
+63b5678d1366843b0941dd8d9647851603482eb3 2026-05-06T22:14:49+09:00 Merge pull request #69 from Kensan196948G/feat/redesign-004-toolbar-refactor
+12a5565c6097d36698006b3ea9509b3c306ad2f7 2026-05-06T22:12:23+09:00 feat(M5/REDESIGN-004): Toolbar forwardRef + useImperativeHandle でCustomEventブリッジ削除
+3cdab997964ef1d34260078769aceb3a4a23c804 2026-05-06T22:06:02+09:00 chore(state): consecutive_success 20→21 / last_stable_pr=67 (post-merge) (#67)
+0843748cd20e9cb941279d7f4df3684d0517c622 2026-05-06T22:04:46+09:00 Merge pull request #67 from Kensan196948G/feat/redesign-005-right-panel
+3cdbcc9eaffdc6fcc25fe6a9ccbb92af25eba420 2026-05-06T22:02:39+09:00 fix(e2e): use aria-label 'テンプレート' for RightPanel tab locator
+c2fabd496da333cfc03241acfd1607728aa9eea0 2026-05-06T21:55:43+09:00 fix(e2e): RightPanel タブ移行に伴う E2E テスト修正 + ドキュメント更新
+47e1217cb747168e95e316243041648ceb8f7176 2026-05-06T21:48:44+09:00 feat(M5/REDESIGN-005): 6タブ右パネル実装 + ToolOptionsPanel/TemplatePanel CSS Variables 移行
+dae7da7c5567df25ddf71af1d84e22e339fc156b 2026-05-06T21:30:45+09:00 chore(state): consecutive_success 19→20 / last_stable_pr=65 (post-merge)
+f98e650ded78864ac9e5f9601b8a3f9881f9a72a 2026-05-06T21:29:54+09:00 feat(M5/REDESIGN-009): 全パネルを CSS Variables テーマに移行 (#65)
+8125e5b21304161a210bf942a916fda412e9b2cf 2026-05-06T21:18:01+09:00 chore(state): consecutive_success 18→19 / last_stable_pr=63 (post-merge)
+fb1f89ceb19cd629881fa2d085f02f1708d6e36e 2026-05-06T21:17:01+09:00 feat(M5/REDESIGN-002+003): コマンドパレット + メニューバー実装 (#63)
+ce9c37b78cabc5acad4a9cef593ff9b27525ada7 2026-05-06T20:30:42+09:00 chore(state): consecutive_success 16→18 / last_stable_pr=60 (post-merge)
+7277c0abd1bc45a5fdbe86c6de34366cb1d0270d 2026-05-06T20:29:47+09:00 feat(M5/REDESIGN-001): 設計バンドル取り込み + ライト/ダークテーマ切替 (#59) (#60)
+d8f0f60f6d87ab01dd23c84e8fbb95f8c1bf122d 2026-05-06T19:59:47+09:00 fix(#57): Vite dev/preview を 0.0.0.0 バインド (LAN 端末からアクセス可能化) (#58)
+e98e97c5b513a759c904d397cc8a5dc8adee5064 2026-05-04T13:14:24+09:00 chore(state): consecutive_success 15→16 / last_stable_pr=55 (post-merge) (#56)
+ca3387a939ae50605072fda34f31b80e573a7fb4 2026-05-04T13:10:19+09:00 feat(M5/ACC-003): HelpDialog focus-trap + StatusBar aria-live polite 通知 (#55)
+69611d60771a2be31d984d0af55dc8c0d4b2d253 2026-04-30T11:29:07+09:00 fix(#52/#53): Toolbar 1024px overflow修正 + main ランドマーク + TemplatePanel a11y (#54)
+312f5c0f04d86c0faae30732b84a32bab01a416a 2026-04-30T10:58:39+09:00 feat(M5/ACC-002): ToolPanel・StatusBar ARIA + prefers-reduced-motion 対応 (#51)
+5609c1625760d1de35530ea405092b4200a7d2cf 2026-04-30T10:13:24+09:00 feat(M4): WCAG 2.1 AA 配色コントラスト監査 + 8箇所修正 (#49)
+18ac2f310d738b87bff7f41149a56b5b1a781905 2026-04-30T10:08:29+09:00 docs: CHANGELOG.md 新設 / v0.9-alpha 以降の M3/M4 履歴を集約 (#48)
+eb68c0f17ea228158e145c5e1d35229ea131b16d 2026-04-30T10:03:21+09:00 docs(M4/FEEDBACK-001): α版現場検証用デモシナリオを追加 (#47)
+82b54d25e95edde27fbc37b3481ac9ad95f1c1f5 2026-04-30T09:56:10+09:00 feat(M4/ACC-001): LayerPanel/PropertyPanel a11y 続編 (#46)
+b35081e8eb9292e75f08081d11a9c573d1780336 2026-04-30T09:44:16+09:00 perf(M2): Vite manualChunks で main entry を 507KB→70KB に分割 (#45)
+66ba4ae47cd6a9ca8a2f24e8ac817e9f242decf0 2026-04-30T09:34:51+09:00 perf(M2/PERF-002): E2E perf.spec に S7/S8 シナリオを追加・実測値記録 (#44)
+9c68ff5cda07a1006dac54e6fdafe296e2584f3c 2026-04-30T09:04:56+09:00 chore: CTO 全権委任・5時間厳守・6ヶ月固定リリースのポリシー反映 (#43)
+842df145f5d45553153d74d81580f8b93475ebe9 2026-04-30T08:44:26+09:00 docs: README に M4/ACC-001 (キーボードa11y) 完了とテスト数 183 を反映
+bf81bbe6b1543f488cd76de27ab4c9196c6a80b7 2026-04-30T08:43:14+09:00 feat(M4/ACC-001): キーボードアクセシビリティ最低限改善 (#42)
+81642ccefd934ea56afda568d636fc7b45bacefd 2026-04-24T11:08:22+09:00 docs: README M3完了・M4 PERF-003完了・高DPI印刷説明を更新
+670702def233272ac2ab5b242b85243f2bed0f07 2026-04-24T11:07:26+09:00 feat(M4/PERF-003): 印刷時の高DPI対応 — Konva toDataURL pixelRatio:3 + 印刷プレビューウィンドウ (#41)
+3a72691eab7f9a26166151fc6379fe7ee56cc833 2026-04-24T10:56:37+09:00 feat(UX-003): 座標直接入力パネル (CommandBar) (#39)
+8a0b71fe44f7fc18343e7dce182cfb0f010be619 2026-04-24T10:44:04+09:00 Merge pull request #36 from Kensan196948G/feat/m3-doc-001-architecture
+d667d8ecd0fc10ccd4da49117aeea3ff4ca358d3 2026-04-24T10:27:40+09:00 docs(M3/DOC-001): アーキテクチャ図 + 開発者ガイド追加
+27e01b34076e83e0b04630de84863be2a5b9b557 2026-04-24T10:24:31+09:00 Merge pull request #34 from Kensan196948G/feat/m3-io-006-templates
+8873119f507918004551eb07559fb3d1b225cf84 2026-04-24T10:21:34+09:00 feat(M3/IO-006): テンプレート機能 — 4種の土木定型パターンを1クリック挿入 (#33)
+41dc553d6e835a1c58b69c6d25dc5c4a8c8fc812 2026-04-24T10:16:46+09:00 feat(M3/UX-002): 複数選択時の一括プロパティ変更 — BulkPanel + bulkUpdateShapes (#31) (#32)
+7e2f569615b526164b1e51cbc01964fce00bfebd 2026-04-24T10:12:10+09:00 feat(M3/UX-001): 図形回転・ミラー変換 — Toolbar に CW/CCW/水平反転/垂直反転ボタン追加 (#29) (#30)
+a17b1422298d397abdbb9c1b314bbdaa78bcc138 2026-04-24T10:03:22+09:00 feat(M3): HATCH-001 + SYM-001 — ハッチ4→10種 + シンボル8→30種 (#25, #26)
+385638c952fcbc47fe098441e9106ef3250733a2 2026-04-24T09:55:05+09:00 feat(E2E-001): M3 interaction E2E — undo/redo, layer visibility, select+delete (#24)
+e5f10d09520c0bec172a1f1d7deadc6ee37ec117 2026-04-24T09:44:14+09:00 Merge pull request #23 from Kensan196948G/perf/001-measurement
+570ff49278f8748f026e0d113a1e01e0d5e474f6 2026-04-24T09:33:21+09:00 perf(M2): PERF-001 自動 E2E 計測 — 1K/5K/10K 全シナリオ 60fps 達成
+18b3b63e19b537bfcfdda51601419cfca4e12169 2026-04-24T09:09:12+09:00 fix(M2): Lint 技術負債解消 — react-hooks/purity + unused vars (#21)
+a818ccdb848c0b91512ca5e7c6ebad7339e67732 2026-04-24T08:50:56+09:00 perf(M2): PERF-002 Konva Layer 分離 + Shape-by-Layer Map グルーピング (#20)
+699186fb4e29ac09c48faad8412c155cd6b7b874 2026-04-24T08:38:57+09:00 feat(M2): SEC-001 CSP メタタグ + XSS 監査レポート (#18)
+9e31324de9a9833d1efd1f8c3b790baf4e513908 2026-04-24T08:27:58+09:00 feat(M2): DXF-001 SPLINE / ELLIPSE 読込対応 (#15)
+cae84a252e1ca1b6e99aae58b9ea56cdfea80431 2026-04-23T20:13:39+09:00 docs: README.md に Loop 8-11 成果を反映
+76824cad05cf1cc7d96e297754f61a924bb981bd 2026-04-23T20:11:17+09:00 perf(M2): ビューポート・カリング追加 + PERF_REPORT.md
+525cff653f69a80f26285eef3b03dbf7c34d6e06 2026-04-23T20:07:48+09:00 fix(e2e): page.getByDisplayValue → page.locator (Playwright 互換 API)
+28fdd3ad67993cedc0211b8ed66d373befb7c740 2026-04-23T20:05:49+09:00 feat(M2): PERF-001 ベンチ基盤 + CI-001 Playwright E2E + AUTH-001 設計書
+d5393a2ce208931fb1c310567f5a79c642859d98 2026-04-23T19:56:10+09:00 docs: 6ヶ月ロードマップ策定 — 2026-10-23 本番リリース厳守
+77b41fb9b91c3697feccdf1e3897fe8a26cd4d10 2026-04-23T19:46:11+09:00 docs: Loop 7 最終 README 更新 — Phase 3 部分完了 + UX 追加実装を反映
+5924dc01e59983ee8ba9561c2657046b7f2acbe7 2026-04-23T19:43:50+09:00 feat: AutoSave (localStorage) + レイヤー並べ替え UI
+23d232381a1e3b82e1e1b3f0c4aa72e51e9286d4 2026-04-23T19:41:00+09:00 feat: スナップ可視化 + スナップ種別 ON/OFF トグル
+aaeea540202a9f9b78bd782e44ffd02205381802 2026-04-23T19:38:04+09:00 perf: DXF ライブラリを動的 import でコード分割 + 操作ガイド追加
+8d74367da21e8f834beb7c984961512e64435220 2026-04-23T19:35:27+09:00 feat: Phase 3 IO-004 DXF読込 + UX改善 (コピー/ペースト/複製)
+8794250780e982c3f1337118991ab9b0c29eba7c 2026-04-23T19:31:19+09:00 docs: Phase 2 完了を反映 — ハッチング/シンボル/PDF 機能追加
+e70aed5e252eeee7630ca2b08328bb952cc3cbea 2026-04-23T19:29:10+09:00 feat: Phase 2 機能群実装 — 選択強化/ハッチング/シンボル/PDF出力
+40e2bd6ba942be010135d6c23347a14ac8d9d930 2026-04-23T19:13:07+09:00 docs: README.md を Phase 1 実装完了に合わせて更新
+b9fc248f013b777c5d363b93963d772a897d530c 2026-04-23T19:11:46+09:00 feat: Phase 1 MVP 実装 — Vite+React+TS CAD 基盤構築
+6b8a46b5fdcb392383f04cb8db9ee5ac89775dde 2026-04-22T12:30:47+09:00 merge: GitHub Initial commit を統合
+a9b021abdba398de571174c429dcf63c1f6c74d6 2026-04-22T12:30:20+09:00 chore: CivilDraw プロジェクト初期化 — CLAUDE.md / START_PROMPT.md / .gitignore 追加
+84e47d4a0ece63450d962167e5def40cad4ff6af 2026-04-21T18:44:36+09:00 Initial commit

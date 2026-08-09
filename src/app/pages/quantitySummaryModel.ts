@@ -63,7 +63,11 @@ export function deriveDefaultQuantitySpec(geometry: Geometry): QuantitySpec | nu
     case 'text':
     case 'dimension':
     case 'leader':
+    case 'cloud':
       return null
+    case 'mline':
+      // 平行2線は中心線の延長として数量扱いする（2線それぞれの長さではない）。
+      return { method: 'length', unit: 'm' }
     default: {
       const exhaustive: never = geometry
       throw new Error(`未知の図形種別: ${JSON.stringify(exhaustive)}`)

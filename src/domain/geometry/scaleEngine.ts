@@ -75,6 +75,24 @@ export function scaleShape(
         start: scalePoint(geometry.start, config),
         end: scalePoint(geometry.end, config),
       }
+    case 'mline':
+      return {
+        ...geometry,
+        ...created,
+        start: scalePoint(geometry.start, config),
+        end: scalePoint(geometry.end, config),
+        offset: geometry.offset * Math.max(sx, sy),
+      }
+    case 'cloud':
+      return {
+        ...geometry,
+        ...created,
+        x1: scaleX(geometry.x1, config.cx, sx),
+        y1: scaleY(geometry.y1, config.cy, sy),
+        x2: scaleX(geometry.x2, config.cx, sx),
+        y2: scaleY(geometry.y2, config.cy, sy),
+        arcSize: geometry.arcSize * Math.max(sx, sy),
+      }
     case 'rectangle':
       return {
         ...geometry,

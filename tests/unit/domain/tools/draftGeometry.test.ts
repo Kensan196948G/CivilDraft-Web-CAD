@@ -4,10 +4,16 @@ import {
   buildDraftPreview,
   composeDraftGeometry,
   DRAFT_PREVIEW_ID,
+  makeArcDraft,
   makeCircleDraft,
+  makeCloudDraft,
+  makeEllipseDraft,
+  makeLeaderDraft,
   makeLineDraft,
+  makeMlineDraft,
   makePolylineDraft,
   makeRectangleDraft,
+  makeSplineDraft,
   type DraftGeometryBase,
 } from '@/domain/tools/draftGeometry'
 import type { GeometryId, GeometryStyle, LayerId, Point } from '@/shared/types'
@@ -66,12 +72,81 @@ describe('draftGeometry / 図形フィールド生成', () => {
     expect(snap?.points).toHaveLength(2)
   })
 
+  it('makeArcDraft: 中心・半径点・終点角度点の3点から円弧、点不足・半径0は null', () => {
+    // 中心(0,0)、半径点(50,0) → startAngle=0、終点(0,50)（画面下）は時計回り 90°。
+    const arc = makeArcDraft([p(0, 0), p(50, 0), p(0, 50)])
+    expect(arc?.type).toBe('arc')
+    expect(arc?.radius).toBeCloseTo(50)
+    expect(arc?.startAngleDeg).toBeCloseTo(0)
+    expect(arc?.endAngleDeg).toBeCloseTo(90)
+    expect(makeArcDraft([p(0, 0), p(1, 1)])).toBeNull()
+    expect(makeArcDraft([p(0, 0), p(0, 0), p(1, 1)])).toBeNull()
+  })
+
+  it('makeEllipseDraft: 中心+半径点から半径X/Y（絶対値）、回転0', () => {
+    expect(makeEllipseDraft([p(10, 20), p(30, 10)])).toEqual({
+      type: 'ellipse',
+      center: p(10, 20),
+      radiusX: 20,
+      radiusY: 10,
+      rotationDeg: 0,
+    })
+    expect(makeEllipseDraft([p(0, 0), p(5, 0)])).toBeNull()
+  })
+
+  it('makeSplineDraft: 2点以上・tension=0.5、入力配列から独立', () => {
+    const pts = [p(0, 0), p(50, 80), p(100, 0)]
+    const spline = makeSplineDraft(pts)
+    expect(spline).toEqual({ type: 'spline', points: pts, tension: 0.5 })
+    expect(makeSplineDraft([p(0, 0)])).toBeNull()
+  })
+
+  it('makeCloudDraft: 対角2点で外接矩形、arcSize=15、同一座標は null', () => {
+    expect(makeCloudDraft([p(0, 0), p(100, 60)])).toEqual({
+      type: 'cloud',
+      x1: 0,
+      y1: 0,
+      x2: 100,
+      y2: 60,
+      arcSize: 15,
+    })
+    expect(makeCloudDraft([p(5, 5), p(5, 5)])).toBeNull()
+  })
+
+  it('makeMlineDraft: 2点で中心線・offset=10、ゼロ長は null', () => {
+    expect(makeMlineDraft([p(0, 0), p(100, 0)])).toEqual({
+      type: 'mline',
+      start: p(0, 0),
+      end: p(100, 0),
+      offset: 10,
+    })
+    expect(makeMlineDraft([p(1, 1), p(1, 1)])).toBeNull()
+  })
+
+  it('makeLeaderDraft: 2点で引出線（既定テキスト「注記」）、ゼロ長は null', () => {
+    expect(makeLeaderDraft([p(0, 0), p(80, 40)])).toEqual({
+      type: 'leader',
+      start: p(0, 0),
+      end: p(80, 40),
+      text: '注記',
+      textHeight: 14,
+    })
+    expect(makeLeaderDraft([p(0, 0), p(0, 0)])).toBeNull()
+  })
+
   it('buildDraftFields: ツール種別で適切なメーカーへ振り分け、select は null', () => {
     expect(buildDraftFields('line', [p(0, 0), p(1, 1)])?.type).toBe('line')
     expect(buildDraftFields('rectangle', [p(0, 0), p(1, 1)])?.type).toBe('rectangle')
     expect(buildDraftFields('circle', [p(0, 0), p(1, 0)])?.type).toBe('circle')
+    expect(buildDraftFields('arc', [p(0, 0), p(1, 0), p(0, 1)])?.type).toBe('arc')
+    expect(buildDraftFields('ellipse', [p(0, 0), p(1, 1)])?.type).toBe('ellipse')
     expect(buildDraftFields('polyline', [p(0, 0), p(1, 1)])?.type).toBe('polyline')
+    expect(buildDraftFields('spline', [p(0, 0), p(1, 1)])?.type).toBe('spline')
+    expect(buildDraftFields('cloud', [p(0, 0), p(1, 1)])?.type).toBe('cloud')
+    expect(buildDraftFields('mline', [p(0, 0), p(1, 1)])?.type).toBe('mline')
+    expect(buildDraftFields('leader', [p(0, 0), p(1, 1)])?.type).toBe('leader')
     expect(buildDraftFields('select', [p(0, 0), p(1, 1)])).toBeNull()
+    expect(buildDraftFields('measure', [p(0, 0), p(1, 1)])).toBeNull()
   })
 })
 

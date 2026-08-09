@@ -102,6 +102,31 @@ function getEndpoints(geometry: Geometry): Point[] {
   switch (geometry.type) {
     case 'line':
       return [geometry.start, geometry.end]
+    case 'mline': {
+      const dx = geometry.end.x - geometry.start.x
+      const dy = geometry.end.y - geometry.start.y
+      const len = Math.hypot(dx, dy)
+      const nx = len < 1e-12 ? 0 : (-dy / len) * geometry.offset
+      const ny = len < 1e-12 ? geometry.offset : (dx / len) * geometry.offset
+      return [
+        geometry.start,
+        geometry.end,
+        { x: geometry.start.x + nx, y: geometry.start.y + ny },
+        { x: geometry.end.x + nx, y: geometry.end.y + ny },
+      ]
+    }
+    case 'cloud': {
+      const minX = Math.min(geometry.x1, geometry.x2)
+      const minY = Math.min(geometry.y1, geometry.y2)
+      const maxX = Math.max(geometry.x1, geometry.x2)
+      const maxY = Math.max(geometry.y1, geometry.y2)
+      return [
+        { x: minX, y: minY },
+        { x: maxX, y: minY },
+        { x: maxX, y: maxY },
+        { x: minX, y: maxY },
+      ]
+    }
     case 'rectangle': {
       // 継承元同様、rotationDeg は無視して回転前の4隅を返す（shapeBBox.ts と同一方針）。
       const { origin, width, height } = geometry
@@ -180,6 +205,8 @@ function getCenterPoints(geometry: Geometry): Point[] {
     case 'rectangle':
     case 'polyline':
     case 'spline':
+    case 'cloud':
+    case 'mline':
     case 'text':
     case 'dimension':
     case 'leader':
@@ -224,11 +251,19 @@ function getMidpoints(geometry: Geometry): Point[] {
       }
       return mids
     }
+    case 'mline':
+      return [
+        {
+          x: (geometry.start.x + geometry.end.x) / 2,
+          y: (geometry.start.y + geometry.end.y) / 2,
+        },
+      ]
     case 'rectangle':
     case 'circle':
     case 'arc':
     case 'ellipse':
     case 'spline':
+    case 'cloud':
     case 'text':
     case 'dimension':
     case 'leader':
@@ -255,6 +290,37 @@ function getSegments(geometry: Geometry): [Point, Point][] {
       const tr: Point = { x: origin.x + width, y: origin.y }
       const br: Point = { x: origin.x + width, y: origin.y + height }
       const bl: Point = { x: origin.x, y: origin.y + height }
+      return [
+        [tl, tr],
+        [tr, br],
+        [br, bl],
+        [bl, tl],
+      ]
+    }
+    case 'mline': {
+      const dx = geometry.end.x - geometry.start.x
+      const dy = geometry.end.y - geometry.start.y
+      const len = Math.hypot(dx, dy)
+      const nx = len < 1e-12 ? 0 : (-dy / len) * geometry.offset
+      const ny = len < 1e-12 ? geometry.offset : (dx / len) * geometry.offset
+      const a1 = { x: geometry.start.x + nx, y: geometry.start.y + ny }
+      const a2 = { x: geometry.end.x + nx, y: geometry.end.y + ny }
+      const b1 = { x: geometry.start.x - nx, y: geometry.start.y - ny }
+      const b2 = { x: geometry.end.x - nx, y: geometry.end.y - ny }
+      return [
+        [a1, a2],
+        [b1, b2],
+      ]
+    }
+    case 'cloud': {
+      const minX = Math.min(geometry.x1, geometry.x2)
+      const minY = Math.min(geometry.y1, geometry.y2)
+      const maxX = Math.max(geometry.x1, geometry.x2)
+      const maxY = Math.max(geometry.y1, geometry.y2)
+      const tl = { x: minX, y: minY }
+      const tr = { x: maxX, y: minY }
+      const br = { x: maxX, y: maxY }
+      const bl = { x: minX, y: maxY }
       return [
         [tl, tr],
         [tr, br],
@@ -429,6 +495,8 @@ function getTangentPoints(geometry: Geometry, cursor: Point): Point[] {
     case 'ellipse':
     case 'polyline':
     case 'spline':
+    case 'cloud':
+    case 'mline':
     case 'text':
     case 'dimension':
     case 'leader':

@@ -662,7 +662,7 @@ describe('CadEditorPage キーボードショートカットとA11y（#47）', (
     expect(store.getState().geometries).toHaveLength(1)
   })
 
-  it('数字キー 1-8 で作図ツールを切り替えられる', () => {
+  it('数字キー 1-9 で作図ツールを切り替えられる', () => {
     const store = createEditorStore()
     renderPage(store, makeCloudClient())
 
@@ -670,7 +670,10 @@ describe('CadEditorPage キーボードショートカットとA11y（#47）', (
     expect(store.getState().activeTool).toBe('line')
 
     fireEvent.keyDown(window, { key: '8' })
-    expect(store.getState().activeTool).toBe('hatch')
+    expect(store.getState().activeTool).toBe('spline')
+
+    fireEvent.keyDown(window, { key: '9' })
+    expect(store.getState().activeTool).toBe('cloud')
 
     fireEvent.keyDown(window, { key: '1' })
     expect(store.getState().activeTool).toBe('select')
@@ -684,5 +687,19 @@ describe('CadEditorPage キーボードショートカットとA11y（#47）', (
     expect(screen.getByRole('toolbar', { name: '編集ツール' })).toBeInTheDocument()
     expect(screen.getByRole('button', { name: '線分' })).toBeInTheDocument()
     expect(screen.getByRole('button', { name: 'トリム' })).toBeInTheDocument()
+  })
+
+  it('チェックアウト→チェックインをトグルでき、localStorage へ永続化される', () => {
+    localStorage.removeItem('cd:checkout:DWG-014')
+    const store = createEditorStore()
+    renderPage(store, makeCloudClient())
+
+    fireEvent.click(screen.getByRole('button', { name: 'チェックアウト' }))
+    expect(screen.getByText(/チェックアウト中/)).toBeInTheDocument()
+    expect(localStorage.getItem('cd:checkout:DWG-014')).toContain('checkedOut')
+
+    fireEvent.click(screen.getByRole('button', { name: 'チェックイン' }))
+    expect(screen.getByText('チェックイン済み')).toBeInTheDocument()
+    expect(localStorage.getItem('cd:checkout:DWG-014')).toContain('checkedIn')
   })
 })

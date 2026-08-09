@@ -76,6 +76,22 @@ function translateShape(
         start: translatePoint(geometry.start, dx, dy),
         end: translatePoint(geometry.end, dx, dy),
       }
+    case 'mline':
+      return {
+        ...geometry,
+        ...created,
+        start: translatePoint(geometry.start, dx, dy),
+        end: translatePoint(geometry.end, dx, dy),
+      }
+    case 'cloud':
+      return {
+        ...geometry,
+        ...created,
+        x1: geometry.x1 + dx,
+        y1: geometry.y1 + dy,
+        x2: geometry.x2 + dx,
+        y2: geometry.y2 + dy,
+      }
     case 'rectangle':
       return { ...geometry, ...created, origin: translatePoint(geometry.origin, dx, dy) }
     case 'text':

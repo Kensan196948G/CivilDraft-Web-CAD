@@ -8,8 +8,10 @@ import {
 import {
   makeArc,
   makeCircle,
+  makeCloud,
   makeHatch,
   makeLine,
+  makeMline,
   makePolyline,
   makeRectangle,
   makeSymbol,
@@ -37,6 +39,16 @@ describe('geometryLengthMm / 延長（内部基準mm）', () => {
 
   it('円は延長算出できず null', () => {
     expect(geometryLengthMm(makeCircle('c1', { x: 0, y: 0 }, 1000))).toBeNull()
+  })
+
+  it('mline は中心線の延長として算出する（3-4-5 → 5000mm）', () => {
+    const mline = makeMline('m1', { x: 0, y: 0 }, { x: 3000, y: 4000 })
+    expect(geometryLengthMm(mline)).toBeCloseTo(5000, 6)
+  })
+
+  it('cloud は注記図形として延長算出 null', () => {
+    const cloud = makeCloud('cl1', 0, 0, 100, 50)
+    expect(geometryLengthMm(cloud)).toBeNull()
   })
 })
 

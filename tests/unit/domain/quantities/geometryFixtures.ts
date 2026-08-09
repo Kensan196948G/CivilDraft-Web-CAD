@@ -5,11 +5,13 @@
 import type {
   ArcGeometry,
   CircleGeometry,
+  CloudGeometry,
   EllipseGeometry,
   GeometryId,
   HatchGeometry,
   LayerId,
   LineGeometry,
+  MLineGeometry,
   Point,
   PolylineGeometry,
   RectangleGeometry,
@@ -66,4 +68,12 @@ export function makeHatch(id: string, boundaryPoints: readonly Point[]): HatchGe
 
 export function makeSymbol(id: string, position: Point): SymbolGeometry {
   return { ...base(id), type: 'symbol', symbolId: 'sym-1', position, rotationDeg: 0, scale: 1 }
+}
+
+export function makeMline(id: string, start: Point, end: Point): MLineGeometry {
+  return { ...base(id), type: 'mline', start, end, offset: 10 }
+}
+
+export function makeCloud(id: string, x1: number, y1: number, x2: number, y2: number): CloudGeometry {
+  return { ...base(id), type: 'cloud', x1, y1, x2, y2, arcSize: 15 }
 }

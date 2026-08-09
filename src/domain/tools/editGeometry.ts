@@ -3,10 +3,14 @@ import { computeCentroid } from '@/domain/geometry/shapeTransform'
 import { trimLine } from '@/domain/geometry/trimEngine'
 import { extendLine } from '@/domain/geometry/extendEngine'
 import { offsetShape } from '@/domain/geometry/offsetEngine'
+import { applyArray, validateArrayConfig } from '@/domain/geometry/arrayEngine'
+import { scaleShapes } from '@/domain/geometry/scaleEngine'
 import type { GeometryCreationContext } from '@/domain/geometry/geometryFactory'
 import type { EditorCommand } from '@/domain/commands/editorCommand'
 import type { DocumentState } from '@/domain/commands/editorCommand'
 import {
+  createAddGeometriesCommand,
+  createBulkUpdateGeometriesCommand,
   createTransformGeometriesCommand,
   createUpdateGeometryCommand,
   createAddGeometryCommand,
@@ -27,6 +31,8 @@ export type EditingToolType =
   | 'offset'
   | 'fillet'
   | 'chamfer'
+  | 'array'
+  | 'scale'
 
 export interface EditingToolInfo {
   readonly tool: EditingToolType
@@ -44,12 +50,16 @@ export const EDITING_TOOLS: readonly EditingToolInfo[] = [
   { tool: 'offset', icon: '⇉', label: 'オフセット' },
   { tool: 'fillet', icon: '⌒', label: 'フィレット' },
   { tool: 'chamfer', icon: '⧄', label: '面取り' },
+  { tool: 'array', icon: '⊞', label: '配列複写' },
+  { tool: 'scale', icon: '⤢', label: '尺度変更' },
 ]
 
 export const PARAM_EDITING_TOOLS: ReadonlySet<EditingToolType> = new Set([
   'offset',
   'fillet',
   'chamfer',
+  'array',
+  'scale',
 ])
 
 export const SELECTION_REQUIRED_TOOLS: ReadonlySet<EditingToolType> = new Set([
@@ -60,6 +70,8 @@ export const SELECTION_REQUIRED_TOOLS: ReadonlySet<EditingToolType> = new Set([
   'offset',
   'fillet',
   'chamfer',
+  'array',
+  'scale',
 ])
 
 export const CLICK_REQUIRED_TOOLS: ReadonlySet<EditingToolType> = new Set([
@@ -77,6 +89,11 @@ export interface EditingOperationInput {
   readonly offsetDistance: number
   readonly filletRadius: number
   readonly chamferDist: number
+  readonly arrayRows: number
+  readonly arrayCols: number
+  readonly arrayRowSpacing: number
+  readonly arrayColSpacing: number
+  readonly scaleFactor: number
   readonly ctx: GeometryCreationContext
 }
 
@@ -100,7 +117,21 @@ function editableSelected(
 }
 
 export function dispatchEditingOperation(input: EditingOperationInput): EditorCommand | null {
-  const { tool, document, selectedIds, clickPoint, offsetDistance, filletRadius, chamferDist, ctx } = input
+  const {
+    tool,
+    document,
+    selectedIds,
+    clickPoint,
+    offsetDistance,
+    filletRadius,
+    chamferDist,
+    arrayRows,
+    arrayCols,
+    arrayRowSpacing,
+    arrayColSpacing,
+    scaleFactor,
+    ctx,
+  } = input
   const selected = editableSelected(document, selectedIds)
 
   switch (tool) {
@@ -122,6 +153,10 @@ export function dispatchEditingOperation(input: EditingOperationInput): EditorCo
       return dispatchFillet(document, selected, filletRadius, ctx)
     case 'chamfer':
       return dispatchChamfer(document, selected, chamferDist, ctx)
+    case 'array':
+      return dispatchArray(selected, arrayRows, arrayCols, arrayRowSpacing, arrayColSpacing, ctx)
+    case 'scale':
+      return dispatchScale(selected, scaleFactor, ctx)
     default: {
       const exhaustive: never = tool
       throw new Error(`Unknown editing tool: ${String(exhaustive)}`)
@@ -246,6 +281,39 @@ function dispatchChamfer(
   if (line1 === undefined || line2 === undefined) return null
   if (line1.type !== 'line' || line2.type !== 'line') return null
   return createChamferGeometriesCommand(document, line1.id, line2.id, dist, ctx)
+}
+
+function dispatchArray(
+  selected: readonly Geometry[],
+  rows: number,
+  cols: number,
+  rowSpacing: number,
+  colSpacing: number,
+  ctx: GeometryCreationContext,
+): EditorCommand | null {
+  if (selected.length === 0) return null
+  const config = { kind: 'rect', rows, cols, rowSpacing, colSpacing } as const
+  const invalid = validateArrayConfig(config)
+  if (invalid !== null) return null
+  const copies = applyArray(selected, config, ctx)
+  if (copies.length === 0) return null
+  return createAddGeometriesCommand(copies, ctx)
+}
+
+function dispatchScale(
+  selected: readonly Geometry[],
+  factor: number,
+  ctx: GeometryCreationContext,
+): EditorCommand | null {
+  if (selected.length === 0 || factor <= 0) return null
+  const { cx, cy } = computeCentroid(selected)
+  const pairs = selected.flatMap((geometry) => {
+    const scaled = scaleShapes([geometry], { cx, cy, sx: factor, sy: factor })
+    const after = scaled[0]
+    return after === undefined ? [] : [{ before: geometry, after }]
+  })
+  if (pairs.length === 0) return null
+  return createBulkUpdateGeometriesCommand(pairs, ctx)
 }
 
 function findClosestLine(geometries: readonly Geometry[], clickPoint: Point): Geometry | null {

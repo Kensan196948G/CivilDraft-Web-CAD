@@ -61,6 +61,8 @@ export type {
   EllipseGeometry,
   DimensionGeometry,
   LeaderGeometry,
+  CloudGeometry,
+  MLineGeometry,
   HatchPattern,
   HatchGeometry,
   SymbolGeometry,

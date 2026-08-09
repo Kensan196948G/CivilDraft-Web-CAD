@@ -553,6 +553,59 @@ export function paintGeometry(ctx: PaintContext, geometry: Geometry): void {
       strokePolyline(page, project(projector, geometry.points), style)
       return
 
+    case 'cloud': {
+      // 改訂雲マークは円弧の弦近似ポリラインで描く（DXF 出力と同一方針）。
+      const minX = Math.min(geometry.x1, geometry.x2)
+      const minY = Math.min(geometry.y1, geometry.y2)
+      const maxX = Math.max(geometry.x1, geometry.x2)
+      const maxY = Math.max(geometry.y1, geometry.y2)
+      const arcSize = Math.max(1, geometry.arcSize)
+      const pts: Point[] = []
+      const sides: readonly (readonly [number, number, number, number])[] = [
+        [minX, minY, maxX, minY],
+        [maxX, minY, maxX, maxY],
+        [maxX, maxY, minX, maxY],
+        [minX, maxY, minX, minY],
+      ]
+      for (const [sx, sy, ex, ey] of sides) {
+        const segLen = Math.hypot(ex - sx, ey - sy)
+        if (segLen < 1) continue
+        const n = Math.max(1, Math.round(segLen / arcSize))
+        for (let i = 0; i <= n; i++) {
+          const t = i / n
+          pts.push({ x: sx + (ex - sx) * t, y: sy + (ey - sy) * t })
+        }
+      }
+      strokePolyline(page, project(projector, pts), style, { closed: true })
+      return
+    }
+
+    case 'mline': {
+      // 平行2線。中心線の法線方向へ ±offset した 2 本の線分。
+      const dx = geometry.end.x - geometry.start.x
+      const dy = geometry.end.y - geometry.start.y
+      const len = Math.hypot(dx, dy)
+      const nx = len < 1e-12 ? 0 : (-dy / len) * geometry.offset
+      const ny = len < 1e-12 ? geometry.offset : (dx / len) * geometry.offset
+      strokePolyline(
+        page,
+        project(projector, [
+          { x: geometry.start.x + nx, y: geometry.start.y + ny },
+          { x: geometry.end.x + nx, y: geometry.end.y + ny },
+        ]),
+        style,
+      )
+      strokePolyline(
+        page,
+        project(projector, [
+          { x: geometry.start.x - nx, y: geometry.start.y - ny },
+          { x: geometry.end.x - nx, y: geometry.end.y - ny },
+        ]),
+        style,
+      )
+      return
+    }
+
     case 'text':
       paintText(ctx, geometry)
       return

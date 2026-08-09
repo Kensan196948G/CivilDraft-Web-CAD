@@ -41,6 +41,8 @@ const REPEAT_EDITING_TOOLS: ReadonlySet<EditingToolType> = new Set([
   'offset',
   'fillet',
   'chamfer',
+  'array',
+  'scale',
 ])
 
 /** SnapType から SnapSlice のトグル state キーへ変換する（'none' は null）。 */
@@ -231,6 +233,11 @@ export interface ToolSlice {
   readonly editingOffsetDistance: number
   readonly editingFilletRadius: number
   readonly editingChamferDist: number
+  readonly editingArrayRows: number
+  readonly editingArrayCols: number
+  readonly editingArrayRowSpacing: number
+  readonly editingArrayColSpacing: number
+  readonly editingScaleFactor: number
   activateTool: (tool: ToolType) => void
   addDraftPoint: (point: Point) => void
   updateDraftCursor: (point: Point | null) => void
@@ -240,6 +247,11 @@ export interface ToolSlice {
   setEditingOffsetDistance: (dist: number) => void
   setEditingFilletRadius: (radius: number) => void
   setEditingChamferDist: (dist: number) => void
+  setEditingArrayRows: (rows: number) => void
+  setEditingArrayCols: (cols: number) => void
+  setEditingArrayRowSpacing: (spacing: number) => void
+  setEditingArrayColSpacing: (spacing: number) => void
+  setEditingScaleFactor: (factor: number) => void
   executeEditingOperation: (clickPoint: Point | null) => void
 }
 
@@ -652,6 +664,11 @@ export function createEditorStore(ctx: GeometryCreationContext = defaultCreation
     editingOffsetDistance: 100,
     editingFilletRadius: 50,
     editingChamferDist: 50,
+    editingArrayRows: 2,
+    editingArrayCols: 3,
+    editingArrayRowSpacing: 500,
+    editingArrayColSpacing: 500,
+    editingScaleFactor: 2,
     activateTool: (tool) => set({ activeTool: tool, draftPoints: [], draftCursor: null, activeEditingTool: null }),
     updateDraftCursor: (point) => set({ draftCursor: point }),
     cancelDraft: () => set({ draftPoints: [], draftCursor: null }),
@@ -660,6 +677,11 @@ export function createEditorStore(ctx: GeometryCreationContext = defaultCreation
       if (state.activeTool === 'select' || state.activeTool === 'hatch') return
       if (state.activeTool === 'text' && state.draftPoints.length >= 1) return
       const nextPoints = [...state.draftPoints, point]
+      // 測距ツールは点列を蓄積し（最大32点）、確定コマンドは発行しない（表示は UI 側で算出）。
+      if (state.activeTool === 'measure') {
+        set({ draftPoints: nextPoints.slice(-32) })
+        return
+      }
       const required = AUTO_COMMIT_POINT_COUNT[state.activeTool]
       if (required === undefined || nextPoints.length < required) {
         set({ draftPoints: nextPoints })
@@ -671,7 +693,7 @@ export function createEditorStore(ctx: GeometryCreationContext = defaultCreation
     },
     commitDraft: () => {
       const state = get()
-      if (state.activeTool !== 'polyline') return
+      if (state.activeTool !== 'polyline' && state.activeTool !== 'spline') return
       const fields = buildDraftFields(state.activeTool, state.draftPoints)
       if (fields !== null) emitDraftGeometry(get, ctx, fields)
       set({ draftPoints: [], draftCursor: null })
@@ -681,6 +703,11 @@ export function createEditorStore(ctx: GeometryCreationContext = defaultCreation
     setEditingOffsetDistance: (dist) => set({ editingOffsetDistance: Math.max(0, dist) }),
     setEditingFilletRadius: (radius) => set({ editingFilletRadius: Math.max(0.1, radius) }),
     setEditingChamferDist: (dist) => set({ editingChamferDist: Math.max(0.1, dist) }),
+    setEditingArrayRows: (rows) => set({ editingArrayRows: Math.max(1, Math.floor(rows)) }),
+    setEditingArrayCols: (cols) => set({ editingArrayCols: Math.max(1, Math.floor(cols)) }),
+    setEditingArrayRowSpacing: (spacing) => set({ editingArrayRowSpacing: Math.max(0, spacing) }),
+    setEditingArrayColSpacing: (spacing) => set({ editingArrayColSpacing: Math.max(0, spacing) }),
+    setEditingScaleFactor: (factor) => set({ editingScaleFactor: Math.max(0.01, factor) }),
     executeEditingOperation: (clickPoint) => {
       const s = get()
       if (s.activeEditingTool === null) return
@@ -693,6 +720,11 @@ export function createEditorStore(ctx: GeometryCreationContext = defaultCreation
         offsetDistance: s.editingOffsetDistance,
         filletRadius: s.editingFilletRadius,
         chamferDist: s.editingChamferDist,
+        arrayRows: s.editingArrayRows,
+        arrayCols: s.editingArrayCols,
+        arrayRowSpacing: s.editingArrayRowSpacing,
+        arrayColSpacing: s.editingArrayColSpacing,
+        scaleFactor: s.editingScaleFactor,
         ctx,
       })
       if (command !== null) {

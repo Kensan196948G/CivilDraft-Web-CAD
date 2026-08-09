@@ -75,6 +75,8 @@ export function offsetShape(
     }
     case 'ellipse':
     case 'polyline':
+    case 'cloud':
+    case 'mline':
     case 'text':
     case 'dimension':
     case 'leader':

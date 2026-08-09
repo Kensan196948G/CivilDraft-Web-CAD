@@ -6,11 +6,21 @@
  * プレビューSVG・出力履歴はデザイン正本のサンプルを忠実表示（履歴永続化は本番データ層接続後）。
  */
 import { useState } from 'react'
-import type { CSSProperties } from 'react'
+import type { ChangeEvent, CSSProperties } from 'react'
 import { exportQuantityCsv } from '@/domain/quantities/quantityCsv'
 import { CSV_CONTEXT, computeQuantitySummary } from './quantitySummaryModel'
 import { useEditorStoreApi } from '@/app/store/useEditorStore'
 import {
+  addPdfWatermark,
+  getPdfPageCount,
+  mergePdfBytes,
+  redactPdfPages,
+  rotatePdfPages,
+  splitPdfBytes,
+} from '@/domain/pdf/pdfEdit'
+import { createPdfSignatureManifest, signatureManifestToJson } from '@/domain/pdf/pdfSignature'
+import {
+  ghostButtonStyle,
   pageHeaderStyle,
   pageMainStyle,
   pageRootStyle,
@@ -37,6 +47,24 @@ interface ExportHistoryRow {
   readonly date: string
 }
 
+interface LoadedPdfFile {
+  readonly name: string
+  readonly bytes: Uint8Array
+}
+
+const pdfInputStyle: CSSProperties = {
+  width: '100%',
+  boxSizing: 'border-box',
+  padding: '7px 9px',
+  borderRadius: 6,
+  border: '1px solid var(--line)',
+  background: 'var(--surface)',
+  color: 'var(--ink)',
+  fontSize: 12.5,
+}
+
+const pdfActionStyle: CSSProperties = { ...ghostButtonStyle, fontSize: 12 }
+
 const INITIAL_HISTORY: readonly ExportHistoryRow[] = [
   { label: 'PDF・Rev.2', date: '07-10' },
   { label: 'DXF・Rev.1', date: '07-02' },
@@ -49,6 +77,10 @@ export function PrintExportPage() {
   const [csvChecked, setCsvChecked] = useState(false)
   const [message, setMessage] = useState<string | null>(null)
   const [history, setHistory] = useState<readonly ExportHistoryRow[]>(INITIAL_HISTORY)
+  const [pdfFiles, setPdfFiles] = useState<readonly LoadedPdfFile[]>([])
+  const [watermarkText, setWatermarkText] = useState('社外秘')
+  const [signerName, setSignerName] = useState('')
+  const [pdfMessage, setPdfMessage] = useState<string | null>(null)
 
   const runExport = async () => {
     try {
@@ -107,6 +139,133 @@ export function PrintExportPage() {
       setMessage(results.length > 0 ? `📤 出力完了: ${results.join(' / ')}` : '出力形式を選択してください')
     } catch (error) {
       setMessage(`⚠️ 出力に失敗しました: ${error instanceof Error ? error.message : String(error)}`)
+    }
+  }
+
+  const handlePdfFiles = async (event: ChangeEvent<HTMLInputElement>) => {
+    const list = Array.from(event.target.files ?? [])
+    const loaded = await Promise.all(
+      list.map(async (file) => ({ name: file.name, bytes: new Uint8Array(await file.arrayBuffer()) })),
+    )
+    setPdfFiles(loaded)
+    setPdfMessage(loaded.length > 0 ? `📄 ${loaded.length} 件の PDF を読み込みました` : null)
+    event.target.value = ''
+  }
+
+  const downloadPdf = (bytes: Uint8Array, filename: string) => {
+    downloadBlob(new Blob([bytes.slice()], { type: 'application/pdf' }), filename)
+  }
+
+  const runMerge = async () => {
+    if (pdfFiles.length < 2) {
+      setPdfMessage('⚠️ 結合には 2 件以上の PDF が必要です')
+      return
+    }
+    const result = await mergePdfBytes(pdfFiles.map((file) => file.bytes))
+    if (result.ok) {
+      downloadPdf(result.value, 'merged.pdf')
+      setPdfMessage('✅ PDF を結合しました')
+    } else {
+      setPdfMessage(`⚠️ ${result.error.message}`)
+    }
+  }
+
+  const runSplit = async () => {
+    if (pdfFiles.length === 0) {
+      setPdfMessage('⚠️ PDF を選択してください')
+      return
+    }
+    const file = pdfFiles[0]
+    if (file === undefined) return
+    const countResult = await getPdfPageCount(file.bytes)
+    if (!countResult.ok) {
+      setPdfMessage(`⚠️ ${countResult.error.message}`)
+      return
+    }
+    const ranges = Array.from({ length: countResult.value }, (_, i) => ({ start: i + 1, end: i + 1 }))
+    const result = await splitPdfBytes(file.bytes, ranges)
+    if (result.ok) {
+      result.value.forEach((bytes, index) => {
+        downloadPdf(bytes, `${file.name.replace(/\.pdf$/i, '')}-p${index + 1}.pdf`)
+      })
+      setPdfMessage(`✅ ${result.value.length} ページに分割しました`)
+    } else {
+      setPdfMessage(`⚠️ ${result.error.message}`)
+    }
+  }
+
+  const runRotate = async () => {
+    if (pdfFiles.length === 0) {
+      setPdfMessage('⚠️ PDF を選択してください')
+      return
+    }
+    const file = pdfFiles[0]
+    if (file === undefined) return
+    const result = await rotatePdfPages(file.bytes, 90)
+    if (result.ok) {
+      downloadPdf(result.value, `${file.name.replace(/\.pdf$/i, '')}-rotated90.pdf`)
+      setPdfMessage('✅ 全ページを 90° 回転しました')
+    } else {
+      setPdfMessage(`⚠️ ${result.error.message}`)
+    }
+  }
+
+  const runWatermark = async () => {
+    if (pdfFiles.length === 0) {
+      setPdfMessage('⚠️ PDF を選択してください')
+      return
+    }
+    const file = pdfFiles[0]
+    if (file === undefined) return
+    const result = await addPdfWatermark(file.bytes, { text: watermarkText })
+    if (result.ok) {
+      downloadPdf(result.value, `${file.name.replace(/\.pdf$/i, '')}-watermarked.pdf`)
+      setPdfMessage('✅ 透かしを追加しました')
+    } else {
+      setPdfMessage(`⚠️ ${result.error.message}`)
+    }
+  }
+
+  const runRedact = async () => {
+    if (pdfFiles.length === 0) {
+      setPdfMessage('⚠️ PDF を選択してください')
+      return
+    }
+    const file = pdfFiles[0]
+    if (file === undefined) return
+    // 先頭ページの中央付近を黒塗り（視覚的な墨消し。物理削除は課題）。
+    const result = await redactPdfPages(file.bytes, [
+      { pageIndex: 0, x: 80, y: 80, width: 320, height: 48 },
+    ])
+    if (result.ok) {
+      downloadPdf(result.value, `${file.name.replace(/\.pdf$/i, '')}-redacted.pdf`)
+      setPdfMessage('✅ 墨消し（視覚的塗りつぶし）を適用しました ※物理削除ではありません')
+    } else {
+      setPdfMessage(`⚠️ ${result.error.message}`)
+    }
+  }
+
+  const runSignatureManifest = async () => {
+    if (pdfFiles.length === 0) {
+      setPdfMessage('⚠️ PDF を選択してください')
+      return
+    }
+    const file = pdfFiles[0]
+    if (file === undefined) return
+    const result = await createPdfSignatureManifest({
+      fileName: file.name,
+      bytes: file.bytes,
+      signer: signerName,
+      signerRole: '承認者',
+    })
+    if (result.ok) {
+      downloadBlob(
+        new Blob([signatureManifestToJson(result.value)], { type: 'application/json' }),
+        `${file.name.replace(/\.pdf$/i, '')}-signature-manifest.json`,
+      )
+      setPdfMessage('✅ 署名マニフェスト（SHA-256）を出力しました ※電子署名ではありません')
+    } else {
+      setPdfMessage(`⚠️ ${result.error.message}`)
     }
   }
 
@@ -226,6 +385,63 @@ export function PrintExportPage() {
                     <span style={{ color: 'var(--muted)' }}>{row.date}</span>
                   </div>
                 ))}
+              </div>
+            </div>
+
+            <div style={panelStyle}>
+              <div style={panelHeaderStyle}>PDF編集・署名</div>
+              <div style={{ padding: '16px 18px', display: 'flex', flexDirection: 'column', gap: 10 }}>
+                <input
+                  type="file"
+                  accept="application/pdf"
+                  multiple
+                  aria-label="PDFファイル選択"
+                  onChange={(e) => void handlePdfFiles(e)}
+                  style={{ fontSize: 12 }}
+                />
+                {pdfFiles.length > 0 && (
+                  <div style={{ fontSize: 11.5, color: 'var(--muted)' }}>
+                    {pdfFiles.map((file) => file.name).join(' / ')}
+                  </div>
+                )}
+                <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
+                  <button type="button" style={pdfActionStyle} onClick={() => void runMerge()}>
+                    結合
+                  </button>
+                  <button type="button" style={pdfActionStyle} onClick={() => void runSplit()}>
+                    分割（1頁ずつ）
+                  </button>
+                  <button type="button" style={pdfActionStyle} onClick={() => void runRotate()}>
+                    90°回転
+                  </button>
+                </div>
+                <input
+                  aria-label="透かしテキスト"
+                  style={pdfInputStyle}
+                  value={watermarkText}
+                  onChange={(e) => setWatermarkText(e.target.value)}
+                />
+                <button type="button" style={pdfActionStyle} onClick={() => void runWatermark()}>
+                  透かし追加
+                </button>
+                <button type="button" style={pdfActionStyle} onClick={() => void runRedact()}>
+                  墨消し（先頭ページ中央・視覚的）
+                </button>
+                <input
+                  aria-label="署名者名"
+                  style={pdfInputStyle}
+                  placeholder="署名者名（承認者）"
+                  value={signerName}
+                  onChange={(e) => setSignerName(e.target.value)}
+                />
+                <button type="button" style={pdfActionStyle} onClick={() => void runSignatureManifest()}>
+                  署名マニフェスト（SHA-256）生成
+                </button>
+                {pdfMessage !== null && (
+                  <div role="status" style={{ fontSize: 11.5, color: 'var(--muted)' }}>
+                    {pdfMessage}
+                  </div>
+                )}
               </div>
             </div>
           </div>

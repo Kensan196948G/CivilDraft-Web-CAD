@@ -55,6 +55,8 @@ export type GeometryType =
   | 'ellipse'
   | 'polyline'
   | 'spline'
+  | 'cloud'
+  | 'mline'
   | 'text'
   | 'dimension'
   | 'leader'
@@ -191,6 +193,32 @@ export interface SplineGeometry extends GeometryBase {
 }
 
 /**
+ * 継承元: Civil-Draw CloudShape（改訂雲マーク）。
+ * 外接矩形（x1,y1）-(x2,y2) と各辺を半円で波打たせる arcSize で表現する。
+ * DXF 入出力では円弧を弦で近似したポリラインへ変換する（Civil-Draw と同方針）。
+ */
+export interface CloudGeometry extends GeometryBase {
+  readonly type: 'cloud'
+  readonly x1: number
+  readonly y1: number
+  readonly x2: number
+  readonly y2: number
+  readonly arcSize: number
+}
+
+/**
+ * 継承元: Civil-Draw MLineShape（平行2線・マルチライン）。
+ * 中心線 start→end と、中心線からのオフセット幅 offset で 2 本の平行線を表す。
+ * DXF 入出力では 2 本の LINE へ分解する（DXF に MLine 専用エンティティを持たないため）。
+ */
+export interface MLineGeometry extends GeometryBase {
+  readonly type: 'mline'
+  readonly start: Point
+  readonly end: Point
+  readonly offset: number
+}
+
+/**
  * 詳細設計仕様書 §15 パラメトリック図形。
  * 生成図形（generatedGeometryIds）は本体を正本とし、パラメータ変更時に再生成される派生物。
  * ParametricObjectDefinition（definitionId・generate関数を持つテンプレート定義本体）は
@@ -221,4 +249,6 @@ export type Geometry =
   | HatchGeometry
   | SymbolGeometry
   | SplineGeometry
+  | CloudGeometry
+  | MLineGeometry
   | ParametricGeometry

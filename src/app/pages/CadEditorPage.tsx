@@ -38,7 +38,9 @@ import { EDITING_TOOLS, PARAM_EDITING_TOOLS, SELECTION_REQUIRED_TOOLS } from '@/
 import { LAYER_TEMPLATES } from '@/domain/catalog/layerTemplates'
 import { CAD_COMMAND_HELP, parseCadCommand } from '@/domain/cadCommandLine'
 import { checkDrawingHealth, type DrawingHealthResult } from '@/domain/validation/drawingHealth'
+import { acquireCheckout, releaseCheckout, type DrawingCheckout } from '@/domain/revisions/checkout'
 import { defaultCreationContext } from '@/domain/geometry/geometryFactory'
+import { measureArea, measureDistance } from '@/domain/geometry/measure'
 import type { AutosaveStore } from '@/infrastructure/autosave/autosaveStore'
 import { scheduleAutosave } from '@/infrastructure/autosave/autosaveScheduler'
 import {
@@ -48,8 +50,20 @@ import {
   type CloudSaveDraftResult,
 } from '@/infrastructure/cloud/civilDraftApiClient'
 import type { Result, ValidationIssue } from '@/shared/types'
-import type { DrawingLayer, Geometry, GeometryStyle, GeometryType, HatchPattern, LayerId, LineGeometry, Point } from '@/shared/types'
+import type {
+  DrawingId,
+  DrawingLayer,
+  Geometry,
+  GeometryStyle,
+  GeometryType,
+  HatchPattern,
+  LayerId,
+  LineGeometry,
+  Point,
+  RevisionId,
+} from '@/shared/types'
 import { ghostButtonStyle, monoStyle, pageRootStyle, primaryButtonStyle, statusBadgeStyle } from './pageStyles'
+import { formatLengthMm } from '@/domain/units'
 
 export interface CadEditorPageProps {
   /** HomePage/DrawingComparePageと共有する自動保存ストア（復旧候補の一貫性のため同一インスタンス）。 */
@@ -102,6 +116,8 @@ const GEOMETRY_TYPE_LABELS: Record<GeometryType, string> = {
   hatch: 'ハッチング',
   symbol: '部材記号',
   parametricObject: 'パラメトリック',
+  cloud: '改訂雲',
+  mline: '平行2線',
 }
 
 const LINE_TYPE_LABELS: Record<GeometryStyle['lineType'], string> = {
@@ -145,6 +161,11 @@ const FIELD_LABELS: Record<string, string> = {
   generatedGeometryIds: '生成図形',
   anchor: '位置',
   horizontalAlign: '配置',
+  x1: 'X1',
+  y1: 'Y1',
+  x2: 'X2',
+  y2: 'Y2',
+  arcSize: 'アークサイズ',
 }
 
 const GEOMETRY_BASE_KEYS = new Set([
@@ -164,10 +185,17 @@ const REAL_TOOLS: readonly { readonly tool: ToolType; readonly icon: string; rea
   { tool: 'line', icon: '╱', label: '線分' },
   { tool: 'rectangle', icon: '▭', label: '矩形' },
   { tool: 'circle', icon: '○', label: '円' },
+  { tool: 'arc', icon: '⌒', label: '円弧' },
+  { tool: 'ellipse', icon: '⬭', label: '楕円' },
   { tool: 'polyline', icon: '⌇', label: 'ポリライン' },
+  { tool: 'spline', icon: '∿', label: 'スプライン' },
+  { tool: 'cloud', icon: '☁', label: '改訂雲' },
+  { tool: 'mline', icon: '≣', label: '平行2線' },
   { tool: 'text', icon: 'A', label: '文字' },
+  { tool: 'leader', icon: '↳', label: '引出線' },
   { tool: 'dimension', icon: '⟺', label: '寸法' },
   { tool: 'hatch', icon: '⧉', label: 'ハッチング' },
+  { tool: 'measure', icon: '📏', label: '測距・面積' },
 ]
 
 const commaFmt = new Intl.NumberFormat('ja-JP', { minimumFractionDigits: 3, maximumFractionDigits: 3 })
@@ -399,6 +427,45 @@ function GeometryFields({
               <option value="center">中央</option>
               <option value="right">右寄せ</option>
             </select>
+          </div>
+        </>
+      )
+    }
+    case 'leader': {
+      const g = geometry
+      return (
+        <>
+          <div style={fieldRowStyle}>
+            <span style={fieldLabelStyle}>始点 X</span>
+            <NumInput key={`${g.id}:sx:${g.start.x}`} value={g.start.x} onCommit={(v) => onCommit(withUpdatedAt(g, { start: { ...g.start, x: v } }))} />
+          </div>
+          <div style={fieldRowStyle}>
+            <span style={fieldLabelStyle}>始点 Y</span>
+            <NumInput key={`${g.id}:sy:${g.start.y}`} value={g.start.y} onCommit={(v) => onCommit(withUpdatedAt(g, { start: { ...g.start, y: v } }))} />
+          </div>
+          <div style={fieldRowStyle}>
+            <span style={fieldLabelStyle}>終点 X</span>
+            <NumInput key={`${g.id}:ex:${g.end.x}`} value={g.end.x} onCommit={(v) => onCommit(withUpdatedAt(g, { end: { ...g.end, x: v } }))} />
+          </div>
+          <div style={fieldRowStyle}>
+            <span style={fieldLabelStyle}>終点 Y</span>
+            <NumInput key={`${g.id}:ey:${g.end.y}`} value={g.end.y} onCommit={(v) => onCommit(withUpdatedAt(g, { end: { ...g.end, y: v } }))} />
+          </div>
+          <div style={fieldRowStyle}>
+            <span style={fieldLabelStyle}>内容</span>
+            <input
+              key={`${g.id}:text:${g.text}`}
+              type="text"
+              defaultValue={g.text}
+              style={fieldInputStyle}
+              onBlur={(e) => {
+                if (e.target.value !== g.text) onCommit(withUpdatedAt(g, { text: e.target.value }))
+              }}
+            />
+          </div>
+          <div style={fieldRowStyle}>
+            <span style={fieldLabelStyle}>文字高さ</span>
+            <NumInput key={`${g.id}:th:${g.textHeight}`} value={g.textHeight} precision={1} onCommit={(v) => onCommit(withUpdatedAt(g, { textHeight: v }))} />
           </div>
         </>
       )
@@ -682,6 +749,11 @@ export function CadEditorPage({
   const editingOffsetDistance = useEditorStore((s) => s.editingOffsetDistance)
   const editingFilletRadius = useEditorStore((s) => s.editingFilletRadius)
   const editingChamferDist = useEditorStore((s) => s.editingChamferDist)
+  const editingArrayRows = useEditorStore((s) => s.editingArrayRows)
+  const editingArrayCols = useEditorStore((s) => s.editingArrayCols)
+  const editingArrayRowSpacing = useEditorStore((s) => s.editingArrayRowSpacing)
+  const editingArrayColSpacing = useEditorStore((s) => s.editingArrayColSpacing)
+  const editingScaleFactor = useEditorStore((s) => s.editingScaleFactor)
   const snapEnabled = useEditorStore((s) => s.snapEnabled)
   const snapTolerancePx = useEditorStore((s) => s.snapTolerancePx)
   const snapEndpoint = useEditorStore((s) => s.snapEndpoint)
@@ -708,6 +780,53 @@ export function CadEditorPage({
   const [cloudSaving, setCloudSaving] = useState(false)
   const [lastCloudRevisionId, setLastCloudRevisionId] = useState<string | null>(null)
   const [cloudConflict, setCloudConflict] = useState(false)
+  const checkoutKey = `cd:checkout:${cloudDraftSession.drawingNumber}`
+  const [checkout, setCheckout] = useState<DrawingCheckout | null>(() => {
+    try {
+      const raw = localStorage.getItem(checkoutKey)
+      return raw === null ? null : (JSON.parse(raw) as DrawingCheckout)
+    } catch {
+      return null
+    }
+  })
+  useEffect(() => {
+    try {
+      if (checkout === null) {
+        localStorage.removeItem(checkoutKey)
+      } else {
+        localStorage.setItem(checkoutKey, JSON.stringify(checkout))
+      }
+    } catch {
+      // localStorage 不可の環境では永続化せずメモリ上のみ
+    }
+  }, [checkout, checkoutKey])
+  const checkoutActor = cloudDraftSession.clientName ?? 'local-user'
+  const handleCheckoutToggle = () => {
+    const now = new Date().toISOString()
+    if (checkout?.status === 'checkedOut') {
+      const result = releaseCheckout(checkout, { actorId: checkoutActor, now })
+      if (result.ok) {
+        setCheckout(result.value)
+        setEditNotice(null)
+      } else {
+        setEditNotice(result.error.message)
+      }
+      return
+    }
+    const result = acquireCheckout(checkout, {
+      drawingId: 'local-drawing' as DrawingId,
+      revisionId: 'local-revision' as RevisionId,
+      actorId: checkoutActor,
+      revisionStatus: 'draft',
+      now,
+    })
+    if (result.ok) {
+      setCheckout(result.value)
+      setEditNotice(null)
+    } else {
+      setEditNotice(result.error.message)
+    }
+  }
   const [editNotice, setEditNotice] = useState<string | null>(null)
   const [selectedTemplateId, setSelectedTemplateId] = useState<string>(LAYER_TEMPLATES[0]?.id ?? '')
   const [healthOpen, setHealthOpen] = useState(false)
@@ -869,7 +988,8 @@ export function CadEditorPage({
         return
       }
       const numIndex = Number.parseInt(event.key, 10)
-      if (numIndex >= 1 && numIndex <= REAL_TOOLS.length) {
+      // テンキー/数字 1〜9 で先頭9ツールを切替（2桁数字と誤爆しないよう9まで）。
+      if (numIndex >= 1 && numIndex <= Math.min(9, REAL_TOOLS.length)) {
         event.preventDefault()
         storeApi.getState().activateTool(REAL_TOOLS[numIndex - 1]!.tool)
         return
@@ -1202,7 +1322,7 @@ export function CadEditorPage({
       label: `ツール: ${label}`,
       keywords: [tool],
       icon,
-      shortcut: String(index + 1),
+      shortcut: index < 9 ? String(index + 1) : undefined,
       run: () => storeApi.getState().activateTool(tool),
     })),
     ...EDITING_TOOLS.map(({ tool, icon, label }) => ({
@@ -1328,6 +1448,24 @@ export function CadEditorPage({
           <span style={{ fontSize: 14.5, fontWeight: 600, color: 'var(--ink)' }}>{cloudDraftSession.drawingName}</span>
         </div>
         <span style={{ ...monoStyle, fontSize: 12, color: 'var(--muted)' }}>{cloudDraftSession.revisionNumber}</span>
+        {checkout?.status === 'checkedOut' && (
+          <span
+            style={statusBadgeStyle(
+              checkout.checkedOutBy === checkoutActor ? '#1F8255' : '#C5392F',
+              checkout.checkedOutBy === checkoutActor ? '#E4F3EC' : '#FCE9E7',
+            )}
+          >
+            {checkout.checkedOutBy === checkoutActor
+              ? `チェックアウト中（${checkout.checkedOutBy}）`
+              : `別ユーザーがチェックアウト中（${checkout.checkedOutBy}）・編集は共有保存時 409 で拒否されます`}
+          </span>
+        )}
+        {checkout?.status === 'checkedIn' && (
+          <span style={statusBadgeStyle('#5A6678', 'var(--subtle)')}>チェックイン済み</span>
+        )}
+        <button type="button" style={ghostButtonStyle} onClick={handleCheckoutToggle}>
+          {checkout?.status === 'checkedOut' ? 'チェックイン' : 'チェックアウト'}
+        </button>
         <span style={statusBadgeStyle(autosaveStatus.ok ? '#1F8255' : '#C5392F', autosaveStatus.ok ? '#E4F3EC' : '#FCE9E7')}>
           {autosaveStatus.text}
         </span>
@@ -1638,6 +1776,37 @@ export function CadEditorPage({
                     onChange={(v) => storeApi.getState().setEditingChamferDist(v)}
                   />
                 )}
+                {activeEditingTool === 'array' && (
+                  <>
+                    <ParamInputControl
+                      label="行数"
+                      value={editingArrayRows}
+                      onChange={(v) => storeApi.getState().setEditingArrayRows(v)}
+                    />
+                    <ParamInputControl
+                      label="列数"
+                      value={editingArrayCols}
+                      onChange={(v) => storeApi.getState().setEditingArrayCols(v)}
+                    />
+                    <ParamInputControl
+                      label="行間隔 (mm)"
+                      value={editingArrayRowSpacing}
+                      onChange={(v) => storeApi.getState().setEditingArrayRowSpacing(v)}
+                    />
+                    <ParamInputControl
+                      label="列間隔 (mm)"
+                      value={editingArrayColSpacing}
+                      onChange={(v) => storeApi.getState().setEditingArrayColSpacing(v)}
+                    />
+                  </>
+                )}
+                {activeEditingTool === 'scale' && (
+                  <ParamInputControl
+                    label="倍率"
+                    value={editingScaleFactor}
+                    onChange={(v) => storeApi.getState().setEditingScaleFactor(v)}
+                  />
+                )}
               </div>
             )}
           </div>
@@ -1928,6 +2097,25 @@ export function CadEditorPage({
             </span>
             <span style={{ color: 'var(--side-line)' }}>|</span>
             <span>レイヤー: {activeLayer.name}</span>
+            {activeTool === 'measure' && (
+              <span style={{ color: 'var(--ink2)' }}>
+                {draftPoints.length === 0
+                  ? '測距: 1点目をクリック'
+                  : draftPoints.length === 1
+                    ? '測距: 2点目をクリック（続けて点を追加すると面積も算出）'
+                    : (() => {
+                        const dist = measureDistance(draftPoints)
+                        const area = measureArea(draftPoints, true)
+                        const parts: string[] = []
+                        if (dist !== null) parts.push(`距離 ${formatLengthMm(dist.distanceMm)}`)
+                        if (area !== null) {
+                          parts.push(`面積 ${(area.areaMm2 / 1e6).toFixed(3)} m²`)
+                          parts.push(`周長 ${formatLengthMm(area.perimeterMm)}`)
+                        }
+                        return `測距: ${parts.join(' / ')}`
+                      })()}
+              </span>
+            )}
             <span style={{ marginLeft: 'auto' }} />
             <span style={{ color: autosaveStatus.ok ? '#2E9E6B' : '#C5392F' }}>● {autosaveStatus.text}</span>
           </div>

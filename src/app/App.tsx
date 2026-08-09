@@ -56,6 +56,9 @@ const ReviewApprovalPage = lazy(() =>
 const PrintExportPage = lazy(() =>
   import('./pages/PrintExportPage').then((m) => ({ default: m.PrintExportPage })),
 )
+const EdeliveryPage = lazy(() =>
+  import('./pages/EdeliveryPage').then((m) => ({ default: m.EdeliveryPage })),
+)
 const AuditLogPage = lazy(() =>
   import('./pages/AuditLogPage').then((m) => ({ default: m.AuditLogPage })),
 )
@@ -99,6 +102,7 @@ function AppShell() {
       compare: <DrawingComparePage autosaveStore={autosaveStore} />,
       approval: <ReviewApprovalPage />,
       print: <PrintExportPage />,
+      delivery: <EdeliveryPage />,
       audit: <AuditLogPage />,
       settings: <SystemSettingsPage />,
     }),

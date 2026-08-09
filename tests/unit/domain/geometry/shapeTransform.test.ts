@@ -162,4 +162,33 @@ describe('transformShape', () => {
   it('parametricObject は変換対象外として null を返す', () => {
     expect(transformShape(parametric('p1'), 0, 0, 'rotateCW')).toBeNull()
   })
+
+  it('cloud は外接矩形の2隅を変換する（rotateCW）', () => {
+    const cloud: Geometry = {
+      ...base, id: id('cl'), type: 'cloud',
+      x1: 0, y1: 0, x2: 100, y2: 50, arcSize: 15,
+    }
+    const result = transformShape(cloud, 0, 0, 'rotateCW')
+    expect(result).not.toBeNull()
+    if (result?.type === 'cloud') {
+      expect(result.x1).toBeCloseTo(0)
+      expect(result.y1).toBeCloseTo(0)
+      expect(result.x2).toBeCloseTo(-50)
+      expect(result.y2).toBeCloseTo(100)
+    }
+  })
+
+  it('mline は中心線を変換し offset を維持する（mirrorH）', () => {
+    const mline: Geometry = {
+      ...base, id: id('ml'), type: 'mline',
+      start: { x: 10, y: 0 }, end: { x: 110, y: 0 }, offset: 10,
+    }
+    const result = transformShape(mline, 0, 0, 'mirrorH')
+    expect(result).not.toBeNull()
+    if (result?.type === 'mline') {
+      expect(result.start.x).toBeCloseTo(-10)
+      expect(result.end.x).toBeCloseTo(-110)
+      expect(result.offset).toBe(10)
+    }
+  })
 })
