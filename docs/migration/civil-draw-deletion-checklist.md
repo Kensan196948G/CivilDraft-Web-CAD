@@ -11,16 +11,16 @@
 | 5 | 旧 URL・Actions・Webhook・デプロイ・外部参照・利用者依存ゼロ | ☑（削除実行前に最終確認） | Civil-Draw の Actions/Webhook は削除で消滅。本リポジトリの参照はアーカイブ文書のみ（追跡用として意図的） |
 | 6 | 中核単独で主要業務を再現・ロールバック検証 | ☑ | 作図→保存→版管理→照査承認→PDF/DXF→電子納品チェックまで実装。rollback-procedure.md 既存 |
 | 7 | 統合報告書と削除判定チェックリスト完成 | ☑ | 本ファイル + integration-report.md |
-| 8 | 削除直前に対象が Kensan196948G/Civil-Draw であることを再確認 | ☑（削除直前に `gh repo view` で再確認する） | — |
+| 8 | 削除直前に対象が Kensan196948G/Civil-Draw であることを再確認 | ☑ | 削除直前に `gh repo view` で `Kensan196948G/Civil-Draw`（private・main）を確認。中核（CivilDraft-Web-CAD）ではないことを再確認のうえ削除 |
 
 ## 削除実行方針
 
-- 全条件 ☑ を確認したうえで `gh repo delete Kensan196948G/Civil-Draw --yes` を実行する。
-- 中核（CivilDraft-Web-CAD）は絶対に削除しない。削除コマンドの対象をリポジトリ名で明示し、直前再確認を行う。
-- 削除前にアーカイブ一式（git bundle 等）が本リポジトリの main にマージ済みであることを確認する。
+- ✅ 実行済み（2026-08-09）: 全条件 ☑ を確認したうえで `gh repo delete Kensan196948G/Civil-Draw --yes` を実行。
+- ✅ 中核（CivilDraft-Web-CAD）は削除対象外であり、削除後に `gh repo view` で生存を確認。
+- ✅ 削除前にアーカイブ一式（git bundle 等）が本リポジトリの main にマージ済み（PR #160）。
 
 ## 削除後のフォロー
 
-- 旧 URL へのアクセスは 404 になることを確認
-- README / state.json の削除結果を記録
-- 再発防止: 本リポジトリの docs/migration/ にアーカイブが残るため、機能・履歴の追跡は継続可能
+- ✅ 旧 URL へのアクセスは 404（Not Found）になることを確認
+- ✅ README の参照をアーカイブへ変更（PR #161）、state.json に削除結果を記録（PR #162）
+- ✅ 再発防止: 本リポジトリの docs/migration/ にアーカイブが残るため、機能・履歴の追跡は継続可能
