@@ -54,6 +54,9 @@ describe('PrintExportPage', () => {
     expect(screen.getByText(/出力履歴はまだありません/)).toBeInTheDocument()
     expect(screen.queryByText('PDF・Rev.2')).not.toBeInTheDocument()
     expect(screen.queryByText('DXF・Rev.1')).not.toBeInTheDocument()
+    expect(screen.getByText(/実図面プレビューは未実装です/)).toBeInTheDocument()
+    expect(screen.queryByText(/資材置場Bが用紙範囲外にはみ出しています/)).not.toBeInTheDocument()
+    expect(screen.queryByText(/数量根拠1件が未確定です/)).not.toBeInTheDocument()
   })
 
   it('指定された出力画面を表示し、PDF/DXF/CSVを出力して履歴へ追加する', async () => {

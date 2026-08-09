@@ -31,7 +31,7 @@ afterEach(() => {
 
 describe('SystemSettingsPage', () => {
   it('ログインユーザー設定と案件ロール権限を統合して表示する', () => {
-    render(<SystemSettingsPage />)
+    render(<SystemSettingsPage enableSampleData />)
 
     expect(screen.getByText('ログインユーザー設定・権限（案件ロール）')).toBeInTheDocument()
     expect(screen.getAllByText('山田 太郎').length).toBeGreaterThanOrEqual(1)
@@ -45,7 +45,7 @@ describe('SystemSettingsPage', () => {
   })
 
   it('右側コンテンツに認証、テンプレート、監査ログ設定、システム情報を詳細表示する', () => {
-    render(<SystemSettingsPage />)
+    render(<SystemSettingsPage enableSampleData />)
 
     expect(screen.getByText('認証・セッション設定')).toBeInTheDocument()
     expect(screen.getAllByText('Cloudflare Access').length).toBeGreaterThanOrEqual(1)
@@ -56,10 +56,21 @@ describe('SystemSettingsPage', () => {
     expect(screen.getByText('1:500')).toBeInTheDocument()
 
     expect(screen.getByText('監査ログ設定')).toBeInTheDocument()
-    expect(screen.getByText('ハッシュチェーン方式（Workers本番接続後）')).toBeInTheDocument()
+    expect(screen.getByText('ハッシュチェーン方式（実装・本番適用済み）')).toBeInTheDocument()
 
     expect(screen.getByText('システム情報')).toBeInTheDocument()
-    expect(screen.getByText('Cloudflare Workers + Neon（本番接続待ち）')).toBeInTheDocument()
+    expect(screen.getByText('Cloudflare Workers + Neon（本番接続済み）')).toBeInTheDocument()
+  })
+
+  it('本番モードではサンプルのログインユーザーを表示しない', () => {
+    render(<SystemSettingsPage enableSampleData={false} />)
+
+    expect(screen.queryByText('山田 太郎')).not.toBeInTheDocument()
+    expect(screen.queryByText('taro.yamada@example.jp')).not.toBeInTheDocument()
+    expect(screen.getByText(/ログインユーザー設定は本番データ層/)).toBeInTheDocument()
+    expect(
+      screen.getByText('本番のユーザー一覧は未連携です（サンプルは表示しません）。'),
+    ).toBeInTheDocument()
   })
 
   it('設定をエクスポートし、マスターを追加できる', async () => {

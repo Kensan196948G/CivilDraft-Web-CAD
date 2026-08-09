@@ -118,7 +118,7 @@ function AppShell() {
       print: <PrintExportPage enableSampleHistory={import.meta.env.MODE !== 'production'} />,
       delivery: <EdeliveryPage />,
       audit: <AuditLogPage enableSampleFallback={import.meta.env.MODE !== 'production'} />,
-      settings: <SystemSettingsPage />,
+      settings: <SystemSettingsPage enableSampleData={import.meta.env.MODE !== 'production'} />,
     }),
     [autosaveStore, cloudDraftSession, selectedProjectId],
   )

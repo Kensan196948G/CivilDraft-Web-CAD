@@ -5,6 +5,7 @@
  */
 import type { CSSProperties } from 'react'
 import { Fragment, useState } from 'react'
+import { isDemoMode } from '@/app/mode'
 import {
   ghostButtonStyle,
   monoStyle,
@@ -162,7 +163,7 @@ const ROLE_MATRIX = [
   {
     role: '作成者',
     scope: '担当案件',
-    users: '1名',
+    users: '—',
     draw: true,
     review: false,
     approve: false,
@@ -172,7 +173,7 @@ const ROLE_MATRIX = [
   {
     role: '照査者',
     scope: '所属部門案件',
-    users: '1名',
+    users: '—',
     draw: true,
     review: true,
     approve: false,
@@ -182,7 +183,7 @@ const ROLE_MATRIX = [
   {
     role: '承認者',
     scope: '承認対象案件',
-    users: '1名',
+    users: '—',
     draw: false,
     review: true,
     approve: true,
@@ -192,7 +193,7 @@ const ROLE_MATRIX = [
   {
     role: '管理者',
     scope: '全案件',
-    users: '1名',
+    users: '—',
     draw: true,
     review: true,
     approve: true,
@@ -202,7 +203,7 @@ const ROLE_MATRIX = [
   {
     role: '数量担当',
     scope: '数量対象案件',
-    users: '1名',
+    users: '—',
     draw: false,
     review: false,
     approve: false,
@@ -221,7 +222,7 @@ const TEMPLATES = [
 
 const AUDIT_POLICIES = [
   ['保存期間', '7年', 'J-SOX/ISO27001 証跡要件'],
-  ['改ざん検知', '有効', 'ハッシュチェーン方式（Workers本番接続後）'],
+  ['改ざん検知', '有効', 'ハッシュチェーン方式（実装・本番適用済み）'],
   ['出力ログ', '有効', 'PDF/DXF/CSV出力を記録'],
   ['失敗認証', '即時警告', '3回連続失敗で管理者通知'],
 ] as const
@@ -230,8 +231,8 @@ const SYSTEM_INFO = [
   ['アプリ版', 'CivilDraft v0.4.0'],
   ['スキーマ版', 'v1.3'],
   ['保存先', 'IndexedDB（ローカル）'],
-  ['共有基盤', 'Cloudflare Workers + Neon（本番接続待ち）'],
-  ['認証方式', 'Cloudflare Access'],
+  ['共有基盤', 'Cloudflare Workers + Neon（本番接続済み）'],
+  ['認証方式', 'Cloudflare Access（設定済み）'],
 ] as const
 
 function permissionMark(enabled: boolean) {
@@ -252,8 +253,16 @@ function field(label: string, value: string, helper?: string) {
   )
 }
 
-export function SystemSettingsPage() {
-  const currentUser = LOGIN_USERS.find((user) => user.current) ?? LOGIN_USERS[0]
+export interface SystemSettingsPageProps {
+  /** 本番モードでは false を渡すとサンプルのログインユーザーを表示しない（?demo=1 時は表示）。 */
+  readonly enableSampleData?: boolean
+}
+
+export function SystemSettingsPage({ enableSampleData = true }: SystemSettingsPageProps = {}) {
+  const showSampleData = enableSampleData || isDemoMode()
+  const currentUser = showSampleData
+    ? LOGIN_USERS.find((user) => user.current) ?? LOGIN_USERS[0]
+    : undefined
   const [masters, setMasters] = useState(() => [...INITIAL_MASTERS])
 
   const addMaster = () => {
@@ -275,7 +284,7 @@ export function SystemSettingsPage() {
       {
         exportedAt: new Date().toISOString(),
         masters,
-        loginUsers: LOGIN_USERS,
+        loginUsers: showSampleData ? LOGIN_USERS : [],
         roleMatrix: ROLE_MATRIX,
         templates: TEMPLATES,
         auditPolicies: AUDIT_POLICIES,
@@ -311,12 +320,19 @@ export function SystemSettingsPage() {
           <div style={sectionStackStyle}>
             <div style={panelStyle}>
               <div style={panelHeaderStyle}>ログインユーザー設定・権限（案件ロール）</div>
-              <div style={{ padding: 18, display: 'grid', gridTemplateColumns: 'minmax(0,1fr) minmax(0,1fr)', gap: 14 }}>
-                {field('ログインユーザー', currentUser.name, '現在の操作主体として監査ログへ記録')}
-                {field('メールアドレス', currentUser.email)}
-                {field('所属部署', currentUser.department)}
-                {field('既定ロール', currentUser.role, '案件ごとの割当で上書き可能')}
-              </div>
+              {currentUser === undefined ? (
+                <div style={{ padding: '18px', fontSize: 12.5, color: 'var(--muted)', lineHeight: 1.7 }}>
+                  ログインユーザー設定は本番データ層（メンバーAPI）接続後に実データで表示します。
+                  サンプルユーザーは表示しません。
+                </div>
+              ) : (
+                <div style={{ padding: 18, display: 'grid', gridTemplateColumns: 'minmax(0,1fr) minmax(0,1fr)', gap: 14 }}>
+                  {field('ログインユーザー', currentUser.name, '現在の操作主体として監査ログへ記録')}
+                  {field('メールアドレス', currentUser.email)}
+                  {field('所属部署', currentUser.department)}
+                  {field('既定ロール', currentUser.role, '案件ごとの割当で上書き可能')}
+                </div>
+              )}
               <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 12.5 }}>
                 <thead>
                   <tr>
@@ -360,28 +376,36 @@ export function SystemSettingsPage() {
                   </tr>
                 </thead>
                 <tbody>
-                  {LOGIN_USERS.map((user) => (
-                    <tr key={user.email}>
-                      <td style={tdStyle}>
-                        <div style={{ fontWeight: 600 }}>{user.name}</div>
-                        <div style={{ ...monoStyle, color: 'var(--muted)', fontSize: 11 }}>{user.email}</div>
-                      </td>
-                      <td style={tdStyle}>{user.department}</td>
-                      <td style={tdStyle}>{user.role}</td>
-                      <td style={tdStyle}>{user.mfa ? '有効' : '未設定'}</td>
-                      <td style={tdStyle}>
-                        <span
-                          style={
-                            user.status === '有効'
-                              ? statusBadgeStyle('#1F8255', '#E4F3EC')
-                              : statusBadgeStyle('#A15C00', '#FFF3D6')
-                          }
-                        >
-                          {user.current ? 'ログイン中' : user.status}
-                        </span>
-                      </td>
-                    </tr>
-                  ))}
+                  {showSampleData
+                    ? LOGIN_USERS.map((user) => (
+                        <tr key={user.email}>
+                          <td style={tdStyle}>
+                            <div style={{ fontWeight: 600 }}>{user.name}</div>
+                            <div style={{ ...monoStyle, color: 'var(--muted)', fontSize: 11 }}>{user.email}</div>
+                          </td>
+                          <td style={tdStyle}>{user.department}</td>
+                          <td style={tdStyle}>{user.role}</td>
+                          <td style={tdStyle}>{user.mfa ? '有効' : '未設定'}</td>
+                          <td style={tdStyle}>
+                            <span
+                              style={
+                                user.status === '有効'
+                                  ? statusBadgeStyle('#1F8255', '#E4F3EC')
+                                  : statusBadgeStyle('#A15C00', '#FFF3D6')
+                              }
+                            >
+                              {user.current ? 'ログイン中' : user.status}
+                            </span>
+                          </td>
+                        </tr>
+                      ))
+                    : (
+                        <tr>
+                          <td style={{ ...tdStyle, color: 'var(--muted)' }} colSpan={5}>
+                            本番のユーザー一覧は未連携です（サンプルは表示しません）。
+                          </td>
+                        </tr>
+                      )}
                 </tbody>
               </table>
             </div>
