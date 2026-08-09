@@ -25,13 +25,14 @@
 - 適合の自動断定はしない（UI・文書に明記）
 
 ### PDF 編集・署名
-- 結合 / 分割 / 回転 / 透かし / 墨消し（視覚的） / SHA-256 署名マニフェスト
-- 制約を UI と本報告書に明記: PDF/A 変換・PAdES 電子署名・物理墨消しは専用ツール要
+- 結合 / 分割 / 回転 / 透かし / **墨消し（テキスト演算子の物理削除＋黒矩形）** / SHA-256 署名マニフェスト / **PDF/A-1b 指向メタデータ付与** / **PAdES-CMS detached 署名（.p7s・DER/SHA-256・署名検証テスト付き）**
+- 制約を UI と本報告書に明記: PDF/A は自己宣言（ICC 未埋め込み・verapdf 等での認証要）、PAdES は証明書チェーンなし・PDF 本体への ByteRange 埋め込み未対応、画像内文字の墨消しは専用ツール要
+- **SXF(P21) 試作エクスポータ**（AP202 サブセット・LINE/POLYLINE/CIRCLE・`FILE_SCHEMA('SXF')`）を印刷・出力画面へ追加（電子納品チェックシステムでの検証必須の警告付き）
 
 ### チェックイン/アウト
-- ドメイン（acquire/release・承認後改変防止） + エディタ UI（localStorage 永続化）
-- 共有版は既存の楽観ロック（expectedVersion + 409）と併用
-- サーバー横断ロックの永続化は残課題（migration 0006 相当）
+- ドメイン（acquire/release・承認後改変防止） + エディタ UI
+- **migration 0007（`drawing_checkouts`）** と Worker API（`PUT/DELETE /api/v1/drawings/{drawingId}/checkout`）を実装。DB の rowcount 検査で他ユーザー上書きを 409 で拒否し、楽観ロック（expectedVersion + 409）と併用。チェックアウト/チェックインは監査ログへ記録
+- クライアント（`CivilDraftApiClient.updateCheckout`）とエディタのチェックアウト/チェックインボタンを配線（共有保存後の図面 ID でサーバー操作、未接続時はローカルモードへフォールバック）
 
 ## 3. 未採用判断（要約）
 
@@ -41,7 +42,7 @@ MSAL 認証・Docker デプロイ・スナップショット Undo・raw 座標�
 
 | 検証 | 結果 |
 | --- | --- |
-| npm test | 1438 pass / 2 skip（Neon 実接続のみ） |
+| npm test | 1444+ pass / 2 skip（Neon 実接続のみ。続報セッションで PDF/検査/署名/チェックアウト系テストを追加） |
 | npm run lint | 0 error（既知 warning 1） |
 | npm run typecheck | pass |
 | npm run build | pass（vendor 分離・コード分割維持） |
@@ -55,9 +56,9 @@ MSAL 認証・Docker デプロイ・スナップショット Undo・raw 座標�
 
 ## 6. 残課題
 
-1. migration 0003〜0005 本番適用（人間承認）
+1. migration 0003〜0005・**0007（drawing_checkouts）** 本番適用（人間承認）
 2. Cloudflare Access binding 登録（人間操作）
-3. SXF(P21)・PDF/A 変換（要約: 専用ツール/ライブラリ要・発注者協議）
-4. サーバー横断チェックアウト（スキーマ拡張）
-5. 外部 AI 評価指摘の Phase 2〜4（#114）
+3. SXF(P21) 完全適合（円弧 TRIMMED_CURVE・SXF 属性エンティティ・CAD 製図基準）・PDF/A 認証（ICC 埋め込み・verapdf 検証）
+4. PAdES の証明書チェーン（認証局発行）と PDF 本体への ByteRange 埋め込み署名
+5. 画像内文字の墨消し（専用ツール要）
 6. Neon 検証ブランチ・不要 worktree の削除（人間判断）

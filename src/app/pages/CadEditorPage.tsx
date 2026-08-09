@@ -78,6 +78,12 @@ export interface CadEditorPageProps {
 export interface CloudSaveClient {
   saveDraft(input: CloudSaveDraftInput): Promise<Result<CloudSaveDraftResult, ValidationIssue>>
   getRevisionContent(revisionId: string): Promise<Result<CloudContent, ValidationIssue>>
+  /** 図面チェックイン/アウト（migration 0007）。未実装クライアントではローカルモードへフォールバック。 */
+  updateCheckout?(
+    drawingId: string,
+    action: 'checkout' | 'checkin',
+    revisionId?: string,
+  ): Promise<Result<{ readonly status: string; readonly checkedOutBy: string }, ValidationIssue>>
 }
 
 export interface CloudDraftSession {
@@ -779,6 +785,7 @@ export function CadEditorPage({
   } | null>(null)
   const [cloudSaving, setCloudSaving] = useState(false)
   const [lastCloudRevisionId, setLastCloudRevisionId] = useState<string | null>(null)
+  const [lastCloudDrawingId, setLastCloudDrawingId] = useState<string | null>(null)
   const [cloudConflict, setCloudConflict] = useState(false)
   const checkoutKey = `cd:checkout:${cloudDraftSession.drawingNumber}`
   const [checkout, setCheckout] = useState<DrawingCheckout | null>(() => {
@@ -804,6 +811,22 @@ export function CadEditorPage({
   const handleCheckoutToggle = () => {
     const now = new Date().toISOString()
     if (checkout?.status === 'checkedOut') {
+      // 共有版（Worker API）が利用可能ならサーバー側でチェックインする。
+      if (cloudApiClient?.updateCheckout && lastCloudDrawingId !== null) {
+        void (async () => {
+          const result = await cloudApiClient.updateCheckout?.(lastCloudDrawingId, 'checkin')
+          if (result?.ok) {
+            const released = releaseCheckout(checkout, { actorId: checkoutActor, now })
+            if (released.ok) {
+              setCheckout(released.value)
+              setEditNotice(null)
+            }
+          } else {
+            setEditNotice(result?.error.message ?? 'チェックインに失敗しました（サーバー状態を確認してください）')
+          }
+        })()
+        return
+      }
       const result = releaseCheckout(checkout, { actorId: checkoutActor, now })
       if (result.ok) {
         setCheckout(result.value)
@@ -811,6 +834,32 @@ export function CadEditorPage({
       } else {
         setEditNotice(result.error.message)
       }
+      return
+    }
+    // 共有版が利用可能ならサーバー側でチェックアウトする（オフライン時はローカル専用）。
+    if (cloudApiClient?.updateCheckout && lastCloudDrawingId !== null && lastCloudRevisionId !== null) {
+      void (async () => {
+        const result = await cloudApiClient.updateCheckout?.(
+          lastCloudDrawingId,
+          'checkout',
+          lastCloudRevisionId,
+        )
+        if (result?.ok) {
+          const acquired = acquireCheckout(null, {
+            drawingId: lastCloudDrawingId,
+            revisionId: lastCloudRevisionId,
+            actorId: result.value.checkedOutBy,
+            revisionStatus: 'draft',
+            now,
+          })
+          if (acquired.ok) {
+            setCheckout(acquired.value)
+            setEditNotice(null)
+          }
+        } else {
+          setEditNotice(result?.error.message ?? 'チェックアウトに失敗しました（共有保存後に再試行してください）')
+        }
+      })()
       return
     }
     const result = acquireCheckout(checkout, {
@@ -1188,6 +1237,7 @@ export function CadEditorPage({
       const result = await apiClient.saveDraft(buildCloudSaveInput(cloudDraftSession, s.geometries, s.layers))
       if (result.ok) {
         setLastCloudRevisionId(result.value.revision.id)
+        setLastCloudDrawingId(result.value.drawing.id)
         setCloudSaveStatus({
           ok: true,
           text: `共有保存済み: ${result.value.project.projectNumber} / ${result.value.drawing.drawingNumber}`,

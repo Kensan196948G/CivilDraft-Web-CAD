@@ -15,6 +15,7 @@ import type {
   ApiStore,
   AuditLogRecord,
   ContentRecord,
+  DrawingCheckoutRecord,
   DrawingRecord,
   ExportJobRecord,
   ExportObjectProvider,
@@ -38,6 +39,21 @@ export class VersionConflictError extends Error {
     super(`${entity} のバージョンが一致しません（expected=${expected}）。並行更新の競合です`)
     this.name = 'VersionConflictError'
     this.entity = entity
+  }
+}
+
+/**
+ * チェックアウト所有権の競合（migration 0007）。
+ * UPDATE ... WHERE checked_out_by = 操作者 の rowcount=0 時に送出され、
+ * handleRequest の catch で 409 Conflict へマッピングされる。
+ */
+export class CheckoutConflictError extends Error {
+  readonly drawingId: string
+
+  constructor(drawingId: string) {
+    super('別の利用者がこの図面をチェックアウト中のため、所有権を上書きできません')
+    this.name = 'CheckoutConflictError'
+    this.drawingId = drawingId
   }
 }
 
@@ -210,6 +226,17 @@ interface AuditLogRow extends Record<string, unknown> {
   hash_algorithm: string
 }
 
+interface CheckoutRow extends Record<string, unknown> {
+  drawing_id: string
+  revision_id: string
+  checked_out_by: string
+  checked_out_at: TimestampLike
+  checked_in_at: TimestampLike | null
+  status: string
+  created_at: TimestampLike
+  updated_at: TimestampLike
+}
+
 // ---------------------------------------------------------------------------
 // Helpers
 // ---------------------------------------------------------------------------
@@ -374,6 +401,17 @@ function rowToAuditLog(row: AuditLogRow): AuditLogRecord {
   }
 }
 
+function rowToCheckout(row: CheckoutRow): DrawingCheckoutRecord {
+  return {
+    drawingId: row.drawing_id,
+    revisionId: row.revision_id,
+    checkedOutBy: row.checked_out_by,
+    checkedOutAt: toIsoString(row.checked_out_at),
+    status: row.status as 'checkedOut' | 'checkedIn',
+    checkedInAt: row.checked_in_at === null ? undefined : toIsoString(row.checked_in_at),
+  }
+}
+
 // ---------------------------------------------------------------------------
 // Transaction query builders (#68)
 // ---------------------------------------------------------------------------
@@ -483,6 +521,7 @@ export class NeonApiStore implements ApiStore {
   readonly workflowActions: WorkflowActionRecord[] = []
   readonly exportJobs = new Map<string, ExportJobRecord>()
   readonly auditLogs: AuditLogRecord[] = []
+  readonly checkouts = new Map<string, DrawingCheckoutRecord>()
 
   #initialized = false
 
@@ -605,6 +644,13 @@ export class NeonApiStore implements ApiStore {
     }
   }
 
+  async #loadCheckouts(): Promise<void> {
+    const rows = await this.#sql`SELECT * FROM drawing_checkouts` as CheckoutRow[]
+    for (const row of rows) {
+      this.checkouts.set(row.drawing_id, rowToCheckout(row))
+    }
+  }
+
   // -----------------------------------------------------------------------
   // Scoped loaders (Issue #114 Phase 1)
   // -----------------------------------------------------------------------
@@ -620,6 +666,7 @@ export class NeonApiStore implements ApiStore {
       this.#loadWorkflowActions(),
       this.#loadExportJobs(),
       this.#loadAuditLogs(),
+      this.#loadCheckouts(),
     ])
   }
 
@@ -929,6 +976,13 @@ export class NeonApiStore implements ApiStore {
     return this.#rowsToQuantities(snapshots, itemRows, sourceRows)[0]
   }
 
+  async queryCheckout(drawingId: string): Promise<DrawingCheckoutRecord | undefined> {
+    const rows =
+      await this.#sql`SELECT drawing_id, revision_id, checked_out_by, checked_out_at, checked_in_at, status, created_at, updated_at FROM drawing_checkouts WHERE drawing_id = ${drawingId}` as CheckoutRow[]
+    const row = rows[0]
+    return row ? rowToCheckout(row) : undefined
+  }
+
   // -----------------------------------------------------------------------
   // Write helpers (persist to Neon, then update local cache)
   // -----------------------------------------------------------------------
@@ -1157,6 +1211,33 @@ export class NeonApiStore implements ApiStore {
         throw err
       }
     }
+  }
+
+  /**
+   * チェックアウト状態を永続化する（migration 0007）。
+   * 同一 drawing_id は 1 行に集約し、再チェックアウトは UPDATE で上書きする。
+   * 他ユーザー保有中の上書きは `WHERE checked_out_by = 操作者` の rowcount=0 で
+   * 検出し、CheckoutConflictError（→409）を投げる。
+   */
+  async persistCheckout(checkout: DrawingCheckoutRecord): Promise<void> {
+    const rows =
+      await this.#sql`
+        /* drawing_checkouts upsert */
+        INSERT INTO drawing_checkouts (drawing_id, revision_id, checked_out_by, checked_out_at, checked_in_at, status, created_at, updated_at)
+        VALUES (${checkout.drawingId}, ${checkout.revisionId}, ${checkout.checkedOutBy}, ${checkout.checkedOutAt}, ${checkout.checkedInAt ?? null}, ${checkout.status}, ${checkout.checkedOutAt}, ${checkout.checkedOutAt})
+        ON CONFLICT (drawing_id) DO UPDATE SET
+          revision_id = EXCLUDED.revision_id,
+          checked_out_at = EXCLUDED.checked_out_at,
+          checked_in_at = EXCLUDED.checked_in_at,
+          status = EXCLUDED.status,
+          updated_at = EXCLUDED.updated_at
+        WHERE drawing_checkouts.checked_out_by = EXCLUDED.checked_out_by
+        RETURNING drawing_id
+      ` as CheckoutRow[]
+    if (rows.length === 0) {
+      throw new CheckoutConflictError(checkout.drawingId)
+    }
+    this.checkouts.set(checkout.drawingId, checkout)
   }
 
   /** Delete a project member (Issue #119). 存在しない場合は何もしない。 */

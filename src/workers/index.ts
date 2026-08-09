@@ -12,6 +12,7 @@
  */
 
 import { revisionTransitionTarget } from '../domain/revisions'
+import { acquireCheckout, releaseCheckout } from '../domain/revisions/checkout'
 import { resolveAccessJwtConfig, verifyAccessJwt } from './accessJwt'
 import { verifyAuditChain } from './auditChain'
 import { createMemoryStore } from './apiStore'
@@ -21,7 +22,7 @@ import {
   inspectProductionPersistenceReadiness,
   resolvePersistenceMode,
 } from './persistence'
-import { VersionConflictError } from './neonApiStore'
+import { CheckoutConflictError, VersionConflictError } from './neonApiStore'
 import type { NeonStoreScope } from './neonApiStore'
 import type { R2BucketBinding } from './r2ContentStore'
 import type {
@@ -245,6 +246,8 @@ export const API_ROUTES: readonly ApiRoute[] = [
   route('POST', '/api/v1/projects/{projectId}/drawings', '図面作成'),
   route('GET', '/api/v1/drawings/{drawingId}', '図面取得'),
   route('PATCH', '/api/v1/drawings/{drawingId}', '図面メタデータ更新'),
+  route('PUT', '/api/v1/drawings/{drawingId}/checkout', '図面チェックアウト（排他編集の所有権取得）'),
+  route('DELETE', '/api/v1/drawings/{drawingId}/checkout', '図面チェックイン（所有権解放）'),
   route('POST', '/api/v1/drawings/{drawingId}/revisions', '新規改訂'),
   route('GET', '/api/v1/revisions/{revisionId}', '改訂メタデータ取得'),
   route('GET', '/api/v1/revisions/{revisionId}/content', '内容取得'),
@@ -279,6 +282,7 @@ function resolveStoreScope(matched: RouteMatch): NeonStoreScope | undefined {
       return { kind: 'projectDrawings', projectId: requireParam(matched.params, 'projectId') }
     case '/api/v1/drawings/{drawingId}':
     case '/api/v1/drawings/{drawingId}/revisions':
+    case '/api/v1/drawings/{drawingId}/checkout':
       return { kind: 'drawing', drawingId: requireParam(matched.params, 'drawingId') }
     case '/api/v1/revisions/{revisionId}':
     case '/api/v1/revisions/{revisionId}/content':
@@ -1453,6 +1457,110 @@ async function updateDrawing(
   return jsonResponse(200, { drawing: updatedDrawing }, ctx.correlationId)
 }
 
+/**
+ * 図面チェックアウト（PUT /drawings/:id/checkout、migration 0007）。
+ * 対象改訂は draft / returned のみ（承認後改変防止）。所有権の競合は
+ * domain/revisions/checkout.ts と Neon の rowcount 検査の二段で拒否する。
+ */
+async function acquireDrawingCheckout(
+  store: ApiStore,
+  ctx: RequestContext,
+  drawingId: string,
+  body: Record<string, unknown>,
+): Promise<Response> {
+  const drawing = store.drawings.get(drawingId)
+  if (!drawing) {
+    return errorResponse(404, ERROR_CODES.notFound, '図面が見つかりません', ctx.correlationId)
+  }
+  const denied = await authorizeProjectAsync(store, ctx, drawing.projectId, 'edit')
+  if (denied) return denied
+
+  const revisionId = requiredString(body.revisionId, 'revisionId')
+  const revision = (await store.queryRevision?.(revisionId)) ?? store.revisions.get(revisionId)
+  if (!revision || revision.drawingId !== drawingId) {
+    return errorResponse(
+      404,
+      ERROR_CODES.notFound,
+      '指定された改訂が見つかりません（この図面の改訂ではありません）',
+      ctx.correlationId,
+    )
+  }
+
+  const current = (await store.queryCheckout?.(drawingId)) ?? store.checkouts.get(drawingId) ?? null
+  const result = acquireCheckout(current, {
+    drawingId,
+    revisionId,
+    actorId: ctx.actorId,
+    revisionStatus: revision.status,
+    now: nowIso(),
+  })
+  if (!result.ok) {
+    const conflict = result.error.code === 'CD_CHECKOUT_ALREADY_HELD'
+    return errorResponse(
+      conflict ? 409 : 422,
+      conflict ? ERROR_CODES.conflict : ERROR_CODES.invalidRequest,
+      result.error.message,
+      ctx.correlationId,
+    )
+  }
+
+  if (store.persistCheckout) {
+    await store.persistCheckout(result.value)
+  } else {
+    store.checkouts.set(drawingId, result.value)
+  }
+  appendAudit(store, ctx, {
+    eventName: 'drawing.checkout',
+    projectId: drawing.projectId,
+    entityType: 'drawing',
+    entityId: drawingId,
+    result: 'success',
+    detail: { revisionId, checkedOutBy: result.value.checkedOutBy, checkedOutAt: result.value.checkedOutAt },
+  })
+  return jsonResponse(200, { checkout: result.value }, ctx.correlationId)
+}
+
+/** 図面チェックイン（DELETE /drawings/:id/checkout）。保有者本人のみ解放できる。 */
+async function releaseDrawingCheckout(
+  store: ApiStore,
+  ctx: RequestContext,
+  drawingId: string,
+): Promise<Response> {
+  const drawing = store.drawings.get(drawingId)
+  if (!drawing) {
+    return errorResponse(404, ERROR_CODES.notFound, '図面が見つかりません', ctx.correlationId)
+  }
+  const denied = await authorizeProjectAsync(store, ctx, drawing.projectId, 'edit')
+  if (denied) return denied
+
+  const current = (await store.queryCheckout?.(drawingId)) ?? store.checkouts.get(drawingId) ?? null
+  const result = releaseCheckout(current, { actorId: ctx.actorId, now: nowIso() })
+  if (!result.ok) {
+    const conflict = result.error.code === 'CD_CHECKOUT_NOT_OWNER'
+    return errorResponse(
+      conflict ? 409 : 422,
+      conflict ? ERROR_CODES.conflict : ERROR_CODES.invalidRequest,
+      result.error.message,
+      ctx.correlationId,
+    )
+  }
+
+  if (store.persistCheckout) {
+    await store.persistCheckout(result.value)
+  } else {
+    store.checkouts.set(drawingId, result.value)
+  }
+  appendAudit(store, ctx, {
+    eventName: 'drawing.checkin',
+    projectId: drawing.projectId,
+    entityType: 'drawing',
+    entityId: drawingId,
+    result: 'success',
+    detail: { checkedInAt: result.value.checkedInAt },
+  })
+  return jsonResponse(200, { checkout: result.value }, ctx.correlationId)
+}
+
 async function createRevision(
   store: ApiStore,
   ctx: RequestContext,
@@ -2063,6 +2171,10 @@ export async function handleRequest(request: Request, env: WorkerEnv = {}): Prom
       // DB 側で検出した楽観ロック競合（Issue #114 Phase 3）。アプリ層チェックを
       // 通過しても DB 上で version 不一致の場合は 409 を返す（TOCTOU 解消）。
       response = errorResponse(409, ERROR_CODES.conflict, err.message, correlationId)
+    } else if (err instanceof CheckoutConflictError) {
+      // チェックアウト所有権の DB 強制（migration 0007）。他ユーザー保有中の
+      // 上書き試行は 409（TOCTOU 解消）。
+      response = errorResponse(409, ERROR_CODES.conflict, err.message, correlationId)
     } else {
       // 既知のバリデーション以外（実装バグ等）は詳細をクライアントへ漏らさず、
       // 監査・調査のためログにだけ残す（§CD-SYS-003）。
@@ -2140,6 +2252,15 @@ async function dispatchApiRoute(
         requireParam(matched.params, 'drawingId'),
         await readJsonObject(request),
       )
+    case 'PUT /api/v1/drawings/{drawingId}/checkout':
+      return await acquireDrawingCheckout(
+        store,
+        ctx,
+        requireParam(matched.params, 'drawingId'),
+        await readJsonObject(request),
+      )
+    case 'DELETE /api/v1/drawings/{drawingId}/checkout':
+      return await releaseDrawingCheckout(store, ctx, requireParam(matched.params, 'drawingId'))
     case 'POST /api/v1/drawings/{drawingId}/revisions':
       return await createRevision(
         store,
