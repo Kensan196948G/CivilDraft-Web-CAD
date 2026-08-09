@@ -4,9 +4,11 @@ name: Neon Integration Tests
 # 未設定の間はジョブ自体をスキップする（NOT RUN）。
 "on":
   push:
-    branches: [main]
+    branches:
+      - main
   pull_request:
-    branches: [main]
+    branches:
+      - main
   workflow_dispatch: {}
 
 permissions:
@@ -16,7 +18,6 @@ jobs:
   neon-integration:
     name: Neon roundtrip (real connection)
     runs-on: ubuntu-latest
-    if: ${{ secrets.CIVILDRAFT_TEST_NEON_CONNECTION != '' }}
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
 
@@ -27,7 +28,21 @@ jobs:
 
       - run: npm ci
 
+      - name: Resolve Neon test connection availability
+        id: neon-secret
+        run: |
+          if [ "${{ secrets.CIVILDRAFT_TEST_NEON_CONNECTION != '' }}" = "true" ]; then
+            echo "enabled=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "enabled=false" >> "$GITHUB_OUTPUT"
+          fi
+
       - name: Run Neon integration tests
+        if: steps.neon-secret.outputs.enabled == 'true'
         env:
           CIVILDRAFT_TEST_NEON_CONNECTION: ${{ secrets.CIVILDRAFT_TEST_NEON_CONNECTION }}
         run: npx vitest run tests/integration/workers/
+
+      - name: Report skipped state
+        if: steps.neon-secret.outputs.enabled != 'true'
+        run: echo "CIVILDRAFT_TEST_NEON_CONNECTION 未登録のため Neon 実接続テストはスキップされました（NOT RUN）"
