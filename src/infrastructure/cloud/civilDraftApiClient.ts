@@ -50,6 +50,10 @@ export interface CloudProject {
   readonly name: string
   readonly clientName?: string
   readonly status?: 'active' | 'archived'
+  readonly createdAt?: string
+  readonly createdBy?: string
+  readonly updatedAt?: string
+  readonly updatedBy?: string
   readonly version: number
 }
 
@@ -58,7 +62,23 @@ export interface CloudDrawing {
   readonly projectId: string
   readonly drawingNumber: string
   readonly name: string
+  readonly drawingType?: string
+  readonly settings?: unknown
+  readonly status?: 'active' | 'archived'
+  readonly activeRevisionId?: string
+  readonly createdAt?: string
+  readonly createdBy?: string
+  readonly updatedAt?: string
+  readonly updatedBy?: string
   readonly version: number
+}
+
+export interface CloudProjectMember {
+  readonly projectId: string
+  readonly userId: string
+  readonly role: 'viewer' | 'editor' | 'reviewer' | 'approver' | 'manager'
+  readonly createdAt?: string
+  readonly updatedAt?: string
 }
 
 export interface CloudRevision {
@@ -227,6 +247,62 @@ export class CivilDraftApiClient {
       : fail('CLOUD_API_SCHEMA', 'projects が配列ではありません')
   }
 
+  /** 案件を1件取得する（GET /api/v1/projects/{projectId}）。 */
+  async getProject(projectId: string): Promise<Result<CloudProject, ValidationIssue>> {
+    const response = await this.request(`/api/v1/projects/${encodeURIComponent(projectId)}`)
+    if (!response.ok) return response
+    const body = asRecord(response.value, 'response')
+    if (!body.ok) return body
+    return asRecord(body.value.project, 'project') as Result<CloudProject, ValidationIssue>
+  }
+
+  /** 案件の図面一覧を取得する（GET /api/v1/projects/{projectId}/drawings）。 */
+  async listProjectDrawings(projectId: string): Promise<Result<readonly CloudDrawing[], ValidationIssue>> {
+    const response = await this.request(`/api/v1/projects/${encodeURIComponent(projectId)}/drawings`)
+    if (!response.ok) return response
+    const body = asRecord(response.value, 'response')
+    if (!body.ok) return body
+    const drawings = body.value.drawings
+    return Array.isArray(drawings)
+      ? ok(drawings as readonly CloudDrawing[])
+      : fail('CLOUD_API_SCHEMA', 'drawings が配列ではありません')
+  }
+
+  /** 案件のメンバー一覧を取得する（GET /api/v1/projects/{projectId}/members）。 */
+  async listProjectMembers(
+    projectId: string,
+  ): Promise<Result<readonly CloudProjectMember[], ValidationIssue>> {
+    const response = await this.request(`/api/v1/projects/${encodeURIComponent(projectId)}/members`)
+    if (!response.ok) return response
+    const body = asRecord(response.value, 'response')
+    if (!body.ok) return body
+    const members = body.value.members
+    return Array.isArray(members)
+      ? ok(members as readonly CloudProjectMember[])
+      : fail('CLOUD_API_SCHEMA', 'members が配列ではありません')
+  }
+
+  /** 案件を更新する（PATCH /api/v1/projects/{projectId}）。 */
+  async updateProject(
+    projectId: string,
+    input: {
+      readonly projectNumber?: string
+      readonly name?: string
+      readonly clientName?: string
+      readonly status?: 'active' | 'archived'
+      readonly expectedVersion: number
+    },
+  ): Promise<Result<CloudProject, ValidationIssue>> {
+    const response = await this.request(`/api/v1/projects/${encodeURIComponent(projectId)}`, {
+      method: 'PATCH',
+      body: input,
+    })
+    if (!response.ok) return response
+    const body = asRecord(response.value, 'response')
+    if (!body.ok) return body
+    return asRecord(body.value.project, 'project') as Result<CloudProject, ValidationIssue>
+  }
+
   async createDrawing(
     projectId: string,
     input: CloudDrawingInput,
@@ -249,6 +325,15 @@ export class CivilDraftApiClient {
       method: 'POST',
       body: input,
     })
+    if (!response.ok) return response
+    const body = asRecord(response.value, 'response')
+    if (!body.ok) return body
+    return asRecord(body.value.revision, 'revision') as Result<CloudRevision, ValidationIssue>
+  }
+
+  /** 改訂メタデータを取得する（GET /api/v1/revisions/{revisionId}）。 */
+  async getRevision(revisionId: string): Promise<Result<CloudRevision, ValidationIssue>> {
+    const response = await this.request(`/api/v1/revisions/${encodeURIComponent(revisionId)}`)
     if (!response.ok) return response
     const body = asRecord(response.value, 'response')
     if (!body.ok) return body

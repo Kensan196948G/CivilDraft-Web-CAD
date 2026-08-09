@@ -17,8 +17,13 @@ import {
 export interface HomePageProps {
   readonly autosaveStore: AutosaveStore
   readonly onOpenEditor: () => void
+  /** 実案件選択時に共有の案件詳細画面（ProjectDetailPage）へ遷移する。 */
+  readonly onOpenProject?: (projectId: string) => void
   /** Workers API クライアント（テスト注入用。未指定時は同一オリジン API を使用）。 */
-  readonly cloudApiClient?: Pick<ReturnType<typeof createCivilDraftApiClient>, 'listProjects'>
+  readonly cloudApiClient?: Pick<
+    ReturnType<typeof createCivilDraftApiClient>,
+    'listProjects' | 'createProject' | 'createDrawing'
+  >
   /** 本番モード（共有データを API から取得し、サンプルデータを表示しない）。App が MODE=production 時に true を渡す。 */
   readonly enableCloudData?: boolean
 }
@@ -27,6 +32,7 @@ type HomeMode = 'dashboard' | 'new' | 'detail' | 'all' | 'recent' | 'notice' | '
 type MetricKey = 'active' | 'review' | 'approval' | 'recovery'
 
 interface ProjectRow {
+  readonly id?: string
   readonly name: string
   readonly area: string
   readonly status: '進行中' | '照査待ち' | '承認待ち' | '承認済み' | '差戻し'
@@ -125,7 +131,13 @@ function metricProjects(metric: MetricKey, projects: readonly ProjectRow[]): rea
   return []
 }
 
-export function HomePage({ autosaveStore, onOpenEditor, cloudApiClient, enableCloudData = false }: HomePageProps) {
+export function HomePage({
+  autosaveStore,
+  onOpenEditor,
+  onOpenProject,
+  cloudApiClient,
+  enableCloudData = false,
+}: HomePageProps) {
   const storeApi = useEditorStoreApi()
   const [snapshot, setSnapshot] = useState<AutosaveSnapshot | null>(null)
   const [recoveryMessage, setRecoveryMessage] = useState<string | null>(null)
@@ -180,6 +192,7 @@ export function HomePage({ autosaveStore, onOpenEditor, cloudApiClient, enableCl
   const projects = useMemo(() => {
     if (useDemoData) return [...createdProjects, ...PROJECTS]
     return (cloudProjects ?? []).map((project) => ({
+      id: project.id,
       name: project.name,
       area: '未設定',
       status: (project.status ?? 'active') === 'active' ? ('進行中' as const) : ('承認済み' as const),
@@ -230,7 +243,7 @@ export function HomePage({ autosaveStore, onOpenEditor, cloudApiClient, enableCl
     })
   }
 
-  const submitNewProject = () => {
+  const submitNewProject = async () => {
     const name = draftName.trim()
     const drawingName = draftDrawingName.trim()
     const area = draftArea.trim()
@@ -240,6 +253,33 @@ export function HomePage({ autosaveStore, onOpenEditor, cloudApiClient, enableCl
     }
     if (drawingName === '') {
       setDraftError('初期図面名を入力してください')
+      return
+    }
+    if (useCloudData) {
+      const client = cloudApiClient ?? createCivilDraftApiClient()
+      const projectResult = await client.createProject({
+        projectNumber: `P-${Date.now().toString(36).toUpperCase()}`,
+        name,
+        clientName: '',
+      })
+      if (!projectResult.ok) {
+        setDraftError(`案件作成に失敗: ${projectResult.error.message}`)
+        return
+      }
+      const drawingResult = await client.createDrawing(projectResult.value.id, {
+        drawingNumber: 'DWG-001',
+        name: drawingName,
+        drawingType: 'temporary-yard-plan',
+        settings: { paperSize: 'A3', orientation: 'landscape', scaleDenominator: 100, drawingUnit: 'mm' },
+      })
+      if (!drawingResult.ok) {
+        setDraftError(`初期図面の作成に失敗: ${drawingResult.error.message}`)
+        return
+      }
+      setDraftError(null)
+      setCloudProjects((current) => [...(current ?? []), projectResult.value])
+      setMode('dashboard')
+      onOpenProject?.(projectResult.value.id)
       return
     }
     const project: ProjectRow = {
@@ -261,6 +301,10 @@ export function HomePage({ autosaveStore, onOpenEditor, cloudApiClient, enableCl
   }
 
   const openProject = (project: ProjectRow) => {
+    if (project.id !== undefined && onOpenProject !== undefined) {
+      onOpenProject(project.id)
+      return
+    }
     setSelectedProject(project)
     setMode('detail')
   }
@@ -459,7 +503,9 @@ export function HomePage({ autosaveStore, onOpenEditor, cloudApiClient, enableCl
                 ) : (
                   <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
                     <div style={{ fontSize: 12, color: 'var(--muted)' }}>{recoveryMessage ?? '復旧候補はありません'}</div>
-                    <button style={ghostButton} onClick={createRecoveryCandidate}>デモ下書きを作成</button>
+                    {useDemoData && (
+                      <button style={ghostButton} onClick={createRecoveryCandidate}>デモ下書きを作成</button>
+                    )}
                   </div>
                 )}
               </div>

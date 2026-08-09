@@ -167,4 +167,14 @@ describe('AuditLogPage', () => {
       expect(fetchMock).toHaveBeenCalledWith(expect.stringContaining('cursor=c1'), expect.anything()),
     )
   })
+
+  it('本番モード（enableSampleFallback=false）では API 接続失敗時にサンプルを表示しない', async () => {
+    vi.stubGlobal('fetch', vi.fn().mockRejectedValue(new TypeError('network disabled in unit test')))
+    render(<AuditLogPage enableSampleFallback={false} />)
+
+    expect(await screen.findByText(/監査APIに接続できません/)).toBeInTheDocument()
+    expect(screen.getByText(/サンプルは表示しません/)).toBeInTheDocument()
+    expect(screen.queryByText('DWG-014を保存')).not.toBeInTheDocument()
+    expect(screen.getByText('API未接続（サンプル非表示）')).toBeInTheDocument()
+  })
 })

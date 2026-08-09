@@ -7,6 +7,7 @@
  */
 import { useCallback, useEffect, useState } from 'react'
 import { createCivilDraftApiClient, type CloudAuditChainVerification } from '@/infrastructure/cloud/civilDraftApiClient'
+import { isDemoMode } from '@/app/mode'
 import {
   ghostButtonStyle,
   monoStyle,
@@ -181,18 +182,26 @@ async function exportPdf(rows: readonly AuditDisplayRow[]): Promise<void> {
   downloadBlob(new Blob([bytes.slice()], { type: 'application/pdf' }), 'civildraft-audit-log.pdf')
 }
 
-export function AuditLogPage() {
+export interface AuditLogPageProps {
+  /** 本番モードでは false を渡すと API 接続失敗時にサンプルへフォールバックしない（?demo=1 時は表示）。 */
+  readonly enableSampleFallback?: boolean
+}
+
+export function AuditLogPage({ enableSampleFallback = true }: AuditLogPageProps = {}) {
+  const showSampleFallback = enableSampleFallback || isDemoMode()
   const [message, setMessage] = useState<string | null>(null)
   const [rows, setRows] = useState<AuditDisplayRow[]>(() =>
-    AUDIT_ROWS.map((row, index) => ({
-      time: row.time,
-      actor: row.actor,
-      action: row.action,
-      target: row.target,
-      result: row.result,
-      kind: row.result === '成功' ? 'success' : 'warning',
-      key: `${row.time}-${index}`,
-    })),
+    showSampleFallback
+      ? AUDIT_ROWS.map((row, index) => ({
+          time: row.time,
+          actor: row.actor,
+          action: row.action,
+          target: row.target,
+          result: row.result,
+          kind: row.result === '成功' ? 'success' : 'warning',
+          key: `${row.time}-${index}`,
+        }))
+      : [],
   )
   const [chain, setChain] = useState<CloudAuditChainVerification | null>(null)
   const [apiConnected, setApiConnected] = useState(false)
@@ -221,7 +230,15 @@ export function AuditLogPage() {
           cursor,
         })
       if (!logsResult.ok) {
-        setMessage('⚠️ 監査APIに接続できないためサンプルを表示しています（Access設定後に本番ログへ切替）')
+        if (showSampleFallback) {
+          setMessage('⚠️ 監査APIに接続できないためサンプルを表示しています（Access設定後に本番ログへ切替）')
+        } else {
+          setRows([])
+          setTotal(0)
+          setNextCursor(undefined)
+          setApiConnected(false)
+          setMessage(`⚠️ 監査APIに接続できません: ${logsResult.error.message}（サンプルは表示しません）`)
+        }
         return
       }
       const page = logsResult.value
@@ -239,11 +256,19 @@ export function AuditLogPage() {
           setApiConnected(false)
         }
       }
-      } catch {
-        setMessage('⚠️ 監査APIに接続できないためサンプルを表示しています（Access設定後に本番ログへ切替）')
+      } catch (error) {
+        if (showSampleFallback) {
+          setMessage('⚠️ 監査APIに接続できないためサンプルを表示しています（Access設定後に本番ログへ切替）')
+        } else {
+          setRows([])
+          setTotal(0)
+          setNextCursor(undefined)
+          setApiConnected(false)
+          setMessage(`⚠️ 監査APIに接続できません: ${error instanceof Error ? error.message : String(error)}（サンプルは表示しません）`)
+        }
       }
     },
-    [from, to, eventName, actorIdFilter],
+    [from, to, eventName, actorIdFilter, showSampleFallback],
   )
 
   useEffect(() => {
@@ -426,7 +451,9 @@ export function AuditLogPage() {
             <span style={{ marginLeft: 'auto' }}>
               {apiConnected
                 ? `フィルタ該当 ${total} 件・表示 ${rows.length} 件`
-                : 'サンプル表示（API未接続）'}
+                : showSampleFallback
+                  ? 'サンプル表示（API未接続）'
+                  : 'API未接続（サンプル非表示）'}
             </span>
           </div>
         </div>

@@ -29,6 +29,7 @@ import { exportSurveyLandXml } from '@/domain/survey/surveyLandXml'
 import { createAddGeometryCommand } from '@/domain/commands/geometryCommands'
 import { defaultCreationContext, type GeometryCreationContext } from '@/domain/geometry/geometryFactory'
 import { useEditorStore, useEditorStoreApi } from '@/app/store/useEditorStore'
+import { isDemoMode } from '@/app/mode'
 import {
   ghostButtonStyle,
   monoStyle,
@@ -73,6 +74,8 @@ const LABEL_OFFSET_MM = 300
 export interface SurveyPointsPageProps {
   /** 図面配置で発番する図形ID・タイムスタンプの生成器（ADR-0013）。省略時は既定。 */
   readonly creationContext?: GeometryCreationContext
+  /** 本番モードでは false を渡すとサンプルCSV挿入ボタンを表示しない（?demo=1 時は表示）。 */
+  readonly enableSampleData?: boolean
 }
 
 function inputStyle(width: number): CSSProperties {
@@ -100,9 +103,13 @@ function resolveLayer(layers: readonly DrawingLayer[], activeLayerId: string): D
   return layers.find((l) => l.id === activeLayerId) ?? layers[0]!
 }
 
-export function SurveyPointsPage({ creationContext = defaultCreationContext }: SurveyPointsPageProps = {}) {
+export function SurveyPointsPage({
+  creationContext = defaultCreationContext,
+  enableSampleData = true,
+}: SurveyPointsPageProps = {}) {
   const storeApi = useEditorStoreApi()
   const geometryCount = useEditorStore((s) => s.geometries.length)
+  const showSampleData = enableSampleData || isDemoMode()
 
   const [settings, setSettings] = useState<CoordinateSystemSettings>(defaultCoordinateSystemSettings)
   const [csvText, setCsvText] = useState('')
@@ -315,9 +322,11 @@ export function SurveyPointsPage({ creationContext = defaultCreationContext }: S
                   <button type="button" style={primaryButtonStyle} onClick={handleImport}>
                     取込
                   </button>
-                  <button type="button" style={ghostButtonStyle} onClick={handleInsertSample}>
-                    サンプルCSVを挿入
-                  </button>
+                  {showSampleData && (
+                    <button type="button" style={ghostButtonStyle} onClick={handleInsertSample}>
+                      サンプルCSVを挿入
+                    </button>
+                  )}
                 </div>
                 {importError !== null && (
                   <div

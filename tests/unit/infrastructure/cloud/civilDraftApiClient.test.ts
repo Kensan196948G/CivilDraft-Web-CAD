@@ -224,4 +224,75 @@ describe('CivilDraftApiClient', () => {
     expect(result.value.hashedCount).toBe(0)
     expect(result.value.checkedCount).toBe(0)
   })
+
+  it('getProject / listProjectDrawings / listProjectMembers / updateProject で実案件詳細を取得・更新できる（Issue #62）', async () => {
+    const env: WorkerEnv = { CIVILDRAFT_API_MODE: 'memory', CIVILDRAFT_DEV_STORE: createMemoryStore() }
+    const client = makeClient(env)
+
+    const created = await client.createProject({
+      projectNumber: 'P-DETAIL-001',
+      name: '詳細表示検証工事',
+      clientName: 'テスト発注者',
+    })
+    expect(created.ok).toBe(true)
+    if (!created.ok) return
+    const projectId = created.value.id
+
+    const drawingCreated = await client.createDrawing(projectId, {
+      drawingNumber: 'DWG-001',
+      name: '施工ヤード計画図',
+      drawingType: 'temporary-yard-plan',
+    })
+    expect(drawingCreated.ok).toBe(true)
+    if (!drawingCreated.ok) return
+
+    const projectResult = await client.getProject(projectId)
+    expect(projectResult.ok).toBe(true)
+    if (!projectResult.ok) return
+    expect(projectResult.value.name).toBe('詳細表示検証工事')
+    expect(projectResult.value.clientName).toBe('テスト発注者')
+
+    const drawings = await client.listProjectDrawings(projectId)
+    expect(drawings.ok).toBe(true)
+    if (!drawings.ok) return
+    expect(drawings.value).toHaveLength(1)
+    expect(drawings.value[0]?.drawingType).toBe('temporary-yard-plan')
+
+    const members = await client.listProjectMembers(projectId)
+    expect(members.ok).toBe(true)
+    if (!members.ok) return
+    expect(members.value.some((m) => m.role === 'manager')).toBe(true)
+
+    const updated = await client.updateProject(projectId, {
+      name: '詳細表示検証工事（改名）',
+      clientName: '更新発注者',
+      expectedVersion: created.value.version,
+    })
+    expect(updated.ok).toBe(true)
+    if (!updated.ok) return
+    expect(updated.value.name).toBe('詳細表示検証工事（改名）')
+    expect(updated.value.clientName).toBe('更新発注者')
+    expect(updated.value.version).toBe(created.value.version + 1)
+  })
+
+  it('getRevision で改訂メタデータを取得できる（Issue #62）', async () => {
+    const env: WorkerEnv = { CIVILDRAFT_API_MODE: 'memory', CIVILDRAFT_DEV_STORE: createMemoryStore() }
+    const client = makeClient(env)
+    const document = makeDocument()
+
+    const saved = await client.saveDraft({
+      project: { projectNumber: 'P-REV-001', name: '改訂取得検証工事' },
+      drawing: { drawingNumber: 'DWG-001', name: '改訂取得図面' },
+      revision: { revisionNumber: '1', changeSummary: '初版' },
+      document,
+    })
+    expect(saved.ok).toBe(true)
+    if (!saved.ok) return
+
+    const revision = await client.getRevision(saved.value.revision.id)
+    expect(revision.ok).toBe(true)
+    if (!revision.ok) return
+    expect(revision.value.revisionNumber).toBe('1')
+    expect(revision.value.status).toBe('draft')
+  })
 })

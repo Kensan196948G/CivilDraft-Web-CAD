@@ -1,7 +1,9 @@
 /**
  * 案件詳細画面。
  * 正本: Claude Design「CivilDraft Web CAD」Project Detail.dc.html（100%適用）。
- * 案件管理バックエンドへの本番接続前のため、画面内状態で編集・図面作成・一覧絞り込みを処理する。
+ *
+ * 本モジュールはデモ用サンプル実装（?demo=1 またはデモビルド時のみ使用）。
+ * 本番モード（enableCloudData）では ProjectDetailCloudPage（実案件データ版・Issue #62）へ分岐する。
  */
 import { useMemo, useState } from 'react'
 import type { CSSProperties } from 'react'
@@ -19,6 +21,10 @@ import {
   monoStyle,
 } from './pageStyles'
 import type { CloudDraftSession } from './CadEditorPage'
+import {
+  ProjectDetailCloudPage,
+  type ProjectDetailCloudClient,
+} from './ProjectDetailCloudPage'
 
 const filterChipActive: CSSProperties = {
   fontSize: 12.5,
@@ -170,9 +176,17 @@ const ACTIVITIES = [
 
 export interface ProjectDetailPageProps {
   readonly onOpenEditor?: (session: CloudDraftSession) => void
+  /** 実案件ID（ホームの案件一覧から選択した案件）。 */
+  readonly projectId?: string
+  /** 実データ未選択時にホームへ戻る導線。 */
+  readonly onNavigateHome?: () => void
+  /** Workers API クライアント（テスト注入用）。 */
+  readonly cloudApiClient?: ProjectDetailCloudClient
+  /** 本番モード（共有データを API から取得し、サンプルデータを表示しない）。 */
+  readonly enableCloudData?: boolean
 }
 
-export function ProjectDetailPage({ onOpenEditor }: ProjectDetailPageProps) {
+function DemoProjectDetail({ onOpenEditor }: { readonly onOpenEditor?: (session: CloudDraftSession) => void }) {
   const [project, setProject] = useState<ProjectInfoState>(INITIAL_PROJECT)
   const [draftProject, setDraftProject] = useState<ProjectInfoState>(INITIAL_PROJECT)
   const [drawings, setDrawings] = useState<readonly DrawingRow[]>(DRAWINGS)
@@ -476,5 +490,29 @@ export function ProjectDetailPage({ onOpenEditor }: ProjectDetailPageProps) {
         </div>
       </main>
     </div>
+  )
+}
+
+export function ProjectDetailPage({
+  onOpenEditor,
+  projectId,
+  onNavigateHome,
+  cloudApiClient,
+  enableCloudData = false,
+}: ProjectDetailPageProps) {
+  const demoMode =
+    typeof window !== 'undefined' && new URLSearchParams(window.location.search).has('demo')
+  const useCloudData = enableCloudData && !demoMode
+  if (!useCloudData) {
+    return <DemoProjectDetail onOpenEditor={onOpenEditor} />
+  }
+  return (
+    <ProjectDetailCloudPage
+      key={projectId ?? 'empty'}
+      projectId={projectId}
+      onOpenEditor={onOpenEditor}
+      onNavigateHome={onNavigateHome}
+      cloudApiClient={cloudApiClient}
+    />
   )
 }
