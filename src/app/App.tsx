@@ -154,7 +154,11 @@ function AppShell() {
         }
       >
         {registeredPage ?? (
-          <HomePage autosaveStore={autosaveStore} onOpenEditor={() => openEditor()} />
+          <HomePage
+            autosaveStore={autosaveStore}
+            onOpenEditor={() => openEditor()}
+            enableCloudData={import.meta.env.MODE === 'production'}
+          />
         )}
       </Suspense>
     </div>

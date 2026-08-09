@@ -2,6 +2,7 @@ import { describe, expect, it, vi } from 'vitest'
 import { render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { HomePage } from '@/app/pages/HomePage'
+import type { CloudProject } from '@/infrastructure/cloud/civilDraftApiClient'
 import { EditorStoreProvider } from '@/app/store/EditorStoreContext'
 import { createEditorStore, createDefaultLayer } from '@/app/store/editorStore'
 import { MemoryAutosaveStore } from '@/infrastructure/autosave/autosaveStore'
@@ -158,5 +159,53 @@ describe('HomePage', () => {
     expect(screen.getByText('照査待ち図面')).toBeInTheDocument()
     expect(screen.getByText(/定期メンテナンス/)).toBeInTheDocument()
     expect(screen.getByPlaceholderText('案件名・図面番号で検索')).toBeInTheDocument()
+  })
+
+  it('本番モードではサンプルデータを表示せず、API 接続失敗時はエラー表示になる', async () => {
+    const failingClient = {
+      listProjects: vi.fn(async () => ({
+        ok: false,
+        error: { code: 'CD-AUTH-001', severity: 'error' as const, message: '認証情報がありません' },
+      })),
+    }
+    render(
+      <EditorStoreProvider store={createEditorStore()}>
+        <HomePage
+          autosaveStore={new MemoryAutosaveStore()}
+          onOpenEditor={() => {}}
+          cloudApiClient={failingClient}
+          enableCloudData
+        />
+      </EditorStoreProvider>,
+    )
+    expect(await screen.findByText(/共有データに接続できません/)).toBeInTheDocument()
+    expect(screen.queryByText('国道245号 道路拡幅工事')).not.toBeInTheDocument()
+  })
+
+  it('本番モードで API から取得した実案件を表示する', async () => {
+    const realProject: CloudProject = {
+      id: 'p-1',
+      projectNumber: 'P-REAL-001',
+      name: '本番実案件',
+      clientName: 'テスト発注者',
+      status: 'active',
+      version: 1,
+    }
+    const okClient = {
+      listProjects: vi.fn(async () => ({ ok: true, value: [realProject] })),
+    }
+    render(
+      <EditorStoreProvider store={createEditorStore()}>
+        <HomePage
+          autosaveStore={new MemoryAutosaveStore()}
+          onOpenEditor={() => {}}
+          cloudApiClient={okClient}
+          enableCloudData
+        />
+      </EditorStoreProvider>,
+    )
+    expect(await screen.findByText(/共有データ接続済み/)).toBeInTheDocument()
+    expect(screen.getByText('本番実案件')).toBeInTheDocument()
+    expect(screen.queryByText('国道245号 道路拡幅工事')).not.toBeInTheDocument()
   })
 })

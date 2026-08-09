@@ -49,6 +49,7 @@ export interface CloudProject {
   readonly projectNumber: string
   readonly name: string
   readonly clientName?: string
+  readonly status?: 'active' | 'archived'
   readonly version: number
 }
 
@@ -212,6 +213,18 @@ export class CivilDraftApiClient {
     const body = asRecord(response.value, 'response')
     if (!body.ok) return body
     return asRecord(body.value.project, 'project') as Result<CloudProject, ValidationIssue>
+  }
+
+  /** 参加案件一覧を取得する（GET /api/v1/projects）。 */
+  async listProjects(): Promise<Result<readonly CloudProject[], ValidationIssue>> {
+    const response = await this.request('/api/v1/projects')
+    if (!response.ok) return response
+    const body = asRecord(response.value, 'response')
+    if (!body.ok) return body
+    const projects = body.value.projects
+    return Array.isArray(projects)
+      ? ok(projects as readonly CloudProject[])
+      : fail('CLOUD_API_SCHEMA', 'projects が配列ではありません')
   }
 
   async createDrawing(

@@ -38,9 +38,14 @@ CivilDraft は 2026-07-22 に v0.1.2 として本番公開済み（civildraft-we
 | Object Storage | PUT/GET失敗、署名URL失敗、容量 | Provider metrics | ☐ |
 | アプリ監査 | 保存、承認、出力、認証、設定変更 | `audit_logs` ハッシュチェーン永続化 + `GET /api/v1/audit-logs/verify` による改ざん検知（Issue #61） | ☐（本番デプロイ後に確認） |
 | CI/CD | quality/e2e/security/compliance失敗 | GitHub branch protection + required checks | ☐ |
-| 本番合成監視 | SPA 200 / API 401 CD-AUTH-001 / セキュリティヘッダー | GitHub Actions `synthetic-monitoring.yml`（30分毎）+ 失敗時 Issue アラート | ✅ 導入済み（2026-08-01・2026-08-02 再登録・2026-08-02 真因修正） |
+| 本番合成監視 | Access 保護 302→cloudflareaccess（カスタムドメイン）/ workers.dev SPA 200＋セキュリティヘッダー / workers.dev API 401 CD-AUTH-001 | GitHub Actions `synthetic-monitoring.yml`（30分毎）+ 失敗時 Issue アラート | ✅ 導入済み（2026-08-01・2026-08-02 再登録・2026-08-02 真因修正・2026-08-10 Access 二層化対応） |
 | DB バックアップ | 週次バックアップブランチ作成 | GitHub Actions `backup.yml`（毎週日曜 00:30 JST）+ Artifacts 90日 | ✅ 導入済み（2026-08-01） |
 
+> **2026-08-10 障害記録（#164）**: Access アプリ有効化後、カスタムドメインが 302→Access ログインへ変わったため、
+> 従来の「SPA 200 / API 401」期待値と不整合となり合成監視が失敗。`scripts/health-check.mjs` を
+> 「Access 保護面（カスタムドメイン 302＋Location 検証）＋実体面（workers.dev の SPA 200/API 401）」の
+> 二層検証へ更新し復旧（再発防止: 期待値は Access 状態と一体化して変更する）。
+>
 > **2026-08-02 障害記録**: `synthetic-monitoring.yml`（旧 `health-check.yml`）が push 誤トリガーで
 > 0 秒失敗を繰り返していた事象は、GitHub Actions 側バグではなく、`--body` の複数行文字列の
 > インデント崩れによる **YAML 構文エラー**が原因だった（workflow 名がパス名にフォールバックし、
