@@ -3,7 +3,7 @@
 # CivilDraft-Web-CAD — Neon 本番(main)マイグレーション適用スクリプト
 #
 # 適用対象: 0003 / 0004 / 0005 / 0006 / 0007（0001・0002 は適用済み前提）
-# 前提: 環境変数 DATABASE_URL（postgresql://...）が設定済み、psql が利用可能
+# 前提: 環境変数 CIVILDRAFT_NEON_DSN（postgresql://...）が設定済み、psql が利用可能
 #
 # 安全性:
 # - 各マイグレーションファイルは BEGIN/COMMIT 内の前方互換 DDL のみ。
@@ -11,16 +11,16 @@
 # - ON_ERROR_STOP=1 で途中失敗時は即中断。
 #
 # 実行例（人間が接続情報を注入して実行）:
-#   DATABASE_URL='postgresql://<role>:<password>@<host>/<db>?sslmode=require' \
+#   CIVILDRAFT_NEON_DSN='postgresql://<role>:<password>@<host>/<db>?sslmode=require' \
 #     bash scripts/apply-prod-migrations.sh
 set -euo pipefail
 
-if [[ -z "${DATABASE_URL:-}" ]]; then
-  echo "ERROR: DATABASE_URL が未設定です。Neon の接続文字列を注入してください。" >&2
+if [[ -z "${CIVILDRAFT_NEON_DSN:-}" ]]; then
+  echo "ERROR: CIVILDRAFT_NEON_DSN が未設定です。Neon の接続文字列を注入してください。" >&2
   exit 1
 fi
 
-PSQL=(psql "$DATABASE_URL" -v ON_ERROR_STOP=1 -qAt)
+PSQL=(psql "$CIVILDRAFT_NEON_DSN" -v ON_ERROR_STOP=1 -qAt)
 
 echo "== 適用前スキーマ状態 =="
 "${PSQL[@]}" -c "SELECT current_database(), current_user, version();" | head -1
@@ -36,7 +36,7 @@ apply_if_missing() {
     return 0
   fi
   echo "APPLY: ${label} ($migration_file)"
-  psql "$DATABASE_URL" -v ON_ERROR_STOP=1 -f "$migration_file"
+  psql "$CIVILDRAFT_NEON_DSN" -v ON_ERROR_STOP=1 -f "$migration_file"
 }
 
 apply_if_missing \

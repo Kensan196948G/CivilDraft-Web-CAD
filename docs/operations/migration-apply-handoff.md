@@ -15,7 +15,7 @@
 
 ```bash
 # 1. 適用スクリプトを実行（接続情報は環境変数で注入・シークレットとして扱う）
-DATABASE_URL='postgresql://<role>:<password>@<host>/<db>?sslmode=require' \
+CIVILDRAFT_NEON_DSN='postgresql://<role>:<password>@<host>/<db>?sslmode=require' \
   bash scripts/apply-prod-migrations.sh
 
 # 2. 適用後スモーク（Worker を介して）
