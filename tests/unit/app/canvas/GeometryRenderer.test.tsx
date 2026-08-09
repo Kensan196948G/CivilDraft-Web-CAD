@@ -10,6 +10,7 @@ import type { ReactNode } from 'react'
 import type {
   ArcGeometry,
   CircleGeometry,
+  CloudGeometry,
   DimensionGeometry,
   EllipseGeometry,
   GeometryId,
@@ -18,6 +19,7 @@ import type {
   LayerId,
   LeaderGeometry,
   LineGeometry,
+  MLineGeometry,
   ParametricGeometry,
   PolylineGeometry,
   RectangleGeometry,
@@ -34,6 +36,7 @@ vi.mock('react-konva', () => ({
   Text: vi.fn(() => null),
   Arrow: vi.fn(() => null),
   Ellipse: vi.fn(() => null),
+  Path: vi.fn(() => null),
   Group: vi.fn(({ children }: { children: ReactNode }) => <>{children}</>),
 }))
 
@@ -82,6 +85,7 @@ describe('GeometryRenderer', () => {
     vi.mocked(reactKonva.Text).mockClear()
     vi.mocked(reactKonva.Arrow).mockClear()
     vi.mocked(reactKonva.Ellipse).mockClear()
+    vi.mocked(reactKonva.Path).mockClear()
   })
 
   describe('13種の描画マッピング', () => {
@@ -437,6 +441,49 @@ describe('GeometryRenderer', () => {
       }
       render(<GeometryRenderer geometry={g} />)
       expect(lastProps(reactKonva.Line as never).dash).toEqual([])
+    })
+  })
+
+  describe('cloud / mline（Civil-Draw 5ツール統合の残存型）', () => {
+    it('cloud を Path として描画する（改訂雲アーク）', () => {
+      const g: CloudGeometry = {
+        ...base,
+        type: 'cloud',
+        x1: 0,
+        y1: 0,
+        x2: 200,
+        y2: 100,
+        arcSize: 15,
+      }
+      expect(() => render(<GeometryRenderer geometry={g} />)).not.toThrow()
+      const p = lastProps(reactKonva.Path as never)
+      expect(p.data).toContain('M 0.00 0.00')
+      expect(p.stroke).toBe('#FF0000')
+      expect(p.listening).toBe(false)
+    })
+
+    it('mline を 2 本の Line として描画する（±offset）', () => {
+      const g: MLineGeometry = {
+        ...base,
+        type: 'mline',
+        start: { x: 0, y: 0 },
+        end: { x: 100, y: 0 },
+        offset: 10,
+      }
+      expect(() => render(<GeometryRenderer geometry={g} />)).not.toThrow()
+      const calls = vi.mocked(reactKonva.Line).mock.calls
+      const lineCalls = calls.filter((call) => {
+        const points = (call[0] as { points?: number[] })?.points
+        return points !== undefined && points.length === 4
+      })
+      expect(lineCalls.length).toBeGreaterThanOrEqual(2)
+      // 一方は y=±10 のオフセット線
+      const ys = lineCalls.flatMap((call) => {
+        const points = (call[0] as { points?: number[] })?.points ?? []
+        return [points[1], points[3]]
+      })
+      expect(ys).toContain(10)
+      expect(ys).toContain(-10)
     })
   })
 })

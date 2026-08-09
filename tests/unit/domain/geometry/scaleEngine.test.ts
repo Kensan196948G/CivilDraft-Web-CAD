@@ -230,4 +230,33 @@ describe('scaleShape / 追加カバレッジ（arc・polyline・spline・hatch�
     }
     expect(scaleShape(sym, config, seqContext())).toEqual(withGenIdentity(scaled, 'gen-1'))
   })
+
+  it('cloud は外接矩形と arcSize をスケールする', () => {
+    const cloud: Geometry = {
+      ...base, id: id('cl'), type: 'cloud',
+      x1: 10, y1: 10, x2: 30, y2: 20, arcSize: 5,
+    }
+    const scaled = scaleShape(cloud, { cx: 0, cy: 0, sx: 2, sy: 3 })
+    expect(scaled).not.toBeNull()
+    if (scaled?.type === 'cloud') {
+      expect(scaled.x1).toBeCloseTo(20)
+      expect(scaled.y1).toBeCloseTo(30)
+      expect(scaled.x2).toBeCloseTo(60)
+      expect(scaled.y2).toBeCloseTo(60)
+      expect(scaled.arcSize).toBeCloseTo(15)
+    }
+  })
+
+  it('mline は中心線と offset をスケールする', () => {
+    const mline: Geometry = {
+      ...base, id: id('ml'), type: 'mline',
+      start: { x: 0, y: 0 }, end: { x: 100, y: 0 }, offset: 10,
+    }
+    const scaled = scaleShape(mline, { cx: 0, cy: 0, sx: 2, sy: 3 })
+    expect(scaled).not.toBeNull()
+    if (scaled?.type === 'mline') {
+      expect(scaled.end.x).toBeCloseTo(200)
+      expect(scaled.offset).toBeCloseTo(30)
+    }
+  })
 })

@@ -313,6 +313,53 @@ export function exportDxf(
         d.drawText(cv(textX + (x2 > x1 ? 2 : -2)), cv(y2 - fontSize * 0.5), cv(fontSize), 0, geometry.text)
         break
       }
+      case 'cloud': {
+        // 改訂雲マークは円弧を弦で近似した閉ポリラインで出力（Civil-Draw と同方針）。
+        const minX = Math.min(geometry.x1, geometry.x2)
+        const minY = Math.min(geometry.y1, geometry.y2)
+        const maxX = Math.max(geometry.x1, geometry.x2)
+        const maxY = Math.max(geometry.y1, geometry.y2)
+        const arcSize = Math.max(1, geometry.arcSize)
+        const pts: [number, number][] = []
+        const sides: readonly (readonly [number, number, number, number])[] = [
+          [minX, minY, maxX, minY],
+          [maxX, minY, maxX, maxY],
+          [maxX, maxY, minX, maxY],
+          [minX, maxY, minX, minY],
+        ]
+        for (const [sx, sy, ex, ey] of sides) {
+          const segLen = Math.hypot(ex - sx, ey - sy)
+          if (segLen < 1) continue
+          const n = Math.max(1, Math.round(segLen / arcSize))
+          for (let i = 0; i <= n; i++) {
+            const t = i / n
+            pts.push([cv(sx + (ex - sx) * t), cv(sy + (ey - sy) * t)])
+          }
+        }
+        d.drawPolyline(pts, true)
+        break
+      }
+      case 'mline': {
+        // 平行2線は 2 本の LINE で出力（DXF に MLine 専用エンティティを持たないため分解）。
+        const dx = geometry.end.x - geometry.start.x
+        const dy = geometry.end.y - geometry.start.y
+        const len = Math.hypot(dx, dy)
+        const nx = len < 1e-12 ? 0 : (-dy / len) * geometry.offset
+        const ny = len < 1e-12 ? geometry.offset : (dx / len) * geometry.offset
+        d.drawLine(
+          cv(geometry.start.x + nx),
+          cv(geometry.start.y + ny),
+          cv(geometry.end.x + nx),
+          cv(geometry.end.y + ny),
+        )
+        d.drawLine(
+          cv(geometry.start.x - nx),
+          cv(geometry.start.y - ny),
+          cv(geometry.end.x - nx),
+          cv(geometry.end.y - ny),
+        )
+        break
+      }
       case 'parametricObject':
         // 生成図形（generatedGeometryIds先の実体）が出力対象のため、本体はskipする。
         break

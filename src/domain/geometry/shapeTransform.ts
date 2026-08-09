@@ -71,6 +71,20 @@ function shapeKeyPoints(geometry: Geometry): Point[] {
     case 'dimension':
     case 'leader':
       return [geometry.start, geometry.end]
+    case 'mline': {
+      const n = mlineOffsetVector(geometry)
+      return [
+        geometry.start,
+        geometry.end,
+        { x: geometry.start.x + n.x, y: geometry.start.y + n.y },
+        { x: geometry.end.x + n.x, y: geometry.end.y + n.y },
+      ]
+    }
+    case 'cloud':
+      return [
+        { x: Math.min(geometry.x1, geometry.x2), y: Math.min(geometry.y1, geometry.y2) },
+        { x: Math.max(geometry.x1, geometry.x2), y: Math.max(geometry.y1, geometry.y2) },
+      ]
     case 'ellipse':
       return [
         { x: geometry.center.x - geometry.radiusX, y: geometry.center.y - geometry.radiusY },
@@ -105,6 +119,16 @@ function shapeKeyPoints(geometry: Geometry): Point[] {
       throw new Error(`Unhandled geometry type: ${JSON.stringify(exhaustive)}`)
     }
   }
+}
+
+/** 平行2線の中心線に対する単位法線方向へ offset 分進めたオフセットベクトルを返す。 */
+function mlineOffsetVector(geometry: Extract<Geometry, { type: 'mline' }>): Point {
+  const dx = geometry.end.x - geometry.start.x
+  const dy = geometry.end.y - geometry.start.y
+  const len = Math.hypot(dx, dy)
+  if (len < 1e-12) return { x: 0, y: geometry.offset }
+  // canvas 系（Y 下）で中心線の左側（法線 (-dy, dx)/len）へ offset する。
+  return { x: (-dy / len) * geometry.offset, y: (dx / len) * geometry.offset }
 }
 
 /**
@@ -146,6 +170,17 @@ export function transformShape(
         start: applyPoint(geometry.start, cx, cy, op),
         end: applyPoint(geometry.end, cx, cy, op),
       }
+    case 'mline':
+      return {
+        ...geometry,
+        start: applyPoint(geometry.start, cx, cy, op),
+        end: applyPoint(geometry.end, cx, cy, op),
+      }
+    case 'cloud': {
+      const p1 = applyPoint({ x: geometry.x1, y: geometry.y1 }, cx, cy, op)
+      const p2 = applyPoint({ x: geometry.x2, y: geometry.y2 }, cx, cy, op)
+      return { ...geometry, x1: p1.x, y1: p1.y, x2: p2.x, y2: p2.y }
+    }
     case 'rectangle': {
       // 矩形は「原点(左上)+幅/高さ+rotationDeg」で表現され、レンダラーが原点回りに
       // 回転する。変換は原点を写像し回転角のみ更新すればよく、幅/高さを入れ替えると

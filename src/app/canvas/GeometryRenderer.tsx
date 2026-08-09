@@ -18,7 +18,7 @@
  *   （二重線描画は未実装。dashForLineType のコメント参照）。
  */
 import { memo } from 'react'
-import { Arc, Arrow, Circle, Ellipse, Group, Line, Rect, Text } from 'react-konva'
+import { Arc, Arrow, Circle, Ellipse, Group, Line, Path, Rect, Text } from 'react-konva'
 import type { Geometry, GeometryStyle, Point } from '@/shared/types'
 import { generateHatchLines } from '@/domain/geometry/hatchGenerator'
 import { getSymbolById } from '@/domain/catalog/symbolCatalog'
@@ -66,6 +66,44 @@ function flattenPoints(points: readonly Point[]): number[] {
     out.push(p.x, p.y)
   }
   return out
+}
+
+/**
+ * 改訂雲マークの SVG path を生成する（Civil-Draw generateCloudPath 移植）。
+ * 外接矩形の4辺を arcSize 間隔の半円（外向きバンプ）で波打たせる。
+ */
+function generateCloudPath(
+  x1: number,
+  y1: number,
+  x2: number,
+  y2: number,
+  arcSize: number,
+): string {
+  const minX = Math.min(x1, x2)
+  const minY = Math.min(y1, y2)
+  const maxX = Math.max(x1, x2)
+  const maxY = Math.max(y1, y2)
+  // 時計回り走査: 上(L→R) → 右(T→B) → 下(R→L) → 左(B→T)
+  const sides: readonly (readonly [number, number, number, number])[] = [
+    [minX, minY, maxX, minY],
+    [maxX, minY, maxX, maxY],
+    [maxX, maxY, minX, maxY],
+    [minX, maxY, minX, minY],
+  ]
+  let path = `M ${minX.toFixed(2)} ${minY.toFixed(2)} `
+  for (const [sx, sy, ex, ey] of sides) {
+    const segLen = Math.hypot(ex - sx, ey - sy)
+    if (segLen < 1) continue
+    const n = Math.max(1, Math.round(segLen / Math.max(1, arcSize)))
+    const r = segLen / n / 2
+    for (let i = 1; i <= n; i++) {
+      const t = i / n
+      const nx = sx + (ex - sx) * t
+      const ny = sy + (ey - sy) * t
+      path += `A ${r.toFixed(2)} ${r.toFixed(2)} 0 0 1 ${nx.toFixed(2)} ${ny.toFixed(2)} `
+    }
+  }
+  return `${path}Z`
 }
 
 function GeometryRendererImpl({
@@ -320,6 +358,37 @@ function GeometryRendererImpl({
             fontSize={textHeight}
             fill={stroke}
             align={end.x > start.x ? 'left' : 'right'}
+          />
+        </Group>
+      )
+    }
+
+    case 'cloud': {
+      // 改訂雲マーク（継承元 CloudShape）。アークは Konva Path で描画する。
+      return (
+        <Path
+          {...commonProps}
+          data={generateCloudPath(geometry.x1, geometry.y1, geometry.x2, geometry.y2, geometry.arcSize)}
+        />
+      )
+    }
+
+    case 'mline': {
+      // 平行2線（継承元 MLineShape）。中心線の法線方向へ ±offset した 2 本の線分。
+      const dx = geometry.end.x - geometry.start.x
+      const dy = geometry.end.y - geometry.start.y
+      const len = Math.hypot(dx, dy)
+      const nx = len < 1e-12 ? 0 : (-dy / len) * geometry.offset
+      const ny = len < 1e-12 ? geometry.offset : (dx / len) * geometry.offset
+      return (
+        <Group listening={false} opacity={opacity}>
+          <Line
+            {...commonProps}
+            points={[geometry.start.x + nx, geometry.start.y + ny, geometry.end.x + nx, geometry.end.y + ny]}
+          />
+          <Line
+            {...commonProps}
+            points={[geometry.start.x - nx, geometry.start.y - ny, geometry.end.x - nx, geometry.end.y - ny]}
           />
         </Group>
       )

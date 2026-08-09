@@ -19,6 +19,7 @@ export type AppView =
   | 'compare'
   | 'approval'
   | 'print'
+  | 'delivery'
   | 'audit'
   | 'settings'
 
@@ -73,6 +74,7 @@ const NAV_SECTIONS: readonly NavSection[] = [
     heading: '出力・管理',
     items: [
       { icon: '🖨️', label: '印刷・出力', view: 'print' },
+      { icon: '📦', label: '電子納品', view: 'delivery' },
       { icon: '📋', label: '監査ログ', view: 'audit' },
       { icon: '⚙️', label: 'システム設定', view: 'settings' },
     ],

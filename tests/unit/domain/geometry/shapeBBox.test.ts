@@ -178,4 +178,20 @@ describe('shapeBBox / 追加カバレッジ（ellipse・text・dimension・leade
     }
     expect(shapeBBox(l)).toEqual({ minX: 0, minY: 0, maxX: 150, maxY: 30 })
   })
+
+  it('cloud は外接矩形をそのままAABBとして返す', () => {
+    const cloud: Geometry = {
+      ...base, id: id('g24'), type: 'cloud',
+      x1: 30, y1: 20, x2: -10, y2: 60, arcSize: 15,
+    }
+    expect(shapeBBox(cloud)).toEqual({ minX: -10, minY: 20, maxX: 30, maxY: 60 })
+  })
+
+  it('mline はオフセット分（±offset）を含むAABBを返す', () => {
+    const mline: Geometry = {
+      ...base, id: id('g25'), type: 'mline',
+      start: { x: 0, y: 0 }, end: { x: 100, y: 0 }, offset: 10,
+    }
+    expect(shapeBBox(mline)).toEqual({ minX: 0, minY: -10, maxX: 100, maxY: 10 })
+  })
 })

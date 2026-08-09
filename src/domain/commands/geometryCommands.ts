@@ -17,6 +17,7 @@ import { createCommand, type DocumentState, type EditorCommand } from './editorC
 /** コマンド種別（監査ログ用。SCREAMING_SNAKE で統一）。 */
 export const COMMAND_TYPES = {
   ADD_GEOMETRY: 'ADD_GEOMETRY',
+  ADD_GEOMETRIES: 'ADD_GEOMETRIES',
   UPDATE_GEOMETRY: 'UPDATE_GEOMETRY',
   DELETE_GEOMETRIES: 'DELETE_GEOMETRIES',
   TRANSFORM_GEOMETRIES: 'TRANSFORM_GEOMETRIES',
@@ -34,6 +35,10 @@ export const COMMAND_TYPES = {
 
 export interface AddGeometryPayload {
   readonly geometry: Geometry
+}
+
+export interface AddGeometriesPayload {
+  readonly geometries: readonly Geometry[]
 }
 
 export interface UpdateGeometryPayload {
@@ -155,6 +160,25 @@ export function createAddGeometryCommand(
     { geometry },
     (document) => withGeometries(document, [...document.geometries, geometry]),
     (document) => withGeometries(document, document.geometries.filter((g) => g.id !== geometry.id)),
+    ctx,
+  )
+}
+
+// --- AddGeometriesCommand ---
+
+/** 複数図形を一括で末尾へ追加する（配列複写等の単一 undo ステップ化に用いる）。 */
+export function createAddGeometriesCommand(
+  geometries: readonly Geometry[],
+  ctx: GeometryCreationContext = defaultCreationContext,
+): EditorCommand<AddGeometriesPayload> {
+  return createCommand<AddGeometriesPayload>(
+    COMMAND_TYPES.ADD_GEOMETRIES,
+    { geometries: [...geometries] },
+    (document) => withGeometries(document, [...document.geometries, ...geometries]),
+    (document) => {
+      const added = new Set(geometries.map((g) => g.id))
+      return withGeometries(document, document.geometries.filter((g) => !added.has(g.id)))
+    },
     ctx,
   )
 }
@@ -287,10 +311,19 @@ function offsetGeometryCoords(geometry: Geometry, dx: number, dy: number): Geome
     case 'line':
     case 'dimension':
     case 'leader':
+    case 'mline':
       return {
         ...geometry,
         start: offsetPoint(geometry.start, dx, dy),
         end: offsetPoint(geometry.end, dx, dy),
+      }
+    case 'cloud':
+      return {
+        ...geometry,
+        x1: geometry.x1 + dx,
+        y1: geometry.y1 + dy,
+        x2: geometry.x2 + dx,
+        y2: geometry.y2 + dy,
       }
     case 'rectangle':
       return {

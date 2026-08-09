@@ -238,3 +238,36 @@ describe('validateArrayConfig / 追加カバレッジ（列間隔0）', () => {
     ).toBe('ARRAY_RECT_ZERO_COL_SPACING')
   })
 })
+
+describe('applyArray / cloud・mline（Civil-Draw 5ツール統合の残存型）', () => {
+  it('cloud を平行移動して複製する', () => {
+    const cloud: Geometry = {
+      ...base, id: id('cl'), type: 'cloud',
+      x1: 0, y1: 0, x2: 100, y2: 50, arcSize: 15,
+    }
+    const copies = applyArray([cloud], { kind: 'linear', count: 2, dx: 10, dy: 5 }, seqContext())
+    expect(copies).toHaveLength(1)
+    const copy = copies[0]
+    expect(copy?.type).toBe('cloud')
+    if (copy?.type === 'cloud') {
+      expect(copy.x1).toBe(10)
+      expect(copy.y1).toBe(5)
+      expect(copy.id).not.toBe(id('cl'))
+    }
+  })
+
+  it('mline を平行移動して複製する', () => {
+    const mline: Geometry = {
+      ...base, id: id('ml'), type: 'mline',
+      start: { x: 0, y: 0 }, end: { x: 100, y: 0 }, offset: 10,
+    }
+    const copies = applyArray([mline], { kind: 'linear', count: 2, dx: 20, dy: 0 }, seqContext())
+    expect(copies).toHaveLength(1)
+    const copy = copies[0]
+    if (copy?.type === 'mline') {
+      expect(copy.start.x).toBe(20)
+      expect(copy.end.x).toBe(120)
+      expect(copy.offset).toBe(10)
+    }
+  })
+})

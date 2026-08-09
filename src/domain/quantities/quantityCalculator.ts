@@ -62,6 +62,8 @@ export function geometryLengthMm(geometry: Geometry): number | null {
   switch (geometry.type) {
     case 'line':
       return Math.hypot(geometry.end.x - geometry.start.x, geometry.end.y - geometry.start.y)
+    case 'mline':
+      return Math.hypot(geometry.end.x - geometry.start.x, geometry.end.y - geometry.start.y)
     case 'polyline':
     case 'spline':
       return geometry.points.length < 2 ? null : segmentLengthSum(geometry.points)
@@ -71,6 +73,7 @@ export function geometryLengthMm(geometry: Geometry): number | null {
     case 'rectangle':
     case 'ellipse':
     case 'hatch':
+    case 'cloud':
     case 'text':
     case 'dimension':
     case 'leader':
@@ -103,6 +106,8 @@ export function geometryPerimeterMm(geometry: Geometry): number | null {
     case 'line':
     case 'arc':
     case 'spline':
+    case 'cloud':
+    case 'mline':
     case 'text':
     case 'dimension':
     case 'leader':
@@ -135,6 +140,8 @@ export function geometryAreaMm2(geometry: Geometry): number | null {
     case 'line':
     case 'arc':
     case 'spline':
+    case 'cloud':
+    case 'mline':
     case 'text':
     case 'dimension':
     case 'leader':
