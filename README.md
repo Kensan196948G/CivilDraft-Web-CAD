@@ -8,7 +8,7 @@
 | 英語名 | **Civil Construction Drawing CAD** |
 | 製品名 | **CivilDraft** |
 | リポジトリ | `CivilDraft-Web-CAD` |
-| 既存技術資産 | [`Civil-Draw`](https://github.com/Kensan196948G/Civil-Draw) |
+| 既存技術資産 | [`Civil-Draw`（吸収統合完了・アーカイブ）](docs/migration/civil-draw-archive/README.md) |
 | 開発基盤 | Claude Code on Linux＋GitHub＋Cloudflare＋Neon |
 | 現在の位置付け | **土木特化Web CADの技術プレビュー（v0.1.22）**。ブラウザ内CADコアと土木ドメイン部品は拡充中。Workers APIはP0縦線（Project作成/更新→Drawing作成/更新→Revision作成→Content/数量保存→照査/承認→Export作成→Audit検索）を実装し、本番稼働中（`civildraft-web-cad.mirai-dx-platform.com`）。2026-07-21のv0.1.0でpersistX全9ハンドラのNeon永続化配線・監査ログ永続化が本番反映され、Neon migration 0001〜0004適用済み（0003=Neon直接格納・ADR-0014、0004=ID列text整合・ADR-0015）、書き込み系fail-closed暫定措置は撤去済み。2026-07-22のv0.1.1（PR #72・Issue #68恒久対応）でpersistX複合書き込み5種を単一トランザクションへ統合し本番反映済み。2026-07-22のv0.1.2（PR #75・Issue #73恒久対応）でquantity_items孤立item解消も本番反映済み。以降、監査ログhash chain（Issue #61）・数量⇔図形連動（Issue #42）・レイヤーテンプレート・図面健全性チェック（Issue #59）・キーボードショートカット/コマンドパレット（Issue #47）を段階的に本番反映（v0.1.3〜v0.1.17）。2026-08-04のv0.1.18（PR #113/#121、Worker Version `a959db6f`）でactorId偽装対策・リクエストボディ上限等のセキュリティ強化（PR #113）と図面健全性チェック第二弾（Issue #59・数量連動配線バグ修正）を本番反映。2026-08-06のv0.1.19（PR #124〜#134、Worker Version `aa76014d`）でP1全解消。続いてIssue #116（数量明細のstate化・PR #138）とIssue #115（アプリ層レート制限・PR #137）をマージ済み（本番デプロイは人間実施待ち）。2026-08-09の金曜開発枠で**Civil-Draw 全機能の吸収統合を完了**（円弧/楕円/スプライン/引出線/改訂雲/平行2線・測距面積・配列・尺度の対話ツール、電子納品チェック、PDF編集・署名マニフェスト、チェックイン/アウト。移行台帳・アーカイブは `docs/migration/`）。Cloudflare Access Application設定とAccess Secret登録（人間実施）が完了するまでAPIは認証構成fail-closed（401/503）で安全に停止 |
 
@@ -739,6 +739,7 @@ timeline
 | [#156](../../pull/156) | **Issue #44（第二弾）**: 測点のLandXML 1.2出力 | ✅ マージ済み（2026-08-06・`e30d03f`）→ v0.1.22 |
 | [#157](../../pull/157) | **Issue #60**: 移行アシスタント（未対応形式案内・DXFイシュー対処提案） | ✅ マージ済み（2026-08-06・`9f2b39f`）→ v0.1.22 |
 | [#158](../../pull/158) | **Issue #39残**: 分解・結合コマンド | ✅ マージ済み（2026-08-06・`dcabdc6`）→ v0.1.22 |
+| [#160](../../pull/160) | **Civil-Draw 完全吸収統合**: CAD残ツール（円弧/楕円/スプライン/引出線/改訂雲/平行2線・測距面積・配列・尺度）・電子納品・PDF編集・チェックイン/アウト・移行台帳/アーカイブ | ✅ マージ済み（2026-08-09・`48a5c33`）→ 次版デプロイ待ち |
 > マージ済みPRは人間の明示承認（選択式Y判断）を得てマージ済み。レビュー承認1件必須はPR作成者の自己承認不可のため、PR #111までは マージ実行時に enforce_admins を一時解除し完了後に即復元していた。PR #121以降は、branch protectionの `required_approving_review_count` を 1→0 へ恒久変更（2026-08-04・人間承認済み、他の保護設定は変更なし）したため、admin bypassを伴わない通常マージ経路を使用する。PR #124〜#134は2026-08-06の /goal 指示（品質条件達成後のマージ・本番デプロイの事前承認）に基づき通常マージ経路で統合・v0.1.19として本番反映済み。
 
 進捗の詳細は[GitHub Projects「CivilDraft-Web-CAD 開発司令盤」](../../projects)、Issue一覧は[Issues](../../issues)を参照してください。
