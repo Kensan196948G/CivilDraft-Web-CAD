@@ -30,6 +30,9 @@ cd /tmp/verapdf-installer && ./verapdf-install.sh
 scripts/tools/verify-pdfa.sh output.pdf
 # または
 VERAPDF_BIN=/opt/verapdf/verapdf scripts/tools/verify-pdfa.sh output.pdf
+# Docker 利用（バイナリ未導入時は自動判定）
+docker pull verapdf/cli:latest
+scripts/tools/verify-pdfa.sh output.pdf
 ```
 
 終了コード: 0 = 検証実行成功（適合有無はレポートの `isValid` を確認） / 2 = 引数エラー /
