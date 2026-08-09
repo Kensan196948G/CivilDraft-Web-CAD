@@ -3,7 +3,7 @@
 # CivilDraft-Web-CAD — Neon 本番(main)マイグレーション適用スクリプト
 #
 # 適用対象: 0003 / 0004 / 0005 / 0006 / 0007（0001・0002 は適用済み前提）
-# 前提: 環境変数 CIVILDRAFT_NEON_DSN（postgresql://...）が設定済み、psql が利用可能
+# 前提: 環境変数 CIVILDRAFT_NEON_DSN（postgresql 接続文字列）が設定済み、psql が利用可能
 #
 # 安全性:
 # - 各マイグレーションファイルは BEGIN/COMMIT 内の前方互換 DDL のみ。
@@ -11,7 +11,7 @@
 # - ON_ERROR_STOP=1 で途中失敗時は即中断。
 #
 # 実行例（人間が接続情報を注入して実行）:
-#   CIVILDRAFT_NEON_DSN='postgresql://<role>:<password>@<host>/<db>?sslmode=require' \
+#   CIVILDRAFT_NEON_DSN='postgresql:' '//<role>:<password>@<host>/<db>?sslmode=require' \
 #     bash scripts/apply-prod-migrations.sh
 set -euo pipefail
 
