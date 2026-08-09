@@ -3,6 +3,7 @@ import { PDFDocument } from 'pdf-lib'
 import {
   createPadesDetachedSignature,
   derToPem,
+  signPdfEmbedded,
   readDerChildren,
   readDerElement,
 } from '@/domain/pdf/pdfSignaturePades'
@@ -136,3 +137,133 @@ function copyToBuffer(bytes: Uint8Array): ArrayBuffer {
   new Uint8Array(buffer).set(bytes)
   return buffer
 }
+
+function concatBytes(parts: readonly Uint8Array[]): Uint8Array {
+  const total = parts.reduce((sum, part) => sum + part.length, 0)
+  const out = new Uint8Array(total)
+  let offset = 0
+  for (const part of parts) {
+    out.set(part, offset)
+    offset += part.length
+  }
+  return out
+}
+
+function hexToBytes(hex: string): Uint8Array {
+  const bytes = new Uint8Array(hex.length / 2)
+  for (let i = 0; i < bytes.length; i++) {
+    bytes[i] = Number.parseInt(hex.slice(i * 2, i * 2 + 2), 16)
+  }
+  return bytes
+}
+
+function bytesToB64Url(bytes: Uint8Array): string {
+  let binary = ''
+  for (const byte of bytes) binary += String.fromCharCode(byte)
+  return btoa(binary).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/g, '')
+}
+
+function lastByteRange(text: string): { a: number; b: number } {
+  const matches = [...text.matchAll(/\/ByteRange\s*\[\s*0\s+(\d+)\s+(\d+)\s+(\d+)\s*\]/g)]
+  const last = matches.at(-1)
+  if (last === undefined) throw new Error('ByteRange not found')
+  return { a: Number(last[1]), b: Number(last[2]) }
+}
+
+describe('pdfSignaturePades / PDF 埋め込み署名（ByteRange・自己署名証明書）', () => {
+  it('PDF へ埋め込み署名し、自己署名証明書と CMS 署名・messageDigest を検証できる', async () => {
+    const pdf = await makePdf()
+    const { pem } = await makeKeyPair()
+    const result = await signPdfEmbedded({
+      pdfBytes: pdf,
+      privateKeyPem: pem,
+      signerName: '山田 太郎',
+      signedAt: new Date('2026-08-09T12:00:00Z'),
+    })
+    expect(result.ok).toBe(true)
+    if (!result.ok) return
+    const bytes = result.value.bytes
+    const text = new TextDecoder().decode(bytes)
+
+    // ByteRange で定義された範囲（Contents 除外）のダイジェスト
+    const range = lastByteRange(text)
+    const rangesDigestHex = await sha256Hex(concatBytes([bytes.slice(0, range.a), bytes.slice(range.b)]))
+
+    const contentsHex = [...text.matchAll(/\/Contents\s*<([0-9a-fA-F]+)>/g)].at(-1)?.[1]
+    expect(contentsHex).toBeDefined()
+    const cms = hexToBytes(contentsHex ?? '')
+    const contentInfo = readDerElement(cms).element
+    const signedData = readDerElement(readDerChildren(contentInfo.value)[1]!.value).element
+    const sdChildren = readDerChildren(signedData.value)
+    expect(sdChildren.length).toBe(5)
+
+    // 証明書（self-signed）を取り出して自己署名を検証
+    const certsField = sdChildren[3]!
+    expect(certsField.tag).toBe(0xa0)
+    const certificate = readDerElement(certsField.value).element
+    const certChildren = readDerChildren(certificate.value)
+    const tbs = certChildren[0]!
+    const signatureBit = certChildren[2]!
+    const spki = readDerChildren(tbs.value)[6]!
+    const spkiBit = readDerChildren(spki.value)[1]!
+    const rsaPub = readDerElement(spkiBit.value.slice(1)).element
+    const rsaChildren = readDerChildren(rsaPub.value)
+    const certPublicKey = await crypto.subtle.importKey(
+      'jwk',
+      {
+        kty: 'RSA',
+        n: bytesToB64Url(rsaChildren[0]!.value),
+        e: bytesToB64Url(rsaChildren[1]!.value),
+        alg: 'RS256',
+        ext: true,
+      },
+      { name: 'RSASSA-PKCS1-v1_5', hash: 'SHA-256' },
+      false,
+      ['verify'],
+    )
+    const selfSigned = await crypto.subtle.verify(
+      'RSASSA-PKCS1-v1_5',
+      certPublicKey,
+      copyToBuffer(signatureBit.value.slice(1)),
+      copyToBuffer(
+        concatBytes([new Uint8Array([0x30]), encodeLength(tbs.value.length), tbs.value]),
+      ),
+    )
+    expect(selfSigned).toBe(true)
+
+    // SignerInfo の CMS 署名を検証
+    const signerInfo = readDerElement(sdChildren[4]!.value).element
+    const signerChildren = readDerChildren(signerInfo.value)
+    const signedAttrs = signerChildren[3]!
+    const cmsSignature = signerChildren[5]!
+    const signedAttrsTlv = concatBytes([
+      new Uint8Array([0xa0]),
+      encodeLength(signedAttrs.value.length),
+      signedAttrs.value,
+    ])
+    const cmsValid = await crypto.subtle.verify(
+      'RSASSA-PKCS1-v1_5',
+      certPublicKey,
+      copyToBuffer(cmsSignature.value),
+      copyToBuffer(signedAttrsTlv),
+    )
+    expect(cmsValid).toBe(true)
+
+    // messageDigest 属性 == ByteRange ダイジェスト
+    const attrs = readDerChildren(readDerElement(signedAttrs.value).element.value)
+    const digestAttr = attrs.find((attr) => {
+      const children = readDerChildren(attr.value)
+      if (children.length < 2) return false
+      const valueChildren = readDerChildren(children[1]!.value)
+      return valueChildren.length === 1 && valueChildren[0]!.tag === 0x04 && valueChildren[0]!.value.length === 32
+    })
+    expect(digestAttr).toBeDefined()
+    const digestValue = readDerChildren(readDerChildren(digestAttr!.value)[1]!.value)[0]!.value
+    const attrHex = Array.from(digestValue).map((byte) => byte.toString(16).padStart(2, '0')).join('')
+    expect(attrHex).toBe(rangesDigestHex)
+
+    // インクリメンタルアップデートとして PDF が読み込める（構造健全性）
+    const loaded = await PDFDocument.load(bytes)
+    expect(loaded.getPageCount()).toBe(1)
+  })
+})
