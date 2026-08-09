@@ -215,3 +215,15 @@ describe('SurveyPointsPage / 座標系設定', () => {
     expect(store.getState().geometries).toHaveLength(0)
   })
 })
+
+describe('SurveyPointsPage / 本番ゲート（Issue #62）', () => {
+  it('enableSampleData=false ではサンプルCSV挿入ボタンを表示しない', () => {
+    render(
+      <EditorStoreProvider store={createEditorStore()}>
+        <SurveyPointsPage enableSampleData={false} />
+      </EditorStoreProvider>,
+    )
+    expect(screen.queryByRole('button', { name: 'サンプルCSVを挿入' })).not.toBeInTheDocument()
+    expect(screen.getByRole('button', { name: '取込' })).toBeInTheDocument()
+  })
+})

@@ -23,6 +23,7 @@ import {
   canModifyRevisionContent,
   transition,
 } from '@/domain/revisions'
+import { isDemoMode } from '@/app/mode'
 import type {
   DrawingRevision,
   RevisionAction,
@@ -195,9 +196,11 @@ function actionButtonStyle(action: RevisionAction, enabled: boolean): CSSPropert
 export interface ReviewApprovalPageProps {
   /** デモ用の初期ロール（省略時 engineer）。実運用では Cloudflare Access identity から解決する。 */
   readonly initialRole?: CivilDraftRole
+  /** 本番モードでは true を渡すとデモのロール切替・サンプル改訂を表示しない（?demo=1 時は表示）。 */
+  readonly enableCloudData?: boolean
 }
 
-export function ReviewApprovalPage({ initialRole = 'engineer' }: ReviewApprovalPageProps = {}) {
+export function ReviewApprovalPage({ initialRole = 'engineer', enableCloudData = false }: ReviewApprovalPageProps = {}) {
   const [role, setRole] = useState<CivilDraftRole>(initialRole)
   const [revision, setRevision] = useState<DrawingRevision>(createInitialRevision)
   const [history, setHistory] = useState<readonly RevisionHistoryEntry[]>([])
@@ -209,6 +212,32 @@ export function ReviewApprovalPage({ initialRole = 'engineer' }: ReviewApprovalP
   const actions = availableActions(revision.status)
   const contentMutable = canModifyRevisionContent(revision.status)
   const statusMeta = STATUS_META[revision.status]
+  const useCloudOnly = enableCloudData && !isDemoMode()
+
+  if (useCloudOnly) {
+    return (
+      <div style={pageRootStyle}>
+        <header style={pageHeaderStyle}>
+          <div>
+            <div style={pageTitleStyle}>照査・承認</div>
+            <div style={pageSubtitleStyle}>改訂の照査依頼・照査・承認・差戻し・廃止（詳細設計仕様書 §19）</div>
+          </div>
+        </header>
+        <main style={pageMainStyle}>
+          <div style={panelStyle}>
+            <div style={{ padding: 42, textAlign: 'center' }}>
+              <div style={{ fontSize: 13.5, fontWeight: 600, marginBottom: 8 }}>改訂データがありません</div>
+              <div style={{ fontSize: 12.5, color: 'var(--muted)', lineHeight: 1.7 }}>
+                照査・承認の実データ連携（改訂一覧・ワークフローAPI）は未実装です。
+                <br />
+                サンプルデータは表示しません。
+              </div>
+            </div>
+          </div>
+        </main>
+      </div>
+    )
+  }
 
   const switchRole = (next: CivilDraftRole) => {
     setRole(next)

@@ -10,6 +10,8 @@ import type { ChangeEvent, CSSProperties } from 'react'
 import { exportQuantityCsv } from '@/domain/quantities/quantityCsv'
 import { CSV_CONTEXT, computeQuantitySummary } from './quantitySummaryModel'
 import { useEditorStoreApi } from '@/app/store/useEditorStore'
+import { isDemoMode } from '@/app/mode'
+import type { CloudDraftSession } from './CadEditorPage'
 import {
   addPdfWatermark,
   getPdfPageCount,
@@ -73,19 +75,52 @@ const INITIAL_HISTORY: readonly ExportHistoryRow[] = [
   { label: 'DXF・Rev.1', date: '07-02' },
 ]
 
-export function PrintExportPage() {
+export interface PrintExportPageProps {
+  /** 本番モードでは false を渡すと初期のサンプル履歴を表示しない（?demo=1 時は表示）。 */
+  readonly enableSampleHistory?: boolean
+  /** 出力タイトルブロックへ反映する実案件コンテキスト（未指定時はデモ既定）。 */
+  readonly cloudDraftSession?: CloudDraftSession
+}
+
+export function PrintExportPage({
+  enableSampleHistory = true,
+  cloudDraftSession,
+}: PrintExportPageProps = {}) {
   const storeApi = useEditorStoreApi()
+  const showSampleHistory = enableSampleHistory || isDemoMode()
   const [pdfChecked, setPdfChecked] = useState(true)
   const [dxfChecked, setDxfChecked] = useState(false)
   const [csvChecked, setCsvChecked] = useState(false)
   const [sxfChecked, setSxfChecked] = useState(false)
   const [message, setMessage] = useState<string | null>(null)
-  const [history, setHistory] = useState<readonly ExportHistoryRow[]>(INITIAL_HISTORY)
+  const [history, setHistory] = useState<readonly ExportHistoryRow[]>(
+    showSampleHistory ? INITIAL_HISTORY : [],
+  )
   const [pdfFiles, setPdfFiles] = useState<readonly LoadedPdfFile[]>([])
   const [watermarkText, setWatermarkText] = useState('社外秘')
   const [signerName, setSignerName] = useState('')
   const [signerKeyPem, setSignerKeyPem] = useState('')
   const [pdfMessage, setPdfMessage] = useState<string | null>(null)
+
+  const titleBlockProjectName =
+    cloudDraftSession?.projectName ?? (showSampleHistory ? '国道245号 道路拡幅工事' : '未設定案件')
+  const titleBlockDrawingNumber =
+    cloudDraftSession?.drawingNumber ?? (showSampleHistory ? 'DWG-014' : '未設定')
+  const titleBlockRevision =
+    cloudDraftSession?.revisionNumber ?? (showSampleHistory ? 'Rev.3' : 'Rev.1')
+  const titleBlockDrawingName =
+    cloudDraftSession?.drawingName ?? (showSampleHistory ? '施工ヤード計画図' : '未設定図面')
+  const previewSubtitle = cloudDraftSession
+    ? `${cloudDraftSession.drawingName} ${cloudDraftSession.revisionNumber}`
+    : showSampleHistory
+      ? '施工ヤード計画図 Rev.3'
+      : '未設定図面'
+  const previewNumberRevision = cloudDraftSession
+      ? `${cloudDraftSession.drawingNumber}\u3000${cloudDraftSession.revisionNumber}`
+      : showSampleHistory
+        ? 'DWG-014\u3000Rev.3'
+        : '未設定\u3000Rev.1'
+  const previewAuthor = showSampleHistory ? '山田 太郎' : '未設定'
 
   const runExport = async () => {
     try {
@@ -106,7 +141,11 @@ export function PrintExportPage() {
           paperSize: 'A3',
           orientation: 'landscape',
           scale: 100,
-          titleBlock: { projectName: '国道245号 道路拡幅工事', drawingNumber: 'DWG-014', revision: 'Rev.3' },
+          titleBlock: {
+            projectName: titleBlockProjectName,
+            drawingNumber: titleBlockDrawingNumber,
+            revision: titleBlockRevision,
+          },
           ...(font.ok ? { japaneseFontBytes: font.value } : {}),
         })
         if (pdf.ok) {
@@ -135,7 +174,7 @@ export function PrintExportPage() {
         results.push(`CSV✓(${summary.items.length}件)`)
       }
       if (sxfChecked) {
-        const sxf = exportSxfP21(s.geometries, { fileName: 'civildraft.P21', drawingName: '施工ヤード計画図' })
+        const sxf = exportSxfP21(s.geometries, { fileName: 'civildraft.P21', drawingName: titleBlockDrawingName })
         downloadBlob(new Blob([sxf.text], { type: 'application/step' }), 'civildraft.P21')
         results.push(
           `SXF✓(試作${sxf.exportedCount}件${sxf.issues.length > 0 ? `・警告${sxf.issues.length}` : ''})`,
@@ -144,7 +183,10 @@ export function PrintExportPage() {
       if (results.length > 0) {
         const today = new Date().toLocaleDateString('ja-JP', { month: '2-digit', day: '2-digit' }).replace('/', '-')
         setHistory((current) => [
-          { label: `${results.map((result) => result.replace(/[✓✗].*$/, '')).join('・')}・Rev.3`, date: today },
+          {
+            label: `${results.map((result) => result.replace(/[✓✗].*$/, '')).join('・')}・${titleBlockRevision}`,
+            date: today,
+          },
           ...current,
         ])
       }
@@ -368,7 +410,7 @@ export function PrintExportPage() {
       <header style={pageHeaderStyle}>
         <div>
           <div style={pageTitleStyle}>印刷・出力</div>
-          <div style={pageSubtitleStyle}>施工ヤード計画図 Rev.3 ・ プレビュー、PDF、DXF、CSV、警告</div>
+          <div style={pageSubtitleStyle}>{previewSubtitle} ・ プレビュー、PDF、DXF、CSV、警告</div>
         </div>
         <div style={{ flex: 1 }} />
         {message !== null && <span style={{ fontSize: 12, color: 'var(--muted)' }}>{message}</span>}
@@ -385,38 +427,57 @@ export function PrintExportPage() {
               <span style={{ fontSize: 11, color: 'var(--muted)', fontWeight: 400 }}>1/1ページ</span>
             </div>
             <div style={{ padding: 24, background: 'var(--canvas-wrap, #DDE3EC)', display: 'flex', justifyContent: 'center' }}>
-              <div
-                style={{
-                  width: 640,
-                  height: 452,
-                  background: '#fff',
-                  border: '2px solid #1A2433',
-                  position: 'relative',
-                  boxShadow: '0 4px 16px rgba(16,24,40,.12)',
-                }}
-              >
-                <svg width="100%" height="100%" viewBox="0 0 640 452">
-                  <rect x="14" y="14" width="612" height="424" fill="none" stroke="#8A97A8" strokeWidth="1" />
-                  <polygon points="60,60 560,50 580,340 80,360" fill="none" stroke="#5A6678" strokeWidth="1.5" strokeDasharray="4 3" />
-                  <rect x="90" y="260" width="100" height="50" fill="#F2F4F8" stroke="#5A6678" />
-                  <circle cx="420" cy="180" r="65" fill="rgba(224,138,43,.10)" stroke="#E08A2B" strokeWidth="1.2" strokeDasharray="3 2" />
-                  <rect x="405" y="165" width="30" height="30" fill="#B5701A" rx="3" />
-                  <rect x="430" y="380" width="150" height="52" fill="#F8FAFB" stroke="#1A2433" />
-                  <text x="440" y="396" fontSize="9" fill="#1A2433" fontWeight="600">
-                    施工ヤード計画図
-                  </text>
-                  <text x="440" y="410" fontSize="8" fill="#5A6678">
-                    {'DWG-014　Rev.3'}
-                  </text>
-                  <text x="440" y="422" fontSize="8" fill="#5A6678">
-                    {'S=1:500　山田 太郎'}
-                  </text>
-                  <rect x="200" y="330" width="90" height="18" fill="#FCE9E7" stroke="#C5392F" strokeDasharray="2 2" />
-                  <text x="205" y="343" fontSize="8" fill="#C5392F">
-                    用紙外にはみ出し
-                  </text>
-                </svg>
-              </div>
+              {showSampleHistory ? (
+                <div
+                  style={{
+                    width: 640,
+                    height: 452,
+                    background: '#fff',
+                    border: '2px solid #1A2433',
+                    position: 'relative',
+                    boxShadow: '0 4px 16px rgba(16,24,40,.12)',
+                  }}
+                >
+                  <svg width="100%" height="100%" viewBox="0 0 640 452">
+                    <rect x="14" y="14" width="612" height="424" fill="none" stroke="#8A97A8" strokeWidth="1" />
+                    <polygon points="60,60 560,50 580,340 80,360" fill="none" stroke="#5A6678" strokeWidth="1.5" strokeDasharray="4 3" />
+                    <rect x="90" y="260" width="100" height="50" fill="#F2F4F8" stroke="#5A6678" />
+                    <circle cx="420" cy="180" r="65" fill="rgba(224,138,43,.10)" stroke="#E08A2B" strokeWidth="1.2" strokeDasharray="3 2" />
+                    <rect x="405" y="165" width="30" height="30" fill="#B5701A" rx="3" />
+                    <rect x="430" y="380" width="150" height="52" fill="#F8FAFB" stroke="#1A2433" />
+                    <text x="440" y="396" fontSize="9" fill="#1A2433" fontWeight="600">
+                      {titleBlockDrawingName}
+                    </text>
+                    <text x="440" y="410" fontSize="8" fill="#5A6678">
+                      {previewNumberRevision}
+                    </text>
+                    <text x="440" y="422" fontSize="8" fill="#5A6678">
+                      {`S=1:500\u3000${previewAuthor}`}
+                    </text>
+                    <rect x="200" y="330" width="90" height="18" fill="#FCE9E7" stroke="#C5392F" strokeDasharray="2 2" />
+                    <text x="205" y="343" fontSize="8" fill="#C5392F">
+                      用紙外にはみ出し
+                    </text>
+                  </svg>
+                </div>
+              ) : (
+                <div
+                  style={{
+                    width: 640,
+                    height: 452,
+                    background: '#fff',
+                    border: '2px solid #1A2433',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    color: 'var(--muted)',
+                    fontSize: 12.5,
+                    boxShadow: '0 4px 16px rgba(16,24,40,.12)',
+                  }}
+                >
+                  実図面プレビューは未実装です（出力は実行できます）
+                </div>
+              )}
             </div>
           </div>
 
@@ -466,12 +527,16 @@ export function PrintExportPage() {
             <div style={panelStyle}>
               <div style={panelHeaderStyle}>出力前チェック</div>
               <div style={{ padding: '16px 18px', display: 'flex', flexDirection: 'column', gap: 10 }}>
-                <div style={{ display: 'flex', gap: 10, alignItems: 'flex-start', background: '#FCE9E7', color: '#C5392F', padding: '10px 12px', borderRadius: 8, fontSize: 12 }}>
-                  ⚠ 資材置場Bが用紙範囲外にはみ出しています。
-                </div>
-                <div style={{ display: 'flex', gap: 10, alignItems: 'flex-start', background: '#FDEFE0', color: '#B5701A', padding: '10px 12px', borderRadius: 8, fontSize: 12 }}>
-                  ⚠ 数量根拠1件が未確定です（掘削・第2工区）。
-                </div>
+                {showSampleHistory && (
+                  <>
+                    <div style={{ display: 'flex', gap: 10, alignItems: 'flex-start', background: '#FCE9E7', color: '#C5392F', padding: '10px 12px', borderRadius: 8, fontSize: 12 }}>
+                      ⚠ 資材置場Bが用紙範囲外にはみ出しています。
+                    </div>
+                    <div style={{ display: 'flex', gap: 10, alignItems: 'flex-start', background: '#FDEFE0', color: '#B5701A', padding: '10px 12px', borderRadius: 8, fontSize: 12 }}>
+                      ⚠ 数量根拠1件が未確定です（掘削・第2工区）。
+                    </div>
+                  </>
+                )}
                 <div style={{ display: 'flex', gap: 10, alignItems: 'flex-start', background: 'var(--subtle)', color: 'var(--ink2)', padding: '10px 12px', borderRadius: 8, fontSize: 12 }}>
                   ⓘ DXF出力では土木属性の一部が失われる場合があります。
                 </div>
@@ -481,13 +546,19 @@ export function PrintExportPage() {
             <div style={panelStyle}>
               <div style={panelHeaderStyle}>出力履歴</div>
               <div>
-                {history.map((row, index) => (
-                  <div key={`${row.label}-${row.date}-${index}`} style={{ display: 'flex', alignItems: 'center', gap: 14, padding: '13px 18px', borderBottom: index === history.length - 1 ? 'none' : '1px solid var(--line2)', fontSize: 12.5 }}>
-                    <span>{row.label}</span>
-                    <span style={{ flex: 1 }} />
-                    <span style={{ color: 'var(--muted)' }}>{row.date}</span>
+                {history.length === 0 ? (
+                  <div style={{ padding: '14px 18px', fontSize: 12, color: 'var(--muted)' }}>
+                    出力履歴はまだありません（実データ連携は未実装です）。
                   </div>
-                ))}
+                ) : (
+                  history.map((row, index) => (
+                    <div key={`${row.label}-${row.date}-${index}`} style={{ display: 'flex', alignItems: 'center', gap: 14, padding: '13px 18px', borderBottom: index === history.length - 1 ? 'none' : '1px solid var(--line2)', fontSize: 12.5 }}>
+                      <span>{row.label}</span>
+                      <span style={{ flex: 1 }} />
+                      <span style={{ color: 'var(--muted)' }}>{row.date}</span>
+                    </div>
+                  ))
+                )}
               </div>
             </div>
 

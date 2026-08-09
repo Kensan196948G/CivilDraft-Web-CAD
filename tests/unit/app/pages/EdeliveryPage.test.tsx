@@ -29,6 +29,14 @@ afterEach(() => {
 })
 
 describe('EdeliveryPage', () => {
+  it('本番モード（?demo=1 なし）ではサンプル案件の初期値を表示しない', () => {
+    render(<EdeliveryPage />)
+    expect(screen.getAllByDisplayValue('').length).toBeGreaterThanOrEqual(4)
+    expect(screen.queryByDisplayValue('国道245号 道路拡幅工事')).not.toBeInTheDocument()
+    expect(screen.queryByDisplayValue('R05-001-245')).not.toBeInTheDocument()
+    expect(screen.queryByDisplayValue('国土交通省 関東地方整備局')).not.toBeInTheDocument()
+  })
+
   it('基準情報・標準フォルダ案内を表示し、チェック実行で検査結果を表示する', async () => {
     render(<EdeliveryPage />)
     expect(screen.getByText('電子納品')).toBeInTheDocument()

@@ -208,4 +208,90 @@ describe('HomePage', () => {
     expect(screen.getByText('本番実案件')).toBeInTheDocument()
     expect(screen.queryByText('国道245号 道路拡幅工事')).not.toBeInTheDocument()
   })
+
+  it('本番モードで案件クリック時に onOpenProject(id) を呼び、ローカル詳細へ遷移しない', async () => {
+    const realProject: CloudProject = {
+      id: 'p-1',
+      projectNumber: 'P-REAL-001',
+      name: '本番実案件',
+      clientName: 'テスト発注者',
+      status: 'active',
+      version: 1,
+    }
+    const okClient = {
+      listProjects: vi.fn(async () => ({ ok: true, value: [realProject] })),
+    }
+    const onOpenProject = vi.fn()
+    render(
+      <EditorStoreProvider store={createEditorStore()}>
+        <HomePage
+          autosaveStore={new MemoryAutosaveStore()}
+          onOpenEditor={() => {}}
+          onOpenProject={onOpenProject}
+          cloudApiClient={okClient}
+          enableCloudData
+        />
+      </EditorStoreProvider>,
+    )
+    await screen.findByText(/共有データ接続済み/)
+    await userEvent.click(screen.getByRole('button', { name: '本番実案件' }))
+    expect(onOpenProject).toHaveBeenCalledWith('p-1')
+    expect(screen.queryByText(/案件詳細:/)).not.toBeInTheDocument()
+  })
+
+  it('本番モードの新規案件作成は API で案件と図面を作成し、実案件詳細へ遷移する', async () => {
+    const createdProject: CloudProject = {
+      id: 'p-new',
+      projectNumber: 'P-NEW-001',
+      name: '新規排水計画',
+      status: 'active',
+      version: 1,
+    }
+    const createProject = vi.fn(async () => ({ ok: true, value: createdProject }))
+    const createDrawing = vi.fn(async () => ({
+      ok: true,
+      value: { id: 'd-new', projectId: 'p-new', drawingNumber: 'DWG-001', name: '施工ヤード計画図', version: 1 },
+    }))
+    const onOpenProject = vi.fn()
+    render(
+      <EditorStoreProvider store={createEditorStore()}>
+        <HomePage
+          autosaveStore={new MemoryAutosaveStore()}
+          onOpenEditor={() => {}}
+          onOpenProject={onOpenProject}
+          cloudApiClient={{ listProjects: vi.fn(async () => ({ ok: true, value: [] })), createProject, createDrawing }}
+          enableCloudData
+        />
+      </EditorStoreProvider>,
+    )
+    await userEvent.click(screen.getByRole('button', { name: '＋ 新規案件・図面' }))
+    const projectNameInput = screen.getByDisplayValue('新規施工ヤード計画')
+    await userEvent.clear(projectNameInput)
+    await userEvent.type(projectNameInput, '新規排水計画')
+    await userEvent.click(screen.getByRole('button', { name: '案件と図面を作成' }))
+
+    await waitFor(() => expect(onOpenProject).toHaveBeenCalledWith('p-new'))
+    expect(createProject).toHaveBeenCalledWith(
+      expect.objectContaining({ name: '新規排水計画', projectNumber: expect.stringMatching(/^P-/) }),
+    )
+    expect(createDrawing).toHaveBeenCalledWith(
+      'p-new',
+      expect.objectContaining({ drawingNumber: 'DWG-001', name: '施工ヤード計画図' }),
+    )
+  })
+
+  it('本番モードではデモ下書き作成ボタンを表示しない', async () => {
+    render(
+      <EditorStoreProvider store={createEditorStore()}>
+        <HomePage
+          autosaveStore={new MemoryAutosaveStore()}
+          onOpenEditor={() => {}}
+          cloudApiClient={{ listProjects: vi.fn(async () => ({ ok: true, value: [] })) }}
+          enableCloudData
+        />
+      </EditorStoreProvider>,
+    )
+    expect(await screen.findByText('復旧候補はありません')).toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'デモ下書きを作成' })).not.toBeInTheDocument()
+  })
 })

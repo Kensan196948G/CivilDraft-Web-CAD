@@ -51,6 +51,18 @@ function rectangle(gid: string, width = 100, height = 50): Geometry {
   }
 }
 
+/** 共有保存フローのテスト用に明示する実案件セッション（デフォルトはローカル編集のため）。 */
+const CLOUD_SESSION: CloudDraftSession = {
+  projectNumber: 'P-245-ROAD-WIDENING',
+  projectName: '国道245号 道路拡幅工事',
+  clientName: 'Mirai建設',
+  drawingNumber: 'DWG-014',
+  drawingName: '施工ヤード計画図',
+  drawingType: 'temporary-yard-plan',
+  revisionNumber: 'Rev.3',
+  changeSummary: 'CAD編集画面から共有保存',
+}
+
 function renderPage(
   store: EditorStore,
   cloudApiClient: CloudSaveClient,
@@ -69,6 +81,16 @@ function renderPage(
 }
 
 describe('CadEditorPage cloud save', () => {
+
+  it('実案件未選択（デフォルトセッション）ではローカル編集表示になり共有保存が無効', () => {
+    const store = createEditorStore()
+    store.getState().addGeometries([line('g-local')])
+    const cloudApiClient: CloudSaveClient = { saveDraft: vi.fn(), getRevisionContent: vi.fn() }
+    renderPage(store, cloudApiClient)
+
+    expect(screen.getByText('ローカル編集（案件未選択）')).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: '共有保存' })).toBeDisabled()
+  })
 
   it('選択状態をスクリーンリーダー向けライブリージョンで通知する（Issue #120）', async () => {
     const store = createEditorStore()
@@ -179,7 +201,7 @@ describe('CadEditorPage cloud save', () => {
 
   it('図形が無い場合は共有保存を実行せず、画面に理由を表示する', async () => {
     const cloudApiClient: CloudSaveClient = { saveDraft: vi.fn(), getRevisionContent: vi.fn() }
-    renderPage(createEditorStore(), cloudApiClient)
+    renderPage(createEditorStore(), cloudApiClient, CLOUD_SESSION)
 
     await userEvent.click(screen.getByRole('button', { name: '共有保存' }))
 
@@ -203,7 +225,7 @@ describe('CadEditorPage cloud save', () => {
       }),
       getRevisionContent: vi.fn(),
     }
-    renderPage(store, cloudApiClient)
+    renderPage(store, cloudApiClient, CLOUD_SESSION)
 
     await userEvent.click(screen.getByRole('button', { name: '共有保存' }))
 
@@ -281,7 +303,7 @@ describe('CadEditorPage cloud save', () => {
       }),
       getRevisionContent: vi.fn(),
     }
-    renderPage(store, cloudApiClient)
+    renderPage(store, cloudApiClient, CLOUD_SESSION)
 
     await userEvent.click(screen.getByRole('button', { name: '共有保存' }))
 
@@ -324,7 +346,7 @@ describe('CadEditorPage cloud save', () => {
         },
       }),
     }
-    renderPage(store, cloudApiClient)
+    renderPage(store, cloudApiClient, CLOUD_SESSION)
 
     // 1回目: 正常保存で lastCloudRevisionId が確定する
     await userEvent.click(screen.getByRole('button', { name: '共有保存' }))
@@ -365,7 +387,7 @@ describe('CadEditorPage cloud save', () => {
         },
       }),
     }
-    renderPage(store, cloudApiClient)
+    renderPage(store, cloudApiClient, CLOUD_SESSION)
 
     await userEvent.click(screen.getByRole('button', { name: '共有保存' }))
     await screen.findByText(/共有保存済み/)
@@ -401,7 +423,7 @@ describe('CadEditorPage cloud save', () => {
         },
       }),
     }
-    renderPage(store, cloudApiClient)
+    renderPage(store, cloudApiClient, CLOUD_SESSION)
 
     await userEvent.click(screen.getByRole('button', { name: '共有保存' }))
     await screen.findByText(/共有保存済み/)
@@ -692,7 +714,7 @@ describe('CadEditorPage キーボードショートカットとA11y（#47）', (
   it('チェックアウト→チェックインをトグルでき、localStorage へ永続化される', () => {
     localStorage.removeItem('cd:checkout:DWG-014')
     const store = createEditorStore()
-    renderPage(store, makeCloudClient())
+    renderPage(store, makeCloudClient(), CLOUD_SESSION)
 
     fireEvent.click(screen.getByRole('button', { name: 'チェックアウト' }))
     expect(screen.getByText(/チェックアウト中/)).toBeInTheDocument()

@@ -32,6 +32,7 @@ import {
   type Section,
   type SectionPoint,
 } from '@/domain/sections'
+import { isDemoMode } from '@/app/mode'
 import type { SurveyPointId } from '@/shared/types'
 import {
   monoStyle,
@@ -53,6 +54,8 @@ import {
 export interface CrossSectionPageProps {
   /** 初期断面（省略時は空 → 空状態）。将来のデータ層結線・テスト用の注入口。 */
   readonly initialSections?: readonly Section[]
+  /** 本番モードでは false を渡すとサンプル断面の読込ボタンを表示しない（?demo=1 時は表示）。 */
+  readonly enableSampleData?: boolean
 }
 
 const MM2_PER_M2 = 1_000_000
@@ -252,9 +255,10 @@ const cardSubStyle: CSSProperties = { fontSize: 11, color: 'var(--muted)' }
 const WARN_BADGE = { color: '#C5392F', bg: '#FBE9E7' } as const
 const INFO_BADGE = { color: '#B5701A', bg: '#FDEFE0' } as const
 
-export function CrossSectionPage({ initialSections }: CrossSectionPageProps = {}) {
+export function CrossSectionPage({ initialSections, enableSampleData = true }: CrossSectionPageProps = {}) {
   const [sections, setSections] = useState<readonly Section[]>(initialSections ?? [])
   const [selectedId, setSelectedId] = useState<string | null>(null)
+  const showSampleData = enableSampleData || isDemoMode()
 
   const areaRows = useMemo(
     () => sections.map((section) => ({ section, areas: computeSectionAreas(section) })),
@@ -290,13 +294,17 @@ export function CrossSectionPage({ initialSections }: CrossSectionPageProps = {}
             </div>
             <div style={{ fontSize: 12.5, color: 'var(--muted)', lineHeight: 1.7 }}>
               測点別の横断面（現況線・計画線）を読み込むと、切土・盛土面積と簡易土量を集計します。
-              案件データ層へ接続する前に、サンプル断面で機能を確認できます。
+              {showSampleData
+                ? '案件データ層へ接続する前に、サンプル断面で機能を確認できます。'
+                : '実断面データのAPI連携は未実装です（空状態で表示します）。'}
             </div>
-            <div>
-              <button type="button" style={primaryButtonStyle} onClick={loadSample}>
-                サンプル断面を読み込む
-              </button>
-            </div>
+            {showSampleData && (
+              <div>
+                <button type="button" style={primaryButtonStyle} onClick={loadSample}>
+                  サンプル断面を読み込む
+                </button>
+              </div>
+            )}
           </div>
         ) : (
           <>

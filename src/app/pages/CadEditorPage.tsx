@@ -98,14 +98,13 @@ export interface CloudDraftSession {
 }
 
 export const DEFAULT_CLOUD_DRAFT_SESSION: CloudDraftSession = {
-  projectNumber: 'P-245-ROAD-WIDENING',
-  projectName: '国道245号 道路拡幅工事',
-  clientName: 'Mirai建設',
-  drawingNumber: 'DWG-014',
-  drawingName: '施工ヤード計画図',
-  drawingType: 'temporary-yard-plan',
-  revisionNumber: 'Rev.3',
-  changeSummary: 'CAD編集画面から共有保存',
+  projectNumber: 'LOCAL',
+  projectName: 'ローカル編集（案件未選択）',
+  drawingNumber: 'LOCAL',
+  drawingName: '無題の図面',
+  drawingType: 'general',
+  revisionNumber: 'LOCAL',
+  changeSummary: 'ローカル編集の保存',
 }
 
 const GEOMETRY_TYPE_LABELS: Record<GeometryType, string> = {
@@ -788,6 +787,8 @@ export function CadEditorPage({
   const [lastCloudDrawingId, setLastCloudDrawingId] = useState<string | null>(null)
   const [cloudConflict, setCloudConflict] = useState(false)
   const checkoutKey = `cd:checkout:${cloudDraftSession.drawingNumber}`
+  /** 実案件未選択のローカル編集セッション（共有保存は無効化して誤作成を防ぐ）。 */
+  const isLocalCloudSession = cloudDraftSession.projectNumber === 'LOCAL'
   const [checkout, setCheckout] = useState<DrawingCheckout | null>(() => {
     try {
       const raw = localStorage.getItem(checkoutKey)
@@ -1230,6 +1231,13 @@ export function CadEditorPage({
       setCloudSaveStatus({ ok: false, text: '共有保存できる図形がありません' })
       return
     }
+    if (isLocalCloudSession) {
+      setCloudSaveStatus({
+        ok: false,
+        text: '共有保存するにはホーム/案件詳細から実案件・図面を選択してください（ローカル編集は保存されません）',
+      })
+      return
+    }
     setCloudSaving(true)
     setCloudConflict(false)
     setCloudSaveStatus({ ok: true, text: '共有保存中...' })
@@ -1455,7 +1463,7 @@ export function CadEditorPage({
       label: '共有保存',
       keywords: ['save', 'cloud', 'upload'],
       icon: '☁',
-      disabled: paletteState.geometries.length === 0,
+      disabled: paletteState.geometries.length === 0 || isLocalCloudSession,
       run: () => {
         void runCloudSave()
       },
@@ -1582,7 +1590,12 @@ export function CadEditorPage({
         </button>
         <button
           style={ghostButtonStyle}
-          disabled={cloudSaving}
+          disabled={cloudSaving || isLocalCloudSession}
+          title={
+            isLocalCloudSession
+              ? '実案件を選択すると共有保存できます（現在はローカル編集）'
+              : undefined
+          }
           onClick={() => {
             void runCloudSave()
           }}

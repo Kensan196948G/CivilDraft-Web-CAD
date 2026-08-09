@@ -8,6 +8,7 @@
  */
 import { useState } from 'react'
 import type { CSSProperties } from 'react'
+import { isDemoMode } from '@/app/mode'
 import {
   DELIVERY_FOLDERS,
   DELIVERY_STANDARD,
@@ -86,10 +87,11 @@ function severityColor(severity: ValidationIssue['severity']): string {
 }
 
 export function EdeliveryPage() {
-  const [projectName, setProjectName] = useState('国道245号 道路拡幅工事')
-  const [projectNumber, setProjectNumber] = useState('R05-001-245')
-  const [orderer, setOrderer] = useState('国土交通省 関東地方整備局')
-  const [workType, setWorkType] = useState('道路改良工事')
+  const showSampleData = isDemoMode()
+  const [projectName, setProjectName] = useState(showSampleData ? '国道245号 道路拡幅工事' : '')
+  const [projectNumber, setProjectNumber] = useState(showSampleData ? 'R05-001-245' : '')
+  const [orderer, setOrderer] = useState(showSampleData ? '国土交通省 関東地方整備局' : '')
+  const [workType, setWorkType] = useState(showSampleData ? '道路改良工事' : '')
   const [clientName, setClientName] = useState('')
   const [rows, setRows] = useState<readonly EdeliveryFileRow[]>([newRow()])
   const [issues, setIssues] = useState<readonly ValidationIssue[] | null>(null)

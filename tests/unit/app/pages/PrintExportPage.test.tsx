@@ -45,6 +45,20 @@ afterEach(() => {
 })
 
 describe('PrintExportPage', () => {
+  it('本番モード（enableSampleHistory=false）では初期サンプル履歴を表示しない', () => {
+    render(
+      <EditorStoreProvider store={createEditorStore()}>
+        <PrintExportPage enableSampleHistory={false} />
+      </EditorStoreProvider>,
+    )
+    expect(screen.getByText(/出力履歴はまだありません/)).toBeInTheDocument()
+    expect(screen.queryByText('PDF・Rev.2')).not.toBeInTheDocument()
+    expect(screen.queryByText('DXF・Rev.1')).not.toBeInTheDocument()
+    expect(screen.getByText(/実図面プレビューは未実装です/)).toBeInTheDocument()
+    expect(screen.queryByText(/資材置場Bが用紙範囲外にはみ出しています/)).not.toBeInTheDocument()
+    expect(screen.queryByText(/数量根拠1件が未確定です/)).not.toBeInTheDocument()
+  })
+
   it('指定された出力画面を表示し、PDF/DXF/CSVを出力して履歴へ追加する', async () => {
     const blobs = mockDownloads()
     const store = createEditorStore()
@@ -68,4 +82,5 @@ describe('PrintExportPage', () => {
     expect(screen.getByText(/出力完了:/)).toBeInTheDocument()
     expect(screen.getByText(/PDF・DXF・CSV・Rev\.3/)).toBeInTheDocument()
   })
+
 })

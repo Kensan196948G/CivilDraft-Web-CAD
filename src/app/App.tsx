@@ -81,10 +81,17 @@ function AppShell() {
   const [theme, setTheme] = useState<'light' | 'dark'>(loadTheme)
   const [autosaveStore] = useState<AutosaveStore>(() => createAutosaveStore())
   const [cloudDraftSession, setCloudDraftSession] = useState<CloudDraftSession>(DEFAULT_CLOUD_DRAFT_SESSION)
+  const [selectedProjectId, setSelectedProjectId] = useState<string | null>(null)
 
   const openEditor = (session: CloudDraftSession = DEFAULT_CLOUD_DRAFT_SESSION) => {
     setCloudDraftSession(session)
     setView('editor')
+  }
+
+  /** ホームの実案件選択から共有の案件詳細画面へ遷移する（Issue #62）。 */
+  const openProjectDetail = (projectId: string) => {
+    setSelectedProjectId(projectId)
+    setView('project')
   }
 
   // ビューレジストリ: サイドバー右側へ表示するページ群。
@@ -92,21 +99,28 @@ function AppShell() {
   const sidebarPages = useMemo<Partial<Record<AppView, React.ReactElement>>>(
     () => ({
       editor: <CadEditorPage autosaveStore={autosaveStore} onNavigate={setView} cloudDraftSession={cloudDraftSession} />,
-      project: <ProjectDetailPage onOpenEditor={openEditor} />,
+      project: (
+        <ProjectDetailPage
+          projectId={selectedProjectId ?? undefined}
+          onOpenEditor={openEditor}
+          onNavigateHome={() => setView('home')}
+          enableCloudData={import.meta.env.MODE === 'production'}
+        />
+      ),
       drawingSettings: <DrawingSettingsPage />,
-      survey: <SurveyPointsPage />,
+      survey: <SurveyPointsPage enableSampleData={import.meta.env.MODE !== 'production'} />,
       parts: <PartsPalettePage onOpenEditor={() => openEditor()} />,
       quantity: <QuantitySummaryPage onNavigate={(view) => setView(view as AppView)} />,
-      section: <CrossSectionPage />,
+      section: <CrossSectionPage enableSampleData={import.meta.env.MODE !== 'production'} />,
       steps: <ConstructionStepsPage />,
       compare: <DrawingComparePage autosaveStore={autosaveStore} />,
-      approval: <ReviewApprovalPage />,
-      print: <PrintExportPage />,
+      approval: <ReviewApprovalPage enableCloudData={import.meta.env.MODE === 'production'} />,
+      print: <PrintExportPage enableSampleHistory={import.meta.env.MODE !== 'production'} />,
       delivery: <EdeliveryPage />,
-      audit: <AuditLogPage />,
-      settings: <SystemSettingsPage />,
+      audit: <AuditLogPage enableSampleFallback={import.meta.env.MODE !== 'production'} />,
+      settings: <SystemSettingsPage enableSampleData={import.meta.env.MODE !== 'production'} />,
     }),
-    [autosaveStore, cloudDraftSession],
+    [autosaveStore, cloudDraftSession, selectedProjectId],
   )
 
   const implementedViews: readonly AppView[] = [
@@ -157,6 +171,7 @@ function AppShell() {
           <HomePage
             autosaveStore={autosaveStore}
             onOpenEditor={() => openEditor()}
+            onOpenProject={openProjectDetail}
             enableCloudData={import.meta.env.MODE === 'production'}
           />
         )}

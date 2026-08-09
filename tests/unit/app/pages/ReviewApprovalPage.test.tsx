@@ -9,6 +9,14 @@ async function switchToSupervisor() {
 }
 
 describe('ReviewApprovalPage', () => {
+  it('本番モード（enableCloudData）ではデモロール切替とサンプル改訂を表示しない', () => {
+    render(<ReviewApprovalPage enableCloudData />)
+    expect(screen.getByText('改訂データがありません')).toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: '照査依頼' })).not.toBeInTheDocument()
+    expect(screen.queryByText('Rev.1')).not.toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: '監督員（supervisor）' })).not.toBeInTheDocument()
+  })
+
   it('初期状態は draft・Rev.1 で、照査依頼ボタンと空履歴を表示する', () => {
     render(<ReviewApprovalPage />)
     expect(screen.getByText('Rev.1')).toBeInTheDocument()
@@ -104,4 +112,5 @@ describe('ReviewApprovalPage', () => {
     expect(screen.getByRole('button', { name: '新規改訂' })).toBeInTheDocument()
     expect(screen.queryByRole('button', { name: '照査依頼' })).not.toBeInTheDocument()
   })
+
 })

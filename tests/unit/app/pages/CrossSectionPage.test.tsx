@@ -32,6 +32,13 @@ describe('CrossSectionPage / 空状態', () => {
     expect(screen.getByRole('button', { name: /サンプル断面を読み込む/ })).toBeInTheDocument()
     expect(screen.queryByText('断面一覧')).not.toBeInTheDocument()
   })
+
+  it('本番モード（enableSampleData=false）ではサンプル断面ボタンを表示せず、API未実装を明示する', () => {
+    render(<CrossSectionPage enableSampleData={false} />)
+    expect(screen.getByText('断面データがありません')).toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: /サンプル断面を読み込む/ })).not.toBeInTheDocument()
+    expect(screen.getByText(/実断面データのAPI連携は未実装です/)).toBeInTheDocument()
+  })
 })
 
 describe('CrossSectionPage / サンプル読み込み', () => {
