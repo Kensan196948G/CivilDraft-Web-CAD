@@ -1,0 +1,753 @@
+openapi: 3.0.3
+info:
+  title: CivilDraft-Web-CAD API
+  version: 0.1.23
+  description: |
+    土木施工向け Web 2D CAD・図面管理（作図・数量・照査承認・監査・電子納品支援）の
+    Cloudflare Workers API 仕様（正本: `src/workers/index.ts`、詳細設計 §25）。
+    本仕様は 2026-08-10 時点の実装ルートを反映する。未実装・非推奨は各操作に明記する。
+servers:
+  - url: https://civildraft-web-cad.mirai-dx-platform.com
+    description: 本番（Cloudflare Access 保護）
+  - url: https://civildraft-web-cad.kensan1969.workers.dev
+    description: workers.dev（検証用）
+tags:
+  - name: projects
+    description: 案件
+  - name: drawings
+    description: 図面
+  - name: revisions
+    description: 改訂
+  - name: exports
+    description: 出力ジョブ
+  - name: audit
+    description: 監査ログ
+security:
+  - accessJwt: []
+paths:
+  /api/v1/projects:
+    get:
+      tags: [projects]
+      summary: 参加案件一覧
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Envelope"
+              example:
+                ok: true
+                projects: []
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+    post:
+      tags: [projects]
+      summary: 案件作成
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ProjectInput"
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Envelope"
+              example:
+                ok: true
+                project:
+                  $ref: "#/components/schemas/Project"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "429":
+          $ref: "#/components/responses/RateLimited"
+  /api/v1/projects/{projectId}:
+    parameters:
+      - $ref: "#/components/parameters/ProjectId"
+    get:
+      tags: [projects]
+      summary: 案件詳細
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Envelope"
+              example:
+                ok: true
+                project:
+                  $ref: "#/components/schemas/Project"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "404":
+          $ref: "#/components/responses/NotFound"
+    patch:
+      tags: [projects]
+      summary: 案件更新（楽観ロック）
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                name:
+                  type: string
+                clientName:
+                  type: string
+                status:
+                  type: string
+                  enum: [active, archived]
+                expectedVersion:
+                  type: integer
+              required: [expectedVersion]
+      responses:
+        "200":
+          description: OK
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "409":
+          $ref: "#/components/responses/Conflict"
+  /api/v1/projects/{projectId}/members:
+    parameters:
+      - $ref: "#/components/parameters/ProjectId"
+    get:
+      tags: [projects]
+      summary: 案件メンバー一覧
+      responses:
+        "200":
+          description: OK
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+    post:
+      tags: [projects]
+      summary: メンバー追加
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                userId:
+                  type: string
+                role:
+                  $ref: "#/components/schemas/ProjectRole"
+              required: [userId, role]
+      responses:
+        "200":
+          description: OK
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+  /api/v1/projects/{projectId}/members/{userId}:
+    parameters:
+      - $ref: "#/components/parameters/ProjectId"
+      - name: userId
+        in: path
+        required: true
+        schema:
+          type: string
+    patch:
+      tags: [projects]
+      summary: メンバー権限変更
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                role:
+                  $ref: "#/components/schemas/ProjectRole"
+              required: [role]
+      responses:
+        "200":
+          description: OK
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+    delete:
+      tags: [projects]
+      summary: メンバー削除
+      responses:
+        "200":
+          description: OK
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+  /api/v1/projects/{projectId}/drawings:
+    parameters:
+      - $ref: "#/components/parameters/ProjectId"
+    get:
+      tags: [drawings]
+      summary: 案件配下の図面一覧
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Envelope"
+              example:
+                ok: true
+                drawings: []
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+    post:
+      tags: [drawings]
+      summary: 図面作成
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                drawingNumber:
+                  type: string
+                name:
+                  type: string
+                drawingType:
+                  type: string
+                settings:
+                  type: object
+              required: [drawingNumber, name, drawingType]
+      responses:
+        "200":
+          description: OK
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+  /api/v1/drawings/{drawingId}:
+    parameters:
+      - $ref: "#/components/parameters/DrawingId"
+    get:
+      tags: [drawings]
+      summary: 図面詳細
+      responses:
+        "200":
+          description: OK
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "404":
+          $ref: "#/components/responses/NotFound"
+    patch:
+      tags: [drawings]
+      summary: 図面更新（楽観ロック）
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                name:
+                  type: string
+                drawingType:
+                  type: string
+                settings:
+                  type: object
+                expectedVersion:
+                  type: integer
+              required: [expectedVersion]
+      responses:
+        "200":
+          description: OK
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "409":
+          $ref: "#/components/responses/Conflict"
+  /api/v1/drawings/{drawingId}/checkout:
+    parameters:
+      - $ref: "#/components/parameters/DrawingId"
+    put:
+      tags: [drawings]
+      summary: チェックアウト（編集ロック取得）
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                revisionId:
+                  type: string
+      responses:
+        "200":
+          description: OK
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "409":
+          $ref: "#/components/responses/Conflict"
+    delete:
+      tags: [drawings]
+      summary: チェックイン（編集ロック解放）
+      responses:
+        "200":
+          description: OK
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+  /api/v1/drawings/{drawingId}/revisions:
+    parameters:
+      - $ref: "#/components/parameters/DrawingId"
+    post:
+      tags: [revisions]
+      summary: 改訂作成
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                revisionNumber:
+                  type: string
+                changeSummary:
+                  type: string
+                basedOnRevisionId:
+                  type: string
+              required: [revisionNumber, changeSummary]
+      responses:
+        "200":
+          description: OK
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+  /api/v1/revisions/{revisionId}:
+    parameters:
+      - $ref: "#/components/parameters/RevisionId"
+    get:
+      tags: [revisions]
+      summary: 改訂詳細
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Envelope"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "404":
+          $ref: "#/components/responses/NotFound"
+  /api/v1/revisions/{revisionId}/content:
+    parameters:
+      - $ref: "#/components/parameters/RevisionId"
+    get:
+      tags: [revisions]
+      summary: 図面コンテンツ取得
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Envelope"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+    put:
+      tags: [revisions]
+      summary: 図面コンテンツ保存（楽観ロック）
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                schemaVersion:
+                  type: integer
+                  example: 1
+                content:
+                  type: object
+                contentChecksum:
+                  type: string
+                  example: "sha256:<hex>"
+                expectedContentVersion:
+                  type: integer
+              required: [schemaVersion, content, contentChecksum]
+      responses:
+        "200":
+          description: OK
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "409":
+          $ref: "#/components/responses/Conflict"
+  /api/v1/revisions/{revisionId}/quantities:
+    parameters:
+      - $ref: "#/components/parameters/RevisionId"
+    get:
+      tags: [revisions]
+      summary: 数量明細取得
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Envelope"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+    put:
+      tags: [revisions]
+      summary: 数量明細保存
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                items:
+                  type: array
+                  items:
+                    $ref: "#/components/schemas/QuantityItem"
+                expectedQuantityVersion:
+                  type: integer
+              required: [items]
+      responses:
+        "200":
+          description: OK
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "409":
+          $ref: "#/components/responses/Conflict"
+  /api/v1/revisions/{revisionId}/workflow-actions:
+    parameters:
+      - $ref: "#/components/parameters/RevisionId"
+    post:
+      tags: [revisions]
+      summary: 照査・承認ワークフロー操作
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                action:
+                  type: string
+                  enum: [submitReview, resumeEditing, return, completeReview, approve, obsolete]
+                comment:
+                  type: string
+              required: [action]
+      responses:
+        "200":
+          description: OK
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "409":
+          $ref: "#/components/responses/Conflict"
+  /api/v1/revisions/{revisionId}/exports:
+    parameters:
+      - $ref: "#/components/parameters/RevisionId"
+    post:
+      tags: [exports]
+      summary: 出力ジョブ作成（PDF/DXF/CSV/JSON）
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                format:
+                  type: string
+                  enum: [pdf, dxf, csv, json]
+              required: [format]
+      responses:
+        "200":
+          description: OK
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+  /api/v1/exports/{exportId}:
+    parameters:
+      - name: exportId
+        in: path
+        required: true
+        schema:
+          type: string
+    get:
+      tags: [exports]
+      summary: 出力ジョブ状態取得
+      responses:
+        "200":
+          description: OK
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "404":
+          $ref: "#/components/responses/NotFound"
+  /api/v1/audit-logs:
+    get:
+      tags: [audit]
+      summary: 監査ログ一覧（フィルタ・カーソルページング）
+      parameters:
+        - name: projectId
+          in: query
+          schema:
+            type: string
+        - name: limit
+          in: query
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 500
+        - name: from
+          in: query
+          schema:
+            type: string
+            format: date-time
+        - name: to
+          in: query
+          schema:
+            type: string
+            format: date-time
+        - name: eventName
+          in: query
+          schema:
+            type: string
+        - name: actorId
+          in: query
+          schema:
+            type: string
+        - name: cursor
+          in: query
+          schema:
+            type: string
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Envelope"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+  /api/v1/audit-logs/verify:
+    get:
+      tags: [audit]
+      summary: 監査ハッシュチェーン検証
+      responses:
+        "200":
+          description: OK
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+components:
+  securitySchemes:
+    accessJwt:
+      type: http
+      scheme: bearer
+      description: |
+        Cloudflare Access が付与した JWT（`Cf-Access-Jwt-Assertion` ヘッダーでも送信可）。
+        Workers 側で RS256 / iss / aud / exp を二次検証する（fail-closed）。
+  parameters:
+    ProjectId:
+      name: projectId
+      in: path
+      required: true
+      schema:
+        type: string
+    DrawingId:
+      name: drawingId
+      in: path
+      required: true
+      schema:
+        type: string
+    RevisionId:
+      name: revisionId
+      in: path
+      required: true
+      schema:
+        type: string
+  responses:
+    Unauthorized:
+      description: 未認証・無効な JWT（fail-closed）
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/Error"
+          example:
+            ok: false
+            error:
+              code: CD-AUTH-001
+              message: Unauthenticated
+              correlationId: "<uuid>"
+    BadRequest:
+      description: バリデーションエラー
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/Error"
+          example:
+            ok: false
+            error:
+              code: CD-REQ-001
+              message: Invalid request
+              correlationId: "<uuid>"
+    NotFound:
+      description: 対象が存在しない
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/Error"
+          example:
+            ok: false
+            error:
+              code: CD-SYS-001
+              message: Not found
+              correlationId: "<uuid>"
+    Conflict:
+      description: 楽観ロック・チェックアウト競合
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/Error"
+          example:
+            ok: false
+            error:
+              code: CD-CONFLICT-001
+              message: Version conflict
+              correlationId: "<uuid>"
+    RateLimited:
+      description: レート制限超過
+      headers:
+        Retry-After:
+          schema:
+            type: integer
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/Error"
+          example:
+            ok: false
+            error:
+              code: CD-RATE-LIMITED
+              message: Rate limited
+              correlationId: "<uuid>"
+  schemas:
+    Envelope:
+      type: object
+      description: 全レスポンス共通のラッパー（成功時 ok=true、失敗時 error を含む）
+      properties:
+        ok:
+          type: boolean
+        error:
+          $ref: "#/components/schemas/ErrorPayload"
+      additionalProperties: true
+    Error:
+      type: object
+      properties:
+        ok:
+          type: boolean
+          example: false
+        error:
+          $ref: "#/components/schemas/ErrorPayload"
+    ErrorPayload:
+      type: object
+      properties:
+        code:
+          type: string
+          example: CD-AUTH-001
+        message:
+          type: string
+        correlationId:
+          type: string
+        issues:
+          type: array
+          items:
+            type: object
+    Project:
+      type: object
+      properties:
+        id:
+          type: string
+        projectNumber:
+          type: string
+        name:
+          type: string
+        clientName:
+          type: string
+        status:
+          type: string
+          enum: [active, archived]
+        createdAt:
+          type: string
+          format: date-time
+        createdBy:
+          type: string
+        updatedAt:
+          type: string
+          format: date-time
+        updatedBy:
+          type: string
+        version:
+          type: integer
+    ProjectInput:
+      type: object
+      properties:
+        projectNumber:
+          type: string
+        name:
+          type: string
+        clientName:
+          type: string
+      required: [projectNumber, name]
+    ProjectRole:
+      type: string
+      enum: [viewer, editor, reviewer, approver, manager]
+    QuantityItem:
+      type: object
+      properties:
+        id:
+          type: string
+        revisionId:
+          type: string
+        groupKey:
+          type: string
+        workType:
+          type: string
+        specification:
+          type: string
+        method:
+          type: string
+          enum: [length, area, perimeter, count, volume, manual]
+        unit:
+          type: string
+          enum: [m, m2, m3, count, set, custom]
+        rawValue:
+          type: number
+        roundedValue:
+          type: number
+        sources:
+          type: array
+          items:
+            type: object
+            properties:
+              geometryId:
+                type: string
+              contributionRaw:
+                type: number
+        status:
+          type: string
+          enum: [valid, stale, invalid, manuallyAdjusted]

@@ -12,3 +12,12 @@ createRoot(rootElement).render(
     <App />
   </StrictMode>,
 )
+
+// PWA: 本番のみ Service Worker を登録する（開発中はホットリロードと衝突しないよう無効）。
+if (import.meta.env.MODE === 'production' && 'serviceWorker' in navigator) {
+  window.addEventListener('load', () => {
+    navigator.serviceWorker.register('/sw.js').catch((error: unknown) => {
+      console.warn('Service Worker 登録に失敗しました', error)
+    })
+  })
+}

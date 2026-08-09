@@ -206,6 +206,46 @@ export function PrintExportPage({
     event.target.value = ''
   }
 
+  /** Excel（.xlsx）出力: 現在図面の数量明細をエクスポートする（数式インジェクション対策済み）。 */
+  const handleExportExcel = async () => {
+    try {
+      const s = storeApi.getState()
+      const summary = computeQuantitySummary(s.geometries)
+      if (summary.items.length === 0) {
+        setMessage('⚠️ 数量データがありません。CAD編集で図形を作成し、数量を算出してください。')
+        return
+      }
+      const { createCivilDraftWorkbook } = await import('@/domain/export/excelExporter')
+      const bytes = await createCivilDraftWorkbook(
+        summary.items.map((item) => ({
+          workType: item.workType,
+          specification: item.specification,
+          methodLabel: item.method,
+          unit: item.unit,
+          roundedValue: item.roundedValue,
+          status: item.status,
+        })),
+        [],
+        {
+          projectName: titleBlockProjectName,
+          drawingNumber: titleBlockDrawingNumber,
+          revisionNumber: titleBlockRevision,
+          generatedAt: new Date().toISOString(),
+        },
+      )
+      const blobBytes = new Uint8Array(bytes)
+      downloadBlob(
+        new Blob([blobBytes], {
+          type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+        }),
+        'civildraft-quantities.xlsx',
+      )
+      setMessage(`📊 Excel出力しました（数量 ${summary.items.length} 件）`)
+    } catch (error) {
+      setMessage(`⚠️ Excel出力に失敗しました: ${error instanceof Error ? error.message : String(error)}`)
+    }
+  }
+
   const downloadPdf = (bytes: Uint8Array, filename: string) => {
     downloadBlob(new Blob([bytes.slice()], { type: 'application/pdf' }), filename)
   }
@@ -414,6 +454,9 @@ export function PrintExportPage({
         </div>
         <div style={{ flex: 1 }} />
         {message !== null && <span style={{ fontSize: 12, color: 'var(--muted)' }}>{message}</span>}
+        <button style={ghostButtonStyle} onClick={() => void handleExportExcel()}>
+          Excel出力（数量）
+        </button>
         <button style={primaryButtonStyle} onClick={() => void runExport()}>
           出力を実行
         </button>

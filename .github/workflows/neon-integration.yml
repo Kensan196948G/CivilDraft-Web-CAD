@@ -1,0 +1,33 @@
+name: Neon Integration Tests
+
+# Neon 実接続の統合テスト（CIVILDRAFT_TEST_NEON_CONNECTION シークレット設定時のみ実行）。
+# 未設定の間はジョブ自体をスキップする（NOT RUN）。
+"on":
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+  workflow_dispatch: {}
+
+permissions:
+  contents: read
+
+jobs:
+  neon-integration:
+    name: Neon roundtrip (real connection)
+    runs-on: ubuntu-latest
+    if: ${{ secrets.CIVILDRAFT_TEST_NEON_CONNECTION != '' }}
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+        with:
+          node-version: 25
+          cache: npm
+
+      - run: npm ci
+
+      - name: Run Neon integration tests
+        env:
+          CIVILDRAFT_TEST_NEON_CONNECTION: ${{ secrets.CIVILDRAFT_TEST_NEON_CONNECTION }}
+        run: npx vitest run tests/integration/workers/

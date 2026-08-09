@@ -51,6 +51,16 @@ jobs:
           対象: https://civildraft-web-cad.mirai-dx-platform.com"
           fi
 
+      # 通知先は人間が決定するため、シークレットが設定された場合のみ Slack へ通知する。
+      - name: Notify Slack on failure
+        if: failure() && env.MONITOR_SLACK_WEBHOOK != ''
+        env:
+          MONITOR_SLACK_WEBHOOK: ${{ secrets.MONITOR_SLACK_WEBHOOK }}
+        run: |
+          curl -fsS -X POST -H 'Content-Type: application/json' \
+            --data "{\"text\":\"🚨 CivilDraft 本番ヘルスチェック失敗: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}\"}" \
+            "$MONITOR_SLACK_WEBHOOK"
+
       - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
         if: always()
         with:

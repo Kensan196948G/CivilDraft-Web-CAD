@@ -83,3 +83,47 @@ body {
   border: 2px solid transparent;
   background-clip: padding-box;
 }
+
+/* モバイルメニューボタン（デスクトップでは非表示） */
+.cd-mobile-menu-button {
+  display: none;
+  position: fixed;
+  top: 10px;
+  left: 10px;
+  z-index: 50;
+  width: 40px;
+  height: 40px;
+  border: none;
+  border-radius: 9px;
+  background: var(--side2);
+  color: var(--side-heading);
+  font-size: 18px;
+  cursor: pointer;
+  box-shadow: var(--shadow);
+}
+
+/* 幅 768px 以下: サイドバーをオーバーレイ開閉式にする */
+@media (max-width: 768px) {
+  .cd-mobile-menu-button {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+
+  .cd-sidebar-mount {
+    position: fixed;
+    top: 0;
+    bottom: 0;
+    left: 0;
+    z-index: 40;
+    box-shadow: 0 6px 24px rgba(16, 24, 40, 0.18);
+  }
+
+  .cd-sidebar-mount:not(.cd-sidebar-open) {
+    display: none;
+  }
+
+  .cd-app {
+    min-height: 100dvh;
+  }
+}
