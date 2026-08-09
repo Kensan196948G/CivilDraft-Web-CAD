@@ -23,7 +23,7 @@
  * これらは HMR の粒度にのみ影響し、実行時の正しさには無関係。
  */
 /* eslint-disable react-refresh/only-export-components */
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import type { CSSProperties } from 'react'
 import {
   computeEarthworkVolume,
@@ -35,6 +35,12 @@ import {
 import { isDemoMode } from '@/app/mode'
 import type { SurveyPointId } from '@/shared/types'
 import {
+  createCivilDraftApiClient,
+  type CivilDraftApiClient,
+  type CloudSection,
+} from '@/infrastructure/cloud/civilDraftApiClient'
+import {
+  ghostButtonStyle,
   monoStyle,
   pageHeaderStyle,
   pageMainStyle,
@@ -56,6 +62,10 @@ export interface CrossSectionPageProps {
   readonly initialSections?: readonly Section[]
   /** 本番モードでは false を渡すとサンプル断面の読込ボタンを表示しない（?demo=1 時は表示）。 */
   readonly enableSampleData?: boolean
+  /** 実案件の改訂 ID。設定時は断面データ API（GET/PUT /sections）と連携する。 */
+  readonly revisionId?: string
+  /** テスト用の API クライアント注入（省略時は既定クライアント）。 */
+  readonly apiClient?: CivilDraftApiClient
 }
 
 const MM2_PER_M2 = 1_000_000
@@ -255,10 +265,79 @@ const cardSubStyle: CSSProperties = { fontSize: 11, color: 'var(--muted)' }
 const WARN_BADGE = { color: '#C5392F', bg: '#FBE9E7' } as const
 const INFO_BADGE = { color: '#B5701A', bg: '#FDEFE0' } as const
 
-export function CrossSectionPage({ initialSections, enableSampleData = true }: CrossSectionPageProps = {}) {
+export function CrossSectionPage({
+  initialSections,
+  enableSampleData = true,
+  revisionId,
+  apiClient: apiClientProp,
+}: CrossSectionPageProps = {}) {
   const [sections, setSections] = useState<readonly Section[]>(initialSections ?? [])
   const [selectedId, setSelectedId] = useState<string | null>(null)
+  const [sectionVersion, setSectionVersion] = useState<number | undefined>(undefined)
+  const [cloudStatus, setCloudStatus] = useState<string | null>(null)
+  const [cloudSaving, setCloudSaving] = useState(false)
   const showSampleData = enableSampleData || isDemoMode()
+
+  const apiClient = useMemo(() => apiClientProp ?? createCivilDraftApiClient(), [apiClientProp])
+
+  // 実案件の改訂に紐づく断面データを API から読み込む（断面データ API）。
+  useEffect(() => {
+    if (revisionId === undefined) return
+    let cancelled = false
+    void apiClient
+      .getRevisionSections(revisionId)
+      .then((result) => {
+        if (cancelled) return
+        if (!result.ok) {
+          setCloudStatus(`断面データの読み込み失敗: ${result.error.message}`)
+          return
+        }
+        setSections(result.value.sections as readonly Section[])
+        setSectionVersion(result.value.sectionVersion)
+        setSelectedId(null)
+        setCloudStatus(
+          result.value.sections.length === 0
+            ? '断面データは未登録です（空状態）'
+            : `断面データを読み込みました（${result.value.sections.length} 測点）`,
+        )
+      })
+      .catch((error: unknown) => {
+        if (!cancelled) setCloudStatus(`断面データの読み込み失敗: ${String(error)}`)
+      })
+    return () => {
+      cancelled = true
+    }
+  }, [apiClient, revisionId])
+
+  const handleSaveSections = async () => {
+    if (revisionId === undefined) {
+      setCloudStatus('保存するには実案件の改訂を選択してください')
+      return
+    }
+    setCloudSaving(true)
+    setCloudStatus('断面データを保存中...')
+    try {
+      const result = await apiClient.putRevisionSections(
+        revisionId,
+        sections as readonly CloudSection[],
+        sectionVersion,
+      )
+      if (!result.ok) {
+        setCloudStatus(
+          result.error.apiErrorCode === 'CD-CONFLICT-001'
+            ? '保存失敗: サーバ上の断面データが更新されています。再読み込みしてください'
+            : `保存失敗: ${result.error.message}`,
+        )
+        return
+      }
+      setSectionVersion(result.value.sectionVersion)
+      setCloudStatus(`断面データを保存しました（v${result.value.sectionVersion}・${result.value.sections.length} 測点）`)
+    } catch (error) {
+      setCloudStatus(`保存失敗: ${error instanceof Error ? error.message : String(error)}`)
+    } finally {
+      setCloudSaving(false)
+    }
+  }
 
   const areaRows = useMemo(
     () => sections.map((section) => ({ section, areas: computeSectionAreas(section) })),
@@ -284,6 +363,19 @@ export function CrossSectionPage({ initialSections, enableSampleData = true }: C
           <div style={pageTitleStyle}>縦横断管理</div>
           <div style={pageSubtitleStyle}>測点別断面・切盛面積・簡易土量</div>
         </div>
+        {revisionId !== undefined && (
+          <button
+            type="button"
+            style={ghostButtonStyle}
+            disabled={cloudSaving}
+            onClick={() => void handleSaveSections()}
+          >
+            {cloudSaving ? '保存中...' : '断面を共有保存'}
+          </button>
+        )}
+        {cloudStatus !== null && (
+          <span style={{ fontSize: 12, color: 'var(--muted)', maxWidth: 320 }}>{cloudStatus}</span>
+        )}
       </header>
 
       <main style={pageMainStyle}>

@@ -1,5 +1,5 @@
-import { describe, expect, it } from 'vitest'
-import { render, screen, within } from '@testing-library/react'
+import { describe, expect, it, vi } from 'vitest'
+import { render, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import {
   CrossSectionPage,
@@ -10,6 +10,7 @@ import {
 } from '@/app/pages/CrossSectionPage'
 import { computeEarthworkVolume, computeSectionAreas, type Section } from '@/domain/sections'
 import type { SurveyPointId } from '@/shared/types'
+import type { CivilDraftApiClient } from '@/infrastructure/cloud/civilDraftApiClient'
 
 /** サンプル全ペアの土量を集計する（ページ内の summarizeVolume と同じ手順をテスト側で再現）。 */
 function expectedVolumes(sections: readonly Section[]): { cut: number; fill: number } {
@@ -105,6 +106,45 @@ describe('CrossSectionPage / サンプル読み込み', () => {
 
     // No.0 現況高 1000mm=1.000m、計画高 0mm=0.000m が点列に現れる。
     expect(screen.getAllByText(formatMeters(1000)).length).toBeGreaterThan(0)
+  })
+})
+
+describe('CrossSectionPage / 断面データAPI連携（改訂ID指定時）', () => {
+  it('断面を読み込み、「断面を共有保存」で PUT /sections を呼ぶ', async () => {
+    const getSections = vi.fn(async () => ({
+      ok: true as const,
+      value: {
+        revisionId: 'revision-r1',
+        sections: SAMPLE_SECTIONS.slice(0, 2),
+        sectionVersion: 1,
+        updatedAt: '2026-08-10T00:00:00.000Z',
+        updatedBy: 'engineer@example.test',
+      },
+    }))
+    const putSections = vi.fn(async () => ({
+      ok: true as const,
+      value: {
+        revisionId: 'revision-r1',
+        sections: SAMPLE_SECTIONS.slice(0, 2),
+        sectionVersion: 2,
+        updatedAt: '2026-08-10T00:00:01.000Z',
+        updatedBy: 'engineer@example.test',
+      },
+    }))
+    const apiClient = {
+      getRevisionSections: getSections,
+      putRevisionSections: putSections,
+    } as unknown as CivilDraftApiClient
+
+    render(<CrossSectionPage revisionId="revision-r1" apiClient={apiClient} enableSampleData={false} />)
+
+    await waitFor(() => expect(screen.getByText(/断面データを読み込みました/)).toBeInTheDocument())
+    expect(screen.getByRole('button', { name: 'No.0' })).toBeInTheDocument()
+
+    await userEvent.click(screen.getByRole('button', { name: '断面を共有保存' }))
+    await waitFor(() => expect(putSections).toHaveBeenCalledTimes(1))
+    expect(putSections).toHaveBeenCalledWith('revision-r1', expect.any(Array), 1)
+    await waitFor(() => expect(screen.getByText(/断面データを保存しました/)).toBeInTheDocument())
   })
 })
 

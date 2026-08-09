@@ -371,6 +371,9 @@ export function ProjectDetailCloudPage({
   }
 
   const toCloudSession = (drawing: CloudDrawing): CloudDraftSession => ({
+    projectId: data.project.id,
+    drawingId: drawing.id,
+    revisionId: drawing.activeRevisionId,
     projectNumber: data.project.projectNumber,
     projectName: data.project.name,
     clientName: data.project.clientName,

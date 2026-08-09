@@ -24,6 +24,7 @@ import type {
   QuantityItemRecord,
   QuantitySnapshotRecord,
   RevisionRecord,
+  SectionRecord,
   WorkflowActionRecord,
 } from './apiStore'
 import { computeEntryHash } from './auditChain'
@@ -160,6 +161,14 @@ interface ContentRow extends Record<string, unknown> {
 interface QuantitySnapshotRow extends Record<string, unknown> {
   revision_id: string
   quantity_version: NumericLike
+  updated_at: TimestampLike
+  updated_by: string
+}
+
+interface SectionRow extends Record<string, unknown> {
+  revision_id: string
+  sections: unknown
+  section_version: NumericLike
   updated_at: TimestampLike
   updated_by: string
 }
@@ -332,6 +341,16 @@ function rowToContent(row: ContentRow): ContentRecord {
     schemaVersion: toNumber(row.schema_version),
     contentVersion: toNumber(row.content_version),
     updatedAt: toIsoString(row.updated_at),
+  }
+}
+
+function rowToSections(row: SectionRow): SectionRecord {
+  return {
+    revisionId: row.revision_id,
+    sections: row.sections,
+    sectionVersion: toNumber(row.section_version),
+    updatedAt: toIsoString(row.updated_at),
+    updatedBy: row.updated_by,
   }
 }
 
@@ -518,6 +537,7 @@ export class NeonApiStore implements ApiStore {
   readonly revisions = new Map<string, RevisionRecord>()
   readonly contents = new Map<string, ContentRecord>()
   readonly quantities = new Map<string, QuantitySnapshotRecord>()
+  readonly sections = new Map<string, SectionRecord>()
   readonly workflowActions: WorkflowActionRecord[] = []
   readonly exportJobs = new Map<string, ExportJobRecord>()
   readonly auditLogs: AuditLogRecord[] = []
@@ -623,6 +643,13 @@ export class NeonApiStore implements ApiStore {
     }
   }
 
+  async #loadSections(): Promise<void> {
+    const rows = await this.#sql`SELECT * FROM revision_sections` as SectionRow[]
+    for (const row of rows) {
+      this.sections.set(row.revision_id, rowToSections(row))
+    }
+  }
+
   async #loadWorkflowActions(): Promise<void> {
     const rows = await this.#sql`SELECT * FROM workflow_actions ORDER BY occurred_at` as WorkflowActionRow[]
     for (const row of rows) {
@@ -663,6 +690,7 @@ export class NeonApiStore implements ApiStore {
       this.#loadRevisions(),
       this.#loadContents(),
       this.#loadQuantities(),
+      this.#loadSections(),
       this.#loadWorkflowActions(),
       this.#loadExportJobs(),
       this.#loadAuditLogs(),
@@ -728,6 +756,7 @@ export class NeonApiStore implements ApiStore {
           await Promise.all([
             this.#loadContentByRevision(revision.id),
             this.#loadQuantitiesByRevision(revision.id),
+            this.#loadSectionsByRevision(revision.id),
             this.#loadAuditTail(),
             ...(drawing
               ? [
@@ -858,6 +887,14 @@ export class NeonApiStore implements ApiStore {
     }
   }
 
+  async #loadSectionsByRevision(revisionId: string): Promise<void> {
+    const rows =
+      await this.#sql`SELECT * FROM revision_sections WHERE revision_id = ${revisionId}` as SectionRow[]
+    for (const row of rows) {
+      this.sections.set(row.revision_id, rowToSections(row))
+    }
+  }
+
   async #loadExportJobById(exportId: string): Promise<ExportJobRow | undefined> {
     const rows = await this.#sql`SELECT * FROM export_jobs WHERE id = ${exportId}` as ExportJobRow[]
     const row = rows[0]
@@ -974,6 +1011,13 @@ export class NeonApiStore implements ApiStore {
         ? []
         : ((await this.#sql`SELECT quantity_item_id, geometry_id, contribution_raw FROM quantity_sources WHERE quantity_item_id = ANY(${itemIds}) ORDER BY id`) as QuantitySourceRow[])
     return this.#rowsToQuantities(snapshots, itemRows, sourceRows)[0]
+  }
+
+  async querySections(revisionId: string): Promise<SectionRecord | undefined> {
+    const rows =
+      await this.#sql`SELECT revision_id, sections, section_version, updated_at, updated_by FROM revision_sections WHERE revision_id = ${revisionId}` as SectionRow[]
+    const row = rows[0]
+    return row ? rowToSections(row) : undefined
   }
 
   async queryCheckout(drawingId: string): Promise<DrawingCheckoutRecord | undefined> {
@@ -1143,6 +1187,36 @@ export class NeonApiStore implements ApiStore {
       throw new VersionConflictError('quantity_snapshots', expectedQuantityVersion)
     }
     this.quantities.set(snapshot.revisionId, snapshot)
+  }
+
+  /** Insert or update a revision's section data with optimistic version check. */
+  async persistSections(record: SectionRecord, expectedSectionVersion?: number): Promise<void> {
+    const json = JSON.stringify(record.sections)
+    if (expectedSectionVersion === undefined) {
+      await this.#sql`
+        INSERT INTO revision_sections (revision_id, sections, section_version, updated_at, updated_by)
+        VALUES (${record.revisionId}, ${json}, ${record.sectionVersion}, ${record.updatedAt}, ${record.updatedBy})
+        ON CONFLICT (revision_id) DO UPDATE SET
+          sections = EXCLUDED.sections,
+          section_version = EXCLUDED.section_version,
+          updated_at = EXCLUDED.updated_at,
+          updated_by = EXCLUDED.updated_by
+      `
+    } else {
+      const rows = (await this.#sql`
+        UPDATE revision_sections SET
+          sections = ${json},
+          section_version = ${record.sectionVersion},
+          updated_at = ${record.updatedAt},
+          updated_by = ${record.updatedBy}
+        WHERE revision_id = ${record.revisionId} AND section_version = ${expectedSectionVersion}
+        RETURNING revision_id
+      `) as { revision_id: string }[]
+      if (rows.length === 0) {
+        throw new VersionConflictError('revision_sections', expectedSectionVersion)
+      }
+    }
+    this.sections.set(record.revisionId, record)
   }
 
   /** Append a workflow action. */

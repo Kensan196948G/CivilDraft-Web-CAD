@@ -42,6 +42,7 @@ import type {
   QuantityStatus,
   QuantityUnit,
   RevisionRecord,
+  SectionRecord,
   WorkflowAction,
   WorkflowActionRecord,
 } from './apiStore'
@@ -258,6 +259,8 @@ export const API_ROUTES: readonly ApiRoute[] = [
   route('PUT', '/api/v1/revisions/{revisionId}/content', 'draft内容更新'),
   route('GET', '/api/v1/revisions/{revisionId}/quantities', '数量取得'),
   route('PUT', '/api/v1/revisions/{revisionId}/quantities', '数量スナップショット更新'),
+  route('GET', '/api/v1/revisions/{revisionId}/sections', '断面データ取得'),
+  route('PUT', '/api/v1/revisions/{revisionId}/sections', '断面データ更新'),
   route('POST', '/api/v1/revisions/{revisionId}/workflow-actions', '提出・照査・承認等'),
   route('POST', '/api/v1/revisions/{revisionId}/exports', '出力作成'),
   route('GET', '/api/v1/exports/{exportId}', '出力状態・取得情報'),
@@ -291,6 +294,7 @@ function resolveStoreScope(matched: RouteMatch): NeonStoreScope | undefined {
     case '/api/v1/revisions/{revisionId}':
     case '/api/v1/revisions/{revisionId}/content':
     case '/api/v1/revisions/{revisionId}/quantities':
+    case '/api/v1/revisions/{revisionId}/sections':
       // SQL-first 読み取り経路（#114 Phase 2）: GET は queryX で個別取得するため
       // Map への事前ロードを省略（revisionRead スコープ）。
       return matched.route.method === 'GET'
@@ -1833,6 +1837,129 @@ async function putRevisionQuantities(
   return jsonResponse(200, { quantities: snapshot }, ctx.correlationId)
 }
 
+/** 断面エンティティの最小検証（id / surveyPointId / station / 2つのポイント列）。 */
+function parseSection(value: unknown, index: number): unknown {
+  if (typeof value !== 'object' || value === null || Array.isArray(value)) {
+    throw new ValidationError(`sections[${index}] must be an object`)
+  }
+  const record = value as Record<string, unknown>
+  if (typeof record.id !== 'string' || record.id === '') {
+    throw new ValidationError(`sections[${index}].id is required`)
+  }
+  if (typeof record.surveyPointId !== 'string' || record.surveyPointId === '') {
+    throw new ValidationError(`sections[${index}].surveyPointId is required`)
+  }
+  if (typeof record.station !== 'number' || !Number.isFinite(record.station)) {
+    throw new ValidationError(`sections[${index}].station must be a finite number`)
+  }
+  for (const key of ['existingGround', 'plannedGround'] as const) {
+    const points = record[key]
+    if (!Array.isArray(points)) {
+      throw new ValidationError(`sections[${index}].${key} must be an array`)
+    }
+    for (const point of points) {
+      if (typeof point !== 'object' || point === null || Array.isArray(point)) {
+        throw new ValidationError(`sections[${index}].${key} items must be { offset, elevation } objects`)
+      }
+      const p = point as Record<string, unknown>
+      if (
+        typeof p.offset !== 'number' ||
+        !Number.isFinite(p.offset) ||
+        typeof p.elevation !== 'number' ||
+        !Number.isFinite(p.elevation)
+      ) {
+        throw new ValidationError(`sections[${index}].${key} items must be { offset, elevation } objects`)
+      }
+    }
+  }
+  return value
+}
+
+async function getRevisionSections(
+  store: ApiStore,
+  ctx: RequestContext,
+  revisionId: string,
+): Promise<Response> {
+  const resolved = await getRevisionWithDrawingAsync(store, ctx, revisionId, 'view')
+  if (isResponse(resolved)) return resolved
+  const record = (await store.querySections?.(revisionId)) ?? store.sections.get(revisionId) ?? {
+    revisionId,
+    sections: [],
+    sectionVersion: 0,
+    updatedAt: resolved.revision.updatedAt,
+    updatedBy: resolved.revision.updatedBy,
+  }
+  return jsonResponse(200, { sections: record }, ctx.correlationId)
+}
+
+async function putRevisionSections(
+  store: ApiStore,
+  ctx: RequestContext,
+  revisionId: string,
+  body: Record<string, unknown>,
+): Promise<Response> {
+  const resolved = getRevisionWithDrawing(store, ctx, revisionId, 'edit')
+  if (isResponse(resolved)) return resolved
+  const { revision, drawing } = resolved
+  if (!['draft', 'returned'].includes(revision.status)) {
+    return errorResponse(
+      409,
+      ERROR_CODES.conflict,
+      '断面データはdraft/returnedの改訂だけ更新できます',
+      ctx.correlationId,
+    )
+  }
+  if (!Array.isArray(body.sections)) {
+    throw new ValidationError('sections must be an array')
+  }
+  const sections = body.sections.map((section, index) => parseSection(section, index))
+  const previous = store.sections.get(revisionId)
+  const expectedSectionVersion =
+    optionalNonNegativeInteger(body.expectedSectionVersion, 'expectedSectionVersion') ??
+    optionalNonNegativeInteger(
+      ctx.url.searchParams.get('expectedSectionVersion'),
+      'expectedSectionVersion',
+    )
+  if (previous && expectedSectionVersion === undefined) {
+    return errorResponse(
+      428,
+      ERROR_CODES.preconditionRequired,
+      '既存断面データの更新には expectedSectionVersion が必要です',
+      ctx.correlationId,
+    )
+  }
+  if (previous && expectedSectionVersion !== previous.sectionVersion) {
+    return errorResponse(
+      409,
+      ERROR_CODES.conflict,
+      `sectionVersion が一致しません（expected=${expectedSectionVersion}, current=${previous.sectionVersion}）`,
+      ctx.correlationId,
+    )
+  }
+  const updatedAt = nowIso()
+  const record: SectionRecord = {
+    revisionId,
+    sections,
+    sectionVersion: (previous?.sectionVersion ?? 0) + 1,
+    updatedAt,
+    updatedBy: ctx.actorId,
+  }
+  if (store.persistSections !== undefined) {
+    await store.persistSections(record, previous?.sectionVersion)
+  } else {
+    store.sections.set(revisionId, record)
+  }
+  appendAudit(store, ctx, {
+    eventName: 'revision.sections.updated',
+    projectId: drawing.projectId,
+    entityType: 'revision',
+    entityId: revisionId,
+    result: 'success',
+    detail: { sectionVersion: record.sectionVersion, sectionCount: sections.length },
+  })
+  return jsonResponse(200, { sections: record }, ctx.correlationId)
+}
+
 async function postWorkflowAction(
   store: ApiStore,
   ctx: RequestContext,
@@ -2287,6 +2414,15 @@ async function dispatchApiRoute(
       return getRevisionQuantities(store, ctx, requireParam(matched.params, 'revisionId'))
     case 'PUT /api/v1/revisions/{revisionId}/quantities':
       return await putRevisionQuantities(
+        store,
+        ctx,
+        requireParam(matched.params, 'revisionId'),
+        await readJsonObject(request),
+      )
+    case 'GET /api/v1/revisions/{revisionId}/sections':
+      return getRevisionSections(store, ctx, requireParam(matched.params, 'revisionId'))
+    case 'PUT /api/v1/revisions/{revisionId}/sections':
+      return await putRevisionSections(
         store,
         ctx,
         requireParam(matched.params, 'revisionId'),

@@ -115,7 +115,12 @@ function AppShell() {
       survey: <SurveyPointsPage enableSampleData={import.meta.env.MODE !== 'production'} />,
       parts: <PartsPalettePage onOpenEditor={() => openEditor()} />,
       quantity: <QuantitySummaryPage onNavigate={(view) => setView(view as AppView)} />,
-      section: <CrossSectionPage enableSampleData={import.meta.env.MODE !== 'production'} />,
+      section: (
+        <CrossSectionPage
+          enableSampleData={import.meta.env.MODE !== 'production'}
+          revisionId={cloudDraftSession.revisionId}
+        />
+      ),
       steps: <ConstructionStepsPage />,
       field: (
         <FieldExplanationPage

@@ -94,6 +94,15 @@ export interface QuantitySnapshotRecord {
   readonly updatedBy: string
 }
 
+/** 縦横断（断面）データの永続化レコード（migration 0008・断面データ API）。 */
+export interface SectionRecord {
+  readonly revisionId: string
+  readonly sections: unknown
+  readonly sectionVersion: number
+  readonly updatedAt: string
+  readonly updatedBy: string
+}
+
 export type WorkflowAction =
   | 'submitReview'
   | 'resumeEditing'
@@ -175,6 +184,7 @@ export interface ApiStore {
   readonly revisions: Map<string, RevisionRecord>
   readonly contents: Map<string, ContentRecord>
   readonly quantities: Map<string, QuantitySnapshotRecord>
+  readonly sections: Map<string, SectionRecord>
   readonly workflowActions: WorkflowActionRecord[]
   readonly exportJobs: Map<string, ExportJobRecord>
   readonly auditLogs: AuditLogRecord[]
@@ -193,6 +203,7 @@ export interface ApiStore {
   persistRevision?(revision: RevisionRecord): Promise<void>
   persistContent?(content: ContentRecord, expectedContentVersion?: number): Promise<void>
   persistQuantities?(snapshot: QuantitySnapshotRecord, expectedQuantityVersion?: number): Promise<void>
+  persistSections?(record: SectionRecord, expectedSectionVersion?: number): Promise<void>
   persistWorkflowAction?(action: WorkflowActionRecord): Promise<void>
   persistExportJob?(job: ExportJobRecord): Promise<void>
   persistAuditLog?(log: AuditLogRecord): Promise<void>
@@ -231,6 +242,7 @@ export interface ApiStore {
   queryProjectMembers?(projectId: string): Promise<readonly ProjectMemberRecord[]>
   queryContent?(revisionId: string): Promise<ContentRecord | undefined>
   queryQuantities?(revisionId: string): Promise<QuantitySnapshotRecord | undefined>
+  querySections?(revisionId: string): Promise<SectionRecord | undefined>
   /** チェックアウト状態の取得（SQL-first。無ければ Map 参照へフォールバック）。 */
   queryCheckout?(drawingId: string): Promise<DrawingCheckoutRecord | undefined>
   /**
@@ -249,6 +261,7 @@ export function createMemoryStore(): ApiStore {
     revisions: new Map(),
     contents: new Map(),
     quantities: new Map(),
+    sections: new Map(),
     workflowActions: [],
     exportJobs: new Map(),
     auditLogs: [],
