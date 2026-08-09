@@ -15,7 +15,7 @@ OpenAPI 3.0 形式で記述したものです。2026-08-10 時点のルーティ
   `GET/PATCH /api/v1/drawings/{drawingId}`・`PUT/DELETE .../checkout`
 - 改訂: `POST /api/v1/drawings/{drawingId}/revisions`・
   `GET /api/v1/revisions/{revisionId}`・`GET/PUT .../content`・
-  `GET/PUT .../quantities`・`POST .../workflow-actions`
+  `GET/PUT .../quantities`・`GET/PUT .../sections`・`POST .../workflow-actions`
 - 出力: `POST /api/v1/revisions/{revisionId}/exports`・`GET /api/v1/exports/{exportId}`
 - 監査: `GET /api/v1/audit-logs`・`GET /api/v1/audit-logs/verify`
 

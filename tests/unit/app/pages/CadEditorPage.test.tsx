@@ -127,6 +127,79 @@ describe('CadEditorPage cloud save', () => {
     expect(onNavigate).toHaveBeenCalledWith('field')
   })
 
+  it('既存改訂（実図面）を開くと内容を読み込み、「共有更新」で改訂更新APIを呼ぶ', async () => {
+    const store = createEditorStore()
+    const cloudApiClient = {
+      saveDraft: vi.fn(),
+      getRevisionContent: vi.fn(),
+      loadRevisionDraft: vi.fn(async () => ({
+        ok: true as const,
+        value: {
+          revisionId: 'revision-rev-1',
+          content: { geometries: [line('g-cloud')], layers: [createDefaultLayer()] },
+          contentVersion: 3,
+          quantityItems: [],
+          quantityVersion: 2,
+        },
+      })),
+      updateRevisionDraft: vi.fn(async () => ({
+        ok: true as const,
+        value: {
+          content: {
+            revisionId: 'revision-rev-1',
+            content: {},
+            contentVersion: 4,
+            contentChecksum: 'sha256:x',
+          },
+          quantities: {
+            revisionId: 'revision-rev-1',
+            items: [],
+            quantityVersion: 3,
+            updatedAt: '2026-08-10T00:00:00.000Z',
+            updatedBy: 'engineer@example.test',
+          },
+        },
+      })),
+    }
+    const session: CloudDraftSession = {
+      projectId: 'project-p1',
+      drawingId: 'drawing-d1',
+      revisionId: 'revision-rev-1',
+      projectNumber: 'P-001',
+      projectName: '既存図面工事',
+      drawingNumber: 'DWG-01',
+      drawingName: '仮設平面図',
+      drawingType: 'general',
+      revisionNumber: '2',
+      changeSummary: '改訂更新',
+    }
+    render(
+      <EditorStoreProvider store={store}>
+        <CadEditorPage
+          autosaveStore={new MemoryAutosaveStore()}
+          onNavigate={() => {}}
+          cloudApiClient={cloudApiClient}
+          cloudDraftSession={session}
+        />
+      </EditorStoreProvider>,
+    )
+
+    await waitFor(() => expect(cloudApiClient.loadRevisionDraft).toHaveBeenCalledWith('revision-rev-1'))
+    await waitFor(() => expect(store.getState().geometries).toHaveLength(1))
+    expect(screen.getByRole('button', { name: '共有更新' })).toBeInTheDocument()
+
+    await userEvent.click(screen.getByRole('button', { name: '共有更新' }))
+    await waitFor(() => expect(cloudApiClient.updateRevisionDraft).toHaveBeenCalledTimes(1))
+    expect(cloudApiClient.updateRevisionDraft).toHaveBeenCalledWith(
+      expect.objectContaining({
+        revisionId: 'revision-rev-1',
+        expectedContentVersion: 3,
+        expectedQuantityVersion: 2,
+      }),
+    )
+    await waitFor(() => expect(screen.getByText(/既存図面を更新しました/)).toBeInTheDocument())
+  })
+
   it('コマンドラインから undo / layer / help を実行できる（Issue #47）', async () => {
     const store = createEditorStore()
     store.getState().dispatchCommand(createAddGeometryCommand(line('g-1'), defaultCreationContext))

@@ -46,8 +46,11 @@ import { scheduleAutosave } from '@/infrastructure/autosave/autosaveScheduler'
 import {
   createCivilDraftApiClient,
   type CloudContent,
+  type CloudLoadRevisionResult,
+  type CloudQuantitySnapshot,
   type CloudSaveDraftInput,
   type CloudSaveDraftResult,
+  type CloudUpdateRevisionInput,
 } from '@/infrastructure/cloud/civilDraftApiClient'
 import type { Result, ValidationIssue } from '@/shared/types'
 import type {
@@ -78,6 +81,14 @@ export interface CadEditorPageProps {
 export interface CloudSaveClient {
   saveDraft(input: CloudSaveDraftInput): Promise<Result<CloudSaveDraftResult, ValidationIssue>>
   getRevisionContent(revisionId: string): Promise<Result<CloudContent, ValidationIssue>>
+  /** 既存改訂の内容・数量を読み込む（実図面の初期ロード・改訂更新配線）。 */
+  loadRevisionDraft?(
+    revisionId: string,
+  ): Promise<Result<CloudLoadRevisionResult, ValidationIssue>>
+  /** 既存改訂の内容・数量を更新する（実図面の改訂更新・楽観ロック）。 */
+  updateRevisionDraft?(
+    input: CloudUpdateRevisionInput,
+  ): Promise<Result<{ readonly content: CloudContent; readonly quantities: CloudQuantitySnapshot }, ValidationIssue>>
   /** 図面チェックイン/アウト（migration 0007）。未実装クライアントではローカルモードへフォールバック。 */
   updateCheckout?(
     drawingId: string,
@@ -87,6 +98,9 @@ export interface CloudSaveClient {
 }
 
 export interface CloudDraftSession {
+  readonly projectId?: string
+  readonly drawingId?: string
+  readonly revisionId?: string
   readonly projectNumber: string
   readonly projectName: string
   readonly clientName?: string
@@ -786,9 +800,57 @@ export function CadEditorPage({
   const [lastCloudRevisionId, setLastCloudRevisionId] = useState<string | null>(null)
   const [lastCloudDrawingId, setLastCloudDrawingId] = useState<string | null>(null)
   const [cloudConflict, setCloudConflict] = useState(false)
+  const [loadedContentVersion, setLoadedContentVersion] = useState<number | undefined>(undefined)
+  const [loadedQuantityVersion, setLoadedQuantityVersion] = useState<number | undefined>(undefined)
+  const loadedRevisionRef = useRef<string | null>(null)
   const checkoutKey = `cd:checkout:${cloudDraftSession.drawingNumber}`
   /** 実案件未選択のローカル編集セッション（共有保存は無効化して誤作成を防ぐ）。 */
   const isLocalCloudSession = cloudDraftSession.projectNumber === 'LOCAL'
+  /** 既存改訂を開いている（改訂更新モード）。 */
+  const isExistingRevision = cloudDraftSession.revisionId !== undefined
+
+  // 実図面（既存改訂）を開いた場合は、内容と数量をサーバから読み込む（改訂更新の前提）。
+  useEffect(() => {
+    const targetRevisionId = cloudDraftSession.revisionId
+    if (targetRevisionId === undefined || apiClient.loadRevisionDraft === undefined) return
+    if (loadedRevisionRef.current === targetRevisionId) return
+    let cancelled = false
+    setCloudSaving(true)
+    setCloudSaveStatus({ ok: true, text: '既存図面を読み込み中...' })
+    void apiClient
+      .loadRevisionDraft(targetRevisionId)
+      .then((result) => {
+        if (cancelled) return
+        if (!result.ok) {
+          setCloudSaveStatus({ ok: false, text: `既存図面の読み込み失敗: ${result.error.message}` })
+          return
+        }
+        if (!isDocumentContent(result.value.content)) {
+          setCloudSaveStatus({ ok: false, text: '既存図面の読み込み失敗: 図面内容の形式が不正です' })
+          return
+        }
+        storeApi.getState().replaceDocument(result.value.content.geometries, result.value.content.layers)
+        storeApi.getState().recalculateQuantities()
+        setLoadedContentVersion(result.value.contentVersion)
+        setLoadedQuantityVersion(result.value.quantityVersion)
+        loadedRevisionRef.current = targetRevisionId
+        setCloudSaveStatus({
+          ok: true,
+          text: `既存図面を読み込みました（図形${result.value.content.geometries.length}件）`,
+        })
+      })
+      .catch((error: unknown) => {
+        if (!cancelled) {
+          setCloudSaveStatus({ ok: false, text: `既存図面の読み込み失敗: ${String(error)}` })
+        }
+      })
+      .finally(() => {
+        if (!cancelled) setCloudSaving(false)
+      })
+    return () => {
+      cancelled = true
+    }
+  }, [apiClient, cloudDraftSession.revisionId, storeApi])
   const [checkout, setCheckout] = useState<DrawingCheckout | null>(() => {
     try {
       const raw = localStorage.getItem(checkoutKey)
@@ -1242,13 +1304,37 @@ export function CadEditorPage({
     setCloudConflict(false)
     setCloudSaveStatus({ ok: true, text: '共有保存中...' })
     try {
-      const result = await apiClient.saveDraft(buildCloudSaveInput(cloudDraftSession, s.geometries, s.layers))
+      const targetRevisionId = cloudDraftSession.revisionId
+      const result =
+        targetRevisionId !== undefined && apiClient.updateRevisionDraft !== undefined
+          ? await apiClient.updateRevisionDraft({
+              revisionId: targetRevisionId,
+              document: { geometries: s.geometries, layers: s.layers },
+              quantityItems: s.quantityItems,
+              expectedContentVersion: loadedContentVersion,
+              expectedQuantityVersion: loadedQuantityVersion,
+            })
+          : await apiClient.saveDraft(buildCloudSaveInput(cloudDraftSession, s.geometries, s.layers))
       if (result.ok) {
-        setLastCloudRevisionId(result.value.revision.id)
-        setLastCloudDrawingId(result.value.drawing.id)
+        const isNewDraft = 'revision' in result.value
+        const savedRevisionId =
+          isNewDraft ? result.value.revision.id : (targetRevisionId ?? null)
+        setLastCloudRevisionId(savedRevisionId)
+        setLastCloudDrawingId(
+          isNewDraft ? result.value.drawing.id : (cloudDraftSession.drawingId ?? null),
+        )
+        setLoadedContentVersion(
+          isNewDraft ? loadedContentVersion : result.value.content.contentVersion,
+        )
+        setLoadedQuantityVersion(
+          isNewDraft ? loadedQuantityVersion : result.value.quantities.quantityVersion,
+        )
+        const savedText = isNewDraft
+          ? `共有保存済み: ${result.value.project.projectNumber} / ${result.value.drawing.drawingNumber}`
+          : `既存図面を更新しました（Rev.${cloudDraftSession.revisionNumber}）`
         setCloudSaveStatus({
           ok: true,
-          text: `共有保存済み: ${result.value.project.projectNumber} / ${result.value.drawing.drawingNumber}`,
+          text: savedText,
         })
       } else {
         const isConflict =
@@ -1594,13 +1680,15 @@ export function CadEditorPage({
           title={
             isLocalCloudSession
               ? '実案件を選択すると共有保存できます（現在はローカル編集）'
-              : undefined
+              : isExistingRevision
+                ? '既存改訂へ内容・数量を保存します（楽観ロック）'
+                : undefined
           }
           onClick={() => {
             void runCloudSave()
           }}
         >
-          {cloudSaving ? '共有保存中' : '共有保存'}
+          {cloudSaving ? '保存中' : isExistingRevision ? '共有更新' : '共有保存'}
         </button>
         <button
           style={{

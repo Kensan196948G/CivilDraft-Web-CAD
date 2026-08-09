@@ -107,6 +107,49 @@ export interface CloudContent {
   readonly contentChecksum: string
 }
 
+export interface CloudQuantityItem {
+  readonly id: string
+  readonly revisionId: string
+  readonly groupKey: string
+  readonly workType?: string
+  readonly specification?: string
+  readonly method: string
+  readonly unit: string
+  readonly rawValue: number
+  readonly roundedValue: number
+  readonly sources: readonly { readonly geometryId: string; readonly contributionRaw: number }[]
+  readonly status: string
+}
+
+export interface CloudQuantitySnapshot {
+  readonly revisionId: string
+  readonly items: readonly CloudQuantityItem[]
+  readonly quantityVersion: number
+  readonly updatedAt: string
+  readonly updatedBy: string
+}
+
+export interface CloudSectionPoint {
+  readonly offset: number
+  readonly elevation: number
+}
+
+export interface CloudSection {
+  readonly id: string
+  readonly surveyPointId: string
+  readonly station: number
+  readonly existingGround: readonly CloudSectionPoint[]
+  readonly plannedGround: readonly CloudSectionPoint[]
+}
+
+export interface CloudSectionsRecord {
+  readonly revisionId: string
+  readonly sections: readonly CloudSection[]
+  readonly sectionVersion: number
+  readonly updatedAt: string
+  readonly updatedBy: string
+}
+
 export interface CloudExportJob {
   readonly id: string
   readonly revisionId: string
@@ -153,6 +196,22 @@ export interface CloudSaveDraftResult {
   readonly revision: CloudRevision
   readonly content: CloudContent
   readonly exportJob?: CloudExportJob
+}
+
+export interface CloudUpdateRevisionInput {
+  readonly revisionId: string
+  readonly document: CivilDraftDocument
+  readonly quantityItems: readonly CloudQuantityItem[]
+  readonly expectedContentVersion?: number
+  readonly expectedQuantityVersion?: number
+}
+
+export interface CloudLoadRevisionResult {
+  readonly revisionId: string
+  readonly content: unknown
+  readonly contentVersion: number
+  readonly quantityItems: readonly CloudQuantityItem[]
+  readonly quantityVersion: number
 }
 
 interface ApiErrorBody {
@@ -367,6 +426,109 @@ export class CivilDraftApiClient {
     const body = asRecord(response.value, 'response')
     if (!body.ok) return body
     return asRecord(body.value.content, 'content') as Result<CloudContent, ValidationIssue>
+  }
+
+  /** 数量スナップショットを取得する（GET /api/v1/revisions/:id/quantities）。 */
+  async getRevisionQuantities(
+    revisionId: string,
+  ): Promise<Result<CloudQuantitySnapshot, ValidationIssue>> {
+    const response = await this.request(`/api/v1/revisions/${encodeURIComponent(revisionId)}/quantities`)
+    if (!response.ok) return response
+    const body = asRecord(response.value, 'response')
+    if (!body.ok) return body
+    const quantities = body.value.quantities
+    if (!isRecord(quantities) || !Array.isArray(quantities.items)) {
+      return fail('CLOUD_API_SCHEMA', 'quantities がスナップショット形式ではありません', 'quantities')
+    }
+    return ok(quantities as unknown as CloudQuantitySnapshot)
+  }
+
+  /** 数量スナップショットを保存する（PUT /api/v1/revisions/:id/quantities・楽観ロック）。 */
+  async putRevisionQuantities(
+    revisionId: string,
+    items: readonly CloudQuantityItem[],
+    expectedQuantityVersion?: number,
+  ): Promise<Result<CloudQuantitySnapshot, ValidationIssue>> {
+    const response = await this.request(`/api/v1/revisions/${encodeURIComponent(revisionId)}/quantities`, {
+      method: 'PUT',
+      body: {
+        items,
+        ...(expectedQuantityVersion === undefined ? {} : { expectedQuantityVersion }),
+      },
+    })
+    if (!response.ok) return response
+    const body = asRecord(response.value, 'response')
+    if (!body.ok) return body
+    return asRecord(body.value.quantities, 'quantities') as Result<CloudQuantitySnapshot, ValidationIssue>
+  }
+
+  /**
+   * 既存改訂の内容・数量を更新する（実図面の改訂更新・楽観ロック）。
+   * コンテンツ更新が成功した後、数量を更新する（いずれか失敗時はエラーを返す）。
+   */
+  async updateRevisionDraft(
+    input: CloudUpdateRevisionInput,
+  ): Promise<Result<{ readonly content: CloudContent; readonly quantities: CloudQuantitySnapshot }, ValidationIssue>> {
+    const content = await this.putRevisionContent(
+      input.revisionId,
+      input.document,
+      input.expectedContentVersion,
+    )
+    if (!content.ok) return content
+    const quantities = await this.putRevisionQuantities(
+      input.revisionId,
+      input.quantityItems,
+      input.expectedQuantityVersion,
+    )
+    if (!quantities.ok) return quantities
+    return ok({ content: content.value, quantities: quantities.value })
+  }
+
+  /** 既存改訂の内容・数量をまとめて読み込む（CAD編集画面の初期ロード用）。 */
+  async loadRevisionDraft(revisionId: string): Promise<Result<CloudLoadRevisionResult, ValidationIssue>> {
+    const content = await this.getRevisionContent(revisionId)
+    if (!content.ok) return content
+    const quantities = await this.getRevisionQuantities(revisionId)
+    if (!quantities.ok) return quantities
+    return ok({
+      revisionId,
+      content: content.value.content,
+      contentVersion: content.value.contentVersion,
+      quantityItems: quantities.value.items,
+      quantityVersion: quantities.value.quantityVersion,
+    })
+  }
+
+  /** 断面データを取得する（GET /api/v1/revisions/:id/sections）。 */
+  async getRevisionSections(revisionId: string): Promise<Result<CloudSectionsRecord, ValidationIssue>> {
+    const response = await this.request(`/api/v1/revisions/${encodeURIComponent(revisionId)}/sections`)
+    if (!response.ok) return response
+    const body = asRecord(response.value, 'response')
+    if (!body.ok) return body
+    const sections = body.value.sections
+    if (!isRecord(sections) || !Array.isArray(sections.sections)) {
+      return fail('CLOUD_API_SCHEMA', 'sections がレコード形式ではありません', 'sections')
+    }
+    return ok(sections as unknown as CloudSectionsRecord)
+  }
+
+  /** 断面データを保存する（PUT /api/v1/revisions/:id/sections・楽観ロック）。 */
+  async putRevisionSections(
+    revisionId: string,
+    sections: readonly CloudSection[],
+    expectedSectionVersion?: number,
+  ): Promise<Result<CloudSectionsRecord, ValidationIssue>> {
+    const response = await this.request(`/api/v1/revisions/${encodeURIComponent(revisionId)}/sections`, {
+      method: 'PUT',
+      body: {
+        sections,
+        ...(expectedSectionVersion === undefined ? {} : { expectedSectionVersion }),
+      },
+    })
+    if (!response.ok) return response
+    const body = asRecord(response.value, 'response')
+    if (!body.ok) return body
+    return asRecord(body.value.sections, 'sections') as Result<CloudSectionsRecord, ValidationIssue>
   }
 
   /**

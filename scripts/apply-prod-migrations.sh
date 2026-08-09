@@ -64,6 +64,11 @@ apply_if_missing \
   "SELECT EXISTS (SELECT 1 FROM information_schema.tables WHERE table_name='drawing_checkouts');" \
   "migrations/0007_drawing_checkouts.sql"
 
+apply_if_missing \
+  "0008 revision_sections" \
+  "SELECT EXISTS (SELECT 1 FROM information_schema.tables WHERE table_name='revision_sections');" \
+  "migrations/0008_revision_sections.sql"
+
 echo "== 適用後スキーマ状態 =="
 "${PSQL[@]}" -c "SELECT column_name || ':' || data_type FROM information_schema.columns WHERE table_name='drawing_contents' AND column_name='content';" | head -1
 "${PSQL[@]}" -c "SELECT column_default FROM information_schema.columns WHERE table_name='export_jobs' AND column_name='object_provider';" | head -1

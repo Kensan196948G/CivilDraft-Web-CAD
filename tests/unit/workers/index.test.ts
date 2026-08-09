@@ -193,10 +193,9 @@ describe('§25.1 共通ヘッダー検証', () => {
   it('neon-r2 モードで全ルート（読み書き）が接続不能時に 503 fail-closed（#66 配線後も無言フォールバックしない）', async () => {
     // #66 で書き込み系の一時停止ゲート（isPersistedWriteRoute）は撤去済み。
     // 撤去後も「アダプタ未接続で成功を偽装しない」性質は維持されることを、
-    // 23 経路全数で確認する（『一時停止』応答が残っていないことも見る）。
-    // ※19経路目は GET /api/v1/audit-logs/verify（Issue #61 監査チェーン検証）。
-    //   #119 でメンバー管理 4 経路を追加（計 23 経路）。
-    expect(API_ROUTES).toHaveLength(25)
+    // 全ルートで確認する（『一時停止』応答が残っていないことも見る）。
+    // 25 経路に 2026-08-10 の断面データ 2 経路（GET/PUT /sections）を追加（計 27 経路）。
+    expect(API_ROUTES).toHaveLength(27)
 
     for (const r of API_ROUTES) {
       const res = await handleRequest(
@@ -221,11 +220,12 @@ describe('§25.1 共通ヘッダー検証', () => {
 })
 
 describe('§25.2 ルーティング', () => {
-  it('エンドポイント一覧が仕様の22経路+監査チェーン検証（計23経路）を網羅する', () => {
-    expect(API_ROUTES).toHaveLength(25)
+  it('エンドポイント一覧が仕様の経路＋監査チェーン検証・断面データを網羅する', () => {
+    expect(API_ROUTES).toHaveLength(27)
     expect(API_ROUTES.some((r) => r.template === '/api/v1/audit-logs/verify')).toBe(true)
     expect(API_ROUTES.some((r) => r.template === '/api/v1/projects/{projectId}/members')).toBe(true)
     expect(API_ROUTES.some((r) => r.template === '/api/v1/projects/{projectId}/members/{userId}')).toBe(true)
+    expect(API_ROUTES.some((r) => r.template === '/api/v1/revisions/{revisionId}/sections')).toBe(true)
   })
 
   it('P0縦線: Project作成 → Drawing作成 → Revision作成 → Content/数量保存 → 承認 → Export → Audit記録', async () => {

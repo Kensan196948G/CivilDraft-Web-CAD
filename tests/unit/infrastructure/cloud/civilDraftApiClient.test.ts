@@ -126,6 +126,124 @@ describe('CivilDraftApiClient', () => {
     expect(loaded.value.contentVersion).toBe(1)
   })
 
+  it('既存改訂の数量取得/保存と loadRevisionDraft / updateRevisionDraft が動作する', async () => {
+    const env: WorkerEnv = { CIVILDRAFT_API_MODE: 'memory', CIVILDRAFT_DEV_STORE: createMemoryStore() }
+    const client = makeClient(env)
+    const document = makeDocument()
+
+    const saved = await client.saveDraft({
+      project: { projectNumber: 'P-REV-001', name: '改訂更新検証工事' },
+      drawing: { drawingNumber: 'DWG-REV-001', name: '掘削計画図', drawingType: 'excavation-plan' },
+      revision: { revisionNumber: '1', changeSummary: '初版' },
+      document,
+    })
+    expect(saved.ok).toBe(true)
+    if (!saved.ok) return
+    const revisionId = saved.value.revision.id
+
+    const initialQuantities = await client.getRevisionQuantities(revisionId)
+    expect(initialQuantities.ok).toBe(true)
+    if (!initialQuantities.ok) return
+    expect(initialQuantities.value.items).toEqual([])
+    expect(initialQuantities.value.quantityVersion).toBe(0)
+
+    const quantityItems = [
+      {
+        id: 'qty-1',
+        revisionId,
+        groupKey: '掘削工',
+        workType: '掘削工',
+        specification: '床掘削',
+        method: 'volume',
+        unit: 'm3',
+        rawValue: 12,
+        roundedValue: 12,
+        sources: [],
+        status: 'valid',
+      },
+    ]
+    const putQuantities = await client.putRevisionQuantities(revisionId, quantityItems)
+    expect(putQuantities.ok).toBe(true)
+    if (!putQuantities.ok) return
+    expect(putQuantities.value.items).toHaveLength(1)
+    expect(putQuantities.value.quantityVersion).toBe(1)
+
+    const loaded = await client.loadRevisionDraft(revisionId)
+    expect(loaded.ok).toBe(true)
+    if (!loaded.ok) return
+    expect(loaded.value.content).toEqual(document)
+    expect(loaded.value.contentVersion).toBe(1)
+    expect(loaded.value.quantityItems).toHaveLength(1)
+    expect(loaded.value.quantityVersion).toBe(1)
+
+    const updated = await client.updateRevisionDraft({
+      revisionId,
+      document,
+      quantityItems,
+      expectedContentVersion: 1,
+      expectedQuantityVersion: 1,
+    })
+    expect(updated.ok).toBe(true)
+    if (!updated.ok) return
+    expect(updated.value.content.contentVersion).toBe(2)
+    expect(updated.value.quantities.quantityVersion).toBe(2)
+  })
+
+  it('断面データAPI（GET/PUT /sections）が楽観ロック付きで動作する', async () => {
+    const env: WorkerEnv = { CIVILDRAFT_API_MODE: 'memory', CIVILDRAFT_DEV_STORE: createMemoryStore() }
+    const client = makeClient(env)
+
+    const saved = await client.saveDraft({
+      project: { projectNumber: 'P-SEC-001', name: '断面API検証工事' },
+      drawing: { drawingNumber: 'DWG-SEC-001', name: '縦断図', drawingType: 'profile' },
+      revision: { revisionNumber: '1', changeSummary: '初版' },
+      document: makeDocument(),
+    })
+    expect(saved.ok).toBe(true)
+    if (!saved.ok) return
+    const revisionId = saved.value.revision.id
+
+    const initial = await client.getRevisionSections(revisionId)
+    expect(initial.ok).toBe(true)
+    if (!initial.ok) return
+    expect(initial.value.sections).toEqual([])
+    expect(initial.value.sectionVersion).toBe(0)
+
+    const sections = [
+      {
+        id: 'sec-1',
+        surveyPointId: 'sp-1',
+        station: 0,
+        existingGround: [
+          { offset: -5000, elevation: 1000 },
+          { offset: 0, elevation: 1000 },
+          { offset: 5000, elevation: 1000 },
+        ],
+        plannedGround: [
+          { offset: -5000, elevation: 0 },
+          { offset: 0, elevation: 0 },
+          { offset: 5000, elevation: 0 },
+        ],
+      },
+    ]
+    const put = await client.putRevisionSections(revisionId, sections)
+    expect(put.ok).toBe(true)
+    if (!put.ok) return
+    expect(put.value.sectionVersion).toBe(1)
+
+    const conflict = await client.putRevisionSections(revisionId, sections, 999)
+    expect(conflict.ok).toBe(false)
+    if (!conflict.ok) {
+      expect(conflict.error.apiErrorCode).toBe('CD-CONFLICT-001')
+    }
+
+    const loaded = await client.getRevisionSections(revisionId)
+    expect(loaded.ok).toBe(true)
+    if (!loaded.ok) return
+    expect(loaded.value.sections).toHaveLength(1)
+    expect(loaded.value.sectionVersion).toBe(1)
+  })
+
   it('Workers APIの業務エラーをValidationIssueとして返し、例外で握り潰さない', async () => {
     const env: WorkerEnv = { CIVILDRAFT_API_MODE: 'neon-r2' }
     const client = makeClient(env)
