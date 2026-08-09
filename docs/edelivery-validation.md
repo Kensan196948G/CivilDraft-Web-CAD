@@ -30,11 +30,26 @@ scripts/tools/verify-pdfa.sh sample-pdfa.pdf
 VERAPDF_BIN=<verapdf のパス> scripts/tools/verify-pdfa.sh sample-pdfa.pdf
 ```
 
+verapdf バイナリ未導入でも **Docker（verapdf/cli）** があれば `verify-pdfa.sh` が自動で使用する:
+
+```bash
+docker pull verapdf/cli:latest
+scripts/tools/verify-pdfa.sh sample-pdfa.pdf
+```
+
 3. `isValid`・validationReport を確認し、警告の原因を記録する。
 4. 機械検証合格でも、発注者の電子納品要領と検査職員の確認を必須とする。
 
-> 2026-08-10 時点: 実行環境では verapdf のヘッドレス導入が対話型インストーラのため
-> 未実施（Java は利用可）。導入手順は上記のとおり。
+### 実行記録（2026-08-10）
+
+- ツール: verapdf 1.30.2（Docker イメージ `verapdf/cli:latest`・Docker 実行）
+- 検証対象: `generate-pdfa-sample.mjs` が生成するサンプル
+  （`scripts/tools/assets/DejaVuSans.ttf` 埋め込み・公式 sRGB2014 ICC 同梱）
+- 結果: **PDF/A-1b 適合**（`isCompliant="true"`・passedRules=129 / failedRules=0 / failedChecks=0）
+- 備考: 埋め込みフォントに日本語サブセット OTF（NotoSansJP）を使用した場合、
+  pdf-lib のサブセット幅情報と verapdf の検証が 6.3.6（グリフ幅整合）で非適合になることを確認。
+  適合サンプルには TTF（DejaVu Sans・Bitstream Vera ライセンス）を使用する。
+  `FONT_FILE=<ttf> node scripts/tools/generate-pdfa-sample.mjs` で差し替え可能。
 
 ## 3. SXF（P21）の外部チェック
 
