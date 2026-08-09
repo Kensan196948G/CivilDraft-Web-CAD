@@ -1,0 +1,111 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>残課題 対応手順書（索引）｜CivilDraft-Web-CAD</title>
+  <style>
+    :root {
+      --bg: #f5f7fa; --card: #ffffff; --ink: #1a2433; --muted: #5a6678;
+      --line: #dde3ec; --accent: #1f6feb; --ok: #1f8255; --warn: #b7791f;
+    }
+    * { box-sizing: border-box; }
+    body { margin: 0; background: var(--bg); color: var(--ink); font-family: "Hiragino Kaku Gothic ProN", "Noto Sans JP", Meiryo, sans-serif; line-height: 1.8; }
+    .wrap { max-width: 920px; margin: 0 auto; padding: 32px 20px 64px; }
+    header { border-bottom: 2px solid var(--accent); padding-bottom: 16px; margin-bottom: 24px; }
+    h1 { font-size: 26px; margin: 0 0 8px; }
+    .meta { color: var(--muted); font-size: 13px; }
+    h2 { font-size: 20px; margin: 36px 0 12px; }
+    table { width: 100%; border-collapse: collapse; background: var(--card); border: 1px solid var(--line); }
+    th, td { border: 1px solid var(--line); padding: 10px 12px; text-align: left; vertical-align: top; font-size: 14px; }
+    th { background: #eef2f8; }
+    code { background: #eef2f8; border-radius: 4px; padding: 2px 5px; font-size: 13px; }
+    pre { background: #141b26; color: #e6edf3; padding: 14px 16px; border-radius: 8px; overflow-x: auto; font-size: 13px; line-height: 1.6; }
+    pre code { background: none; color: inherit; padding: 0; }
+    .card { background: var(--card); border: 1px solid var(--line); border-radius: 10px; padding: 18px 20px; margin-bottom: 16px; }
+    .badge { display: inline-block; font-size: 12px; font-weight: 700; padding: 2px 10px; border-radius: 999px; }
+    .b-ok { background: #e4f3ec; color: var(--ok); }
+    .b-wait { background: #fdf0dd; color: var(--warn); }
+    .b-ext { background: #e8eefb; color: var(--accent); }
+    a { color: var(--accent); text-decoration: none; }
+    a:hover { text-decoration: underline; }
+    ul, ol { padding-left: 22px; }
+    .note { background: #fdf6e3; border-left: 4px solid var(--warn); padding: 10px 14px; border-radius: 0 6px 6px 0; font-size: 14px; }
+  </style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <h1>残課題 対応手順書（索引）</h1>
+    <div class="meta">CivilDraft-Web-CAD ・ 更新日: 2026-08-10 ・ 作成: 金曜開発枠（8/9）の続き</div>
+  </header>
+
+  <div class="card">
+    <p>本ページは、<strong>外部環境・人間実施が必要な残課題</strong>を「誰が見ても分かる詳細手順」としてまとめたものです。
+    各手順は、対象の前提・準備・実行・検証・失敗時の対処までを順番に記載しています。</p>
+  </div>
+
+  <h2>目次</h2>
+  <table>
+    <thead>
+      <tr><th>#</th><th>課題</th><th>状態</th><th>手順書</th><th>必要環境</th></tr>
+    </thead>
+    <tbody>
+      <tr>
+        <td>1</td>
+        <td>Neon 本番マイグレーション適用（0003〜0007）</td>
+        <td><span class="badge b-wait">実行待ち（人間）</span></td>
+        <td><a href="neon-migration.html">Neon マイグレーション適用手順</a></td>
+        <td>Neon コンソール / API 接続、psql</td>
+      </tr>
+      <tr>
+        <td>2</td>
+        <td>SXF 完全適合（属性エンティティ・CAD製図基準）</td>
+        <td><span class="badge b-ext">実装＋外部検証</span></td>
+        <td><a href="sxf-pdfa.html#sxf">SXF 完全適合手順</a></td>
+        <td>電子納品チェックシステム（外部）</td>
+      </tr>
+      <tr>
+        <td>2b</td>
+        <td>PDF/A 認証（ICC 埋め込み＋verapdf 検証）</td>
+        <td><span class="badge b-ext">外部検証</span></td>
+        <td><a href="sxf-pdfa.html#pdfa">PDF/A 認証手順</a></td>
+        <td>verapdf（Java）、sRGB ICC</td>
+      </tr>
+      <tr>
+        <td>3</td>
+        <td>PAdES の認証局証明書チェーン＋タイムスタンプ局（RFC 3161）</td>
+        <td><span class="badge b-ext">実装拡張＋外部連携</span></td>
+        <td><a href="pades.html">PAdES 証明書・TSA 連携手順</a></td>
+        <td>認証局、TSA、openssl</td>
+      </tr>
+    </tbody>
+  </table>
+
+  <h2>共通の注意事項</h2>
+  <div class="card">
+    <ul>
+      <li><strong>秘密情報の取り扱い</strong>: 接続文字列・秘密鍵・トークンは必ず環境変数またはシークレット管理で扱い、リポジトリへ commit しないでください。ログ出力にも含めないこと。</li>
+      <li><strong>承認ゲート</strong>: 本番 DB（Neon main）への DDL 適用、証明書・TSA の外部契約は人間の明示承認後に実行してください。</li>
+      <li><strong>検証を先に</strong>: どの手順も「適用前チェック → 適用 → 適用後チェック」の順で進め、成功を確認してから次へ進んでください。</li>
+      <li><strong>ロールバック</strong>: 各手順書の「失敗時の対処」を参照してください。</li>
+    </ul>
+  </div>
+
+  <h2>関連ファイル</h2>
+  <div class="card">
+    <table>
+      <thead><tr><th>種別</th><th>パス</th></tr></thead>
+      <tbody>
+        <tr><td>Neon 適用スクリプト</td><td><code>scripts/apply-prod-migrations.sh</code></td></tr>
+        <tr><td>Neon ハンドオフ（Markdown 版）</td><td><code>docs/operations/migration-apply-handoff.md</code></td></tr>
+        <tr><td>SXF エクスポータ実装</td><td><code>src/domain/edelivery/sxfP21.ts</code></td></tr>
+        <tr><td>PDF/A メタデータ実装</td><td><code>src/domain/pdf/pdfA.ts</code></td></tr>
+        <tr><td>PAdES 署名実装</td><td><code>src/domain/pdf/pdfSignaturePades.ts</code></td></tr>
+        <tr><td>画像墨消しツール</td><td><code>scripts/tools/redact-pdf-raster.py</code></td></tr>
+      </tbody>
+    </table>
+  </div>
+</div>
+</body>
+</html>

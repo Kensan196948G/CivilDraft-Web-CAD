@@ -1,0 +1,217 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>PAdES 証明書チェーン・タイムスタンプ局（RFC 3161）連携手順｜CivilDraft-Web-CAD</title>
+  <style>
+    :root { --bg:#f5f7fa; --card:#fff; --ink:#1a2433; --muted:#5a6678; --line:#dde3ec; --accent:#1f6feb; --ok:#1f8255; --warn:#b7791f; --err:#c5392f; }
+    * { box-sizing:border-box; }
+    body { margin:0; background:var(--bg); color:var(--ink); font-family:"Hiragino Kaku Gothic ProN","Noto Sans JP",Meiryo,sans-serif; line-height:1.8; }
+    .wrap { max-width:960px; margin:0 auto; padding:32px 20px 64px; }
+    header { border-bottom:2px solid var(--accent); padding-bottom:16px; margin-bottom:24px; }
+    h1 { font-size:26px; margin:0 0 8px; }
+    .meta { color:var(--muted); font-size:13px; }
+    h2 { font-size:20px; margin:40px 0 12px; border-left:5px solid var(--accent); padding-left:10px; }
+    h3 { font-size:16px; margin:26px 0 8px; }
+    table { width:100%; border-collapse:collapse; background:var(--card); border:1px solid var(--line); }
+    th,td { border:1px solid var(--line); padding:9px 12px; text-align:left; vertical-align:top; font-size:14px; }
+    th { background:#eef2f8; }
+    code { background:#eef2f8; border-radius:4px; padding:2px 5px; font-size:13px; }
+    pre { background:#141b26; color:#e6edf3; padding:14px 16px; border-radius:8px; overflow-x:auto; font-size:13px; line-height:1.6; }
+    pre code { background:none; color:inherit; padding:0; }
+    .card { background:var(--card); border:1px solid var(--line); border-radius:10px; padding:18px 20px; margin-bottom:16px; }
+    .note { background:#fdf6e3; border-left:4px solid var(--warn); padding:10px 14px; border-radius:0 6px 6px 0; font-size:14px; }
+    .danger { background:#fdeceb; border-left:4px solid var(--err); padding:10px 14px; border-radius:0 6px 6px 0; font-size:14px; }
+    .ok { background:#e4f3ec; border-left:4px solid var(--ok); padding:10px 14px; border-radius:0 6px 6px 0; font-size:14px; }
+    a { color:var(--accent); text-decoration:none; }
+    a:hover { text-decoration:underline; }
+    .crumb { font-size:13px; color:var(--muted); margin-bottom:12px; }
+    .toc { background:var(--card); border:1px solid var(--line); border-radius:10px; padding:14px 20px; }
+  </style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <h1>PAdES 証明書チェーン・タイムスタンプ局（RFC 3161）連携手順</h1>
+    <div class="meta">更新日: 2026-08-10</div>
+  </header>
+  <div class="crumb"><a href="index.html">← 索引へ戻る</a></div>
+
+  <div class="toc">
+    <strong>目次</strong>
+    <ol>
+      <li><a href="#now">現状（実装済みの範囲）</a></li>
+      <li><a href="#ca">認証局（CA）発行証明書チェーンの組み込み</a></li>
+      <li><a href="#tsa">タイムスタンプ局（RFC 3161）の連携</a></li>
+      <li><a href="#verify">最終検証手順</a></li>
+      <li><a href="#checklist">完了チェックリスト</a></li>
+    </ol>
+  </div>
+
+  <h2 id="now">1. 現状（実装済みの範囲）</h2>
+  <div class="card">
+    <table>
+      <thead><tr><th>項目</th><th>状態</th></tr></thead>
+      <tbody>
+        <tr><td>CMS（SignedData）生成</td><td>✅ 純 TypeScript の DER エンコーダ（signedAttrs: contentType / messageDigest / signingTime、RSA/SHA-256）</td></tr>
+        <tr><td>Detached 署名（.p7s）</td><td>✅ <code>createPadesDetachedSignature()</code></td></tr>
+        <tr><td>PDF 埋め込み署名</td><td>✅ <code>signPdfEmbedded()</code>（ByteRange・インクリメンタルアップデート・予約署名領域 4096 バイト・adbe.pkcs7.detached）</td></tr>
+        <tr><td>証明書</td><td>🟡 自己署名 X.509 証明書の自動生成（<code>generateSelfSignedCertificate()</code>）。<strong>認証局発行チェーンは未対応</strong></td></tr>
+        <tr><td>タイムスタンプ</td><td>🟡 未対応（signedAttrs の signingTime のみ。RFC 3161 TSA トークンは未付与）</td></tr>
+      </tbody>
+    </table>
+    <p>実装ファイル: <code>src/domain/pdf/pdfSignaturePades.ts</code> ・ UI: 印刷・出力画面</p>
+  </div>
+
+  <h2 id="ca">2. 認証局（CA）発行証明書チェーンの組み込み</h2>
+
+  <h3>2-1. 署名用証明書の準備</h3>
+  <div class="card">
+    <p>ブラウザ側で扱うため、秘密鍵は PKCS#8 PEM（RSA 2048/3072）を用意します。openssl で CSR を作成し、CA へ申請します。</p>
+    <pre><code># 1) 秘密鍵と CSR の作成（社内 CA / 商用 CA 共通）
+openssl req -new -newkey rsa:3072 -nodes -sha256 \
+  -keyout signer.key -out signer.csr \
+  -subj "/C=JP/O=＜組織名＞/OU=＜部署名＞/CN=＜署名者名＞"
+
+# 2) SAN が必要な場合は設定ファイルで追加
+#    [ req ] distinguished_name = dn
+#    [ san ] subjectAltName = email:signer@example.co.jp
+
+# 3) 申請内容の確認
+openssl req -in signer.csr -noout -text</code></pre>
+    <div class="note">⚠ 電子署名法上の「本人確認済み電子署名」を求める場合、商用認証局のドキュメント署名証明書（例: 各社「電子署名用証明書」）を利用してください。社内 CA の場合は運用規程（秘密鍵管理・失効）を整備してください。</div>
+  </div>
+
+  <h3>2-2. チェーン（証明書バンドル）の準備</h3>
+  <div class="card">
+    <p>CA から発行された「署名者証明書」と「中間 CA 証明書」を PEM で受け取り、連結します。</p>
+    <pre><code># signer.pem + 中間 CA を連結（順序: 署名者 → 中間 → ルートは省略可）
+cat signer-cert.pem intermediate-ca.pem > chain.pem
+
+# チェーン検証（ルート CA がある場合）
+openssl verify -CAfile root-ca.pem -untrusted intermediate-ca.pem signer-cert.pem</code></pre>
+  </div>
+
+  <h3>2-3. コード拡張（複数証明書の埋め込み）</h3>
+  <div class="card">
+    <p>現状の <code>buildSignedData(signerInfo, certificates)</code> は単一証明書を想定しています。チェーン全体（署名者＋中間）を配列で渡せるよう拡張します。</p>
+    <pre><code>// src/domain/pdf/pdfSignaturePades.ts の拡張イメージ
+// 1) 入力に chain を追加
+//    signPdfEmbedded({ ..., certificateChain?: Uint8Array[] })
+//
+// 2) buildSignedData は [0] IMPLICIT CertificateSet として
+//    証明書 SEQUENCE を連結したまま埋め込む（現在の実装のまま配列で渡す）
+//    → certificates: certificateChain ?? [certificate.certificateDer]
+//
+// 3) SignerIdentifier は「署名者証明書」の issuerAndSerialNumber を使用
+//    （自己署名時の空 Name をやめ、チェーン先頭の証明書から取得）</code></pre>
+    <div class="danger">⚠ 埋め込み領域のサイズ見直しも必要です。チェーン＋TSA トークンで 2〜4 KB 増えるため、<code>SIGNATURE_RESERVED_HEX_LEN</code>（現在 8192 = 4096 バイト）を 16384（8192 バイト）以上へ拡大してください。</div>
+  </div>
+
+  <h3>2-4. 実装後の自己検証（openssl）</h3>
+  <div class="card">
+    <pre><code># Detached（.p7s）の検証: PDF 本体と署名を分離して検証
+openssl cms -verify -inform DER -in signature.p7s \
+  -content document.pdf -CAfile chain.pem -purpose any
+
+# 埋め込み署名の検証は「ByteRange の範囲」を切り出して同様に検証する
+# （抽出方法は 4 章の検証手順を参照）</code></pre>
+  </div>
+
+  <h2 id="tsa">3. タイムスタンプ局（RFC 3161）の連携</h2>
+
+  <h3>3-1. TSA の選択</h3>
+  <div class="card">
+    <table>
+      <thead><tr><th>種類</th><th>例</th><th>備考</th></tr></thead>
+      <tbody>
+        <tr><td>商用 TSA</td><td>DigiCert / GlobalSign / SECOM 等のタイムスタンプサービス</td><td>法的証明力・監査に強い。契約・課金あり</td></tr>
+        <tr><td>公開テスト TSA</td><td>FreeTSA（freetsa.org）</td><td>動作確認用。本番利用は不可</td></tr>
+        <tr><td>社内 TSA</td><td>ADCS タイムスタンプサービス等</td><td>運用規程が要件を満たす場合</td></tr>
+      </tbody>
+    </table>
+    <div class="note">⚠ 本番利用には、発注者・監査要件に合う TSA（RFC 3161 対応・時刻の信頼性・長期検証可能なトークン）を選定してください。</div>
+  </div>
+
+  <h3>3-2. openssl で TSA の動作確認</h3>
+  <div class="card">
+    <pre><code># 1) タイムスタンプ要求（TSQ）の作成
+openssl ts -query -data signature.bin -sha256 -cert -out request.tsq
+
+# 2) TSA へ送信（例: FreeTSA。本番は選定した TSA の URL を使用）
+curl -sS -H 'Content-Type: application/timestamp-query' \
+  --data-binary @request.tsq -o response.tsr \
+  https://freetsa.org/tsr
+
+# 3) 応答（TSR）の確認
+openssl ts -reply -in response.tsr -text | head -40
+
+# 4) TSA 証明書で検証
+openssl ts -verify -data signature.bin -in response.tsr -CAfile tsa-ca.pem</code></pre>
+  </div>
+
+  <h3>3-3. コード拡張（signature-time-stamp 属性）</h3>
+  <div class="card">
+    <p>PAdES では SignerInfo の <strong>unsignedAttrs</strong> に <code>id-aa-signatureTimeStampToken</code>（OID 1.2.840.113549.1.9.16.2.14）を追加します。</p>
+    <pre><code>// 追加する属性の構造（RFC 3161 / ETSI EN 319 122）
+// unsignedAttrs [1] IMPLICIT SET OF Attribute
+//   Attribute {
+//     attrType  = id-aa-signatureTimeStampToken
+//     attrValues = [ TimeStampToken (CMS SignedData of TSR) ]
+//   }
+//
+// 実装手順:
+// 1) CMS 署名の DER（signerInfo の signature 値）を入力として
+//    openssl ts -query 相当の TSQ を生成（または外部ライブラリを使用）
+// 2) TSA へ送信して TSR（TimeStampToken）を取得
+// 3) unsignedAttrs を DER エンコードして signerInfo 末尾へ追加
+// 4) 予約領域を拡大（2-3 と同様）
+//
+// 検証順序（重要）:
+//   署名検証 → 署名値のダイジェストが TSR の messageImprint と一致
+//   → TSA 証明書の信頼チェーンと有効期間を検証</code></pre>
+    <div class="note">⚠ TSA 連携は非同期通信になるため、Worker の実行時間制限（CPU 時間）やタイムアウトに注意し、署名生成はブラウザ側（クライアント）で行う現行設計を維持してください。</div>
+  </div>
+
+  <h2 id="verify">4. 最終検証手順</h2>
+  <div class="card">
+    <ol>
+      <li><strong>構造検証</strong>: 埋め込み PDF を pdf-lib / 他ビューアで開き、署名フィールド（署名パネル）が表示されることを確認。</li>
+      <li><strong>チェーン検証</strong>: Adobe Acrobat の「信頼済み証明書」へルート CA を登録し、「署名者の検証」が成功すること（自己署名版では「署名者の信頼が未設定」表示になるので、CA 版で成功すること）を確認。</li>
+      <li><strong>ダイジェスト検証</strong>: ByteRange の範囲ダイジェストと CMS の messageDigest 属性が一致すること（既存のユニットテストで担保済みの手法を再実行）。</li>
+      <li><strong>TSA 検証</strong>: <code>openssl ts -verify</code> で TSR が有効（メッセージインプリント一致・TSA 証明書有効）であること。</li>
+      <li><strong>回帰</strong>: <code>npm test</code>（PAdES 関連テスト含む）・lint・typecheck・build が全 PASS すること。</li>
+    </ol>
+  </div>
+
+  <h2 id="checklist">5. 完了チェックリスト</h2>
+  <div class="card">
+    <table>
+      <thead><tr><th>#</th><th>項目</th><th>確認欄</th></tr></thead>
+      <tbody>
+        <tr><td>1</td><td>認証局発行の署名者証明書＋中間 CA チェーンを取得した</td><td>□</td></tr>
+        <tr><td>2</td><td>CMS の certificates へチェーン全体を埋め込んだ</td><td>□</td></tr>
+        <tr><td>3</td><td>署名者証明書の issuerAndSerialNumber を SignerIdentifier に使用した</td><td>□</td></tr>
+        <tr><td>4</td><td>unsignedAttrs へ RFC 3161 の signature-time-stamp を追加した</td><td>□</td></tr>
+        <tr><td>5</td><td>埋め込み予約領域を拡大し、領域不足でないことを確認した</td><td>□</td></tr>
+        <tr><td>6</td><td>Adobe Acrobat で「署名者の検証」「タイムスタンプ」が有効と表示される</td><td>□</td></tr>
+        <tr><td>7</td><td>openssl でチェーン・TSA・ダイジェストの検証が成功する</td><td>□</td></tr>
+        <tr><td>8</td><td>全テスト・lint・typecheck・build が PASS する</td><td>□</td></tr>
+        <tr><td>9</td><td>秘密鍵の保管・失効手順を運用規程として文書化した</td><td>□</td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <h2>参考資料</h2>
+  <div class="card">
+    <ul>
+      <li>RFC 3161: Internet X.509 Public Key Infrastructure Time-Stamp Protocol (TSP)</li>
+      <li>ETSI EN 319 122（PAdES）・ETSI EN 319 132（XAdES 相当の要件）</li>
+      <li>PDF 署名: ISO 32000-1 §12.8（Digital Signatures）</li>
+      <li>実装: <code>src/domain/pdf/pdfSignaturePades.ts</code> の既存テスト（署名・証明書・ByteRange 検証）</li>
+    </ul>
+  </div>
+</div>
+</body>
+</html>

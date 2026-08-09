@@ -1,0 +1,210 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>SXF 完全適合・PDF/A 認証手順｜CivilDraft-Web-CAD</title>
+  <style>
+    :root { --bg:#f5f7fa; --card:#fff; --ink:#1a2433; --muted:#5a6678; --line:#dde3ec; --accent:#1f6feb; --ok:#1f8255; --warn:#b7791f; --err:#c5392f; }
+    * { box-sizing:border-box; }
+    body { margin:0; background:var(--bg); color:var(--ink); font-family:"Hiragino Kaku Gothic ProN","Noto Sans JP",Meiryo,sans-serif; line-height:1.8; }
+    .wrap { max-width:960px; margin:0 auto; padding:32px 20px 64px; }
+    header { border-bottom:2px solid var(--accent); padding-bottom:16px; margin-bottom:24px; }
+    h1 { font-size:26px; margin:0 0 8px; }
+    .meta { color:var(--muted); font-size:13px; }
+    h2 { font-size:20px; margin:40px 0 12px; border-left:5px solid var(--accent); padding-left:10px; }
+    h3 { font-size:16px; margin:26px 0 8px; }
+    h4 { font-size:14px; margin:20px 0 6px; }
+    table { width:100%; border-collapse:collapse; background:var(--card); border:1px solid var(--line); }
+    th,td { border:1px solid var(--line); padding:9px 12px; text-align:left; vertical-align:top; font-size:14px; }
+    th { background:#eef2f8; }
+    code { background:#eef2f8; border-radius:4px; padding:2px 5px; font-size:13px; }
+    pre { background:#141b26; color:#e6edf3; padding:14px 16px; border-radius:8px; overflow-x:auto; font-size:13px; line-height:1.6; }
+    pre code { background:none; color:inherit; padding:0; }
+    .card { background:var(--card); border:1px solid var(--line); border-radius:10px; padding:18px 20px; margin-bottom:16px; }
+    .note { background:#fdf6e3; border-left:4px solid var(--warn); padding:10px 14px; border-radius:0 6px 6px 0; font-size:14px; }
+    .danger { background:#fdeceb; border-left:4px solid var(--err); padding:10px 14px; border-radius:0 6px 6px 0; font-size:14px; }
+    .ok { background:#e4f3ec; border-left:4px solid var(--ok); padding:10px 14px; border-radius:0 6px 6px 0; font-size:14px; }
+    a { color:var(--accent); text-decoration:none; }
+    a:hover { text-decoration:underline; }
+    .crumb { font-size:13px; color:var(--muted); margin-bottom:12px; }
+    .toc { background:var(--card); border:1px solid var(--line); border-radius:10px; padding:14px 20px; }
+    .toc ol { margin:6px 0; }
+  </style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <h1>SXF 完全適合・PDF/A 認証手順</h1>
+    <div class="meta">更新日: 2026-08-10</div>
+  </header>
+  <div class="crumb"><a href="index.html">← 索引へ戻る</a></div>
+
+  <div class="toc">
+    <strong>目次</strong>
+    <ol>
+      <li><a href="#sxf">SXF(P21) 完全適合（属性エンティティ・CAD製図基準）</a></li>
+      <li><a href="#pdfa">PDF/A 認証（ICC 埋め込み＋verapdf 検証）</a></li>
+    </ol>
+  </div>
+
+  <h2 id="sxf">1. SXF(P21) 完全適合</h2>
+
+  <h3>1-1. 現状の実装（ここまで完成済み）</h3>
+  <div class="card">
+    <table>
+      <thead><tr><th>項目</th><th>状態</th></tr></thead>
+      <tbody>
+        <tr><td>ファイル形式</td><td>ISO 10303-21（STEP P21）ヘッダ＋DATA セクション</td></tr>
+        <tr><td>スキーマ宣言</td><td><code>FILE_SCHEMA(('SXF'))</code></td></tr>
+        <tr><td>対応図形</td><td>LINE / POLYLINE / CIRCLE / TRIMMED_CURVE（円弧・PARAMETER_VALUE トリミング）</td></tr>
+        <tr><td>構造</td><td>PRODUCT → PRODUCT_DEFINITION → PRODUCT_DEFINITION_SHAPE → SHAPE_REPRESENTATION → GEOMETRIC_CURVE_SET</td></tr>
+        <tr><td>出力導線</td><td>印刷・出力画面の「SXF(P21) 試作」チェックボックス（<code>src/domain/edelivery/sxfP21.ts</code>）</td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <h3>1-2. 残っている作業（完全適合に必要な差分）</h3>
+  <div class="card">
+    <table>
+      <thead><tr><th>#</th><th>作業</th><th>内容</th></tr></thead>
+      <tbody>
+        <tr><td>1</td><td>属性エンティティの追加</td><td>SXF 仕様の属性エンティティ（層情報・図面属性・縮尺・表題欄等。例: SXF 系の LAYER / ATTRIBUTE 相当）を DATA セクションへ出力する。</td></tr>
+        <tr><td>2</td><td>CAD製図基準への適合</td><td>レイヤー命名規則・文字スタイル・線種定義・縮尺表記・図枠/表題欄の表現を CAD製図基準（案）に合わせる。</td></tr>
+        <tr><td>3</td><td>実データでの往復検証</td><td>サンプル図面 → P21 出力 → 電子納品チェックシステム → 修正ループを回す。</td></tr>
+        <tr><td>4</td><td>認証・文書化</td><td>適合範囲（対応図形・非対応図形）を明記し、発注者仕様・適用版を管理する。</td></tr>
+      </tbody>
+    </table>
+    <div class="note">⚠ 属性エンティティの「正確なエンティティ名・属性名」は、国土交通省「電子納品等運用ガイドライン【土木工事編】」付属の SXF 仕様書（SXF P21 編）と電子納品チェックシステムで確認してください。ここでは構造の考え方を示します。</div>
+  </div>
+
+  <h3>1-3. 実装の拡張イメージ（コード）</h3>
+  <div class="card">
+    <p><code>src/domain/edelivery/sxfP21.ts</code> の <code>exportSxfP21()</code> に属性出力を追加する例:</p>
+    <pre><code>// 出力イメージ（エンティティ名は発注者仕様・SXF 仕様書で確定すること）
+// 1) レイヤー属性
+// #N1=SXF_LAYER('S-仮設', ...);            ← 仮設レイヤー
+// #N2=SXF_LAYER('S-土工', ...);
+// 2) 図面属性（図面番号・縮尺・改訂）
+// #N3=SXF_ATTRIBUTE('DRAWING_NO', 'DWG-014');
+// #N4=SXF_ATTRIBUTE('SCALE', '1:500');
+// #N5=SXF_ATTRIBUTE('REVISION', '3');
+// 3) 図形へレイヤー属性を関連付け
+// #M1=... LINE エンティティ ... SXF_LAYER_REF(#M1,#N1);</code></pre>
+    <p>拡張時の注意:</p>
+    <ul>
+      <li>エンティティ名・引数の並びは「SXF P21 仕様書」に厳密に合わせる。</li>
+      <li>対応していない図形（楕円・スプライン・ハッチ・文字）は現状どおり警告としてスキップし、無効エンティティを出力しない。</li>
+      <li>出力後に必ず電子納品チェックシステムでエラー 0 を確認する。</li>
+    </ul>
+  </div>
+
+  <h3>1-4. 検証フロー（電子納品チェックシステム）</h3>
+  <div class="card">
+    <ol>
+      <li>アプリの印刷・出力画面で「SXF(P21) 試作」にチェックを入れ、「出力を実行」で <code>.P21</code> を保存する。</li>
+      <li>電子納品チェックシステム（受発注者向けツール。利用可能な場合は JACIC 等の検査ソフト）へ P21 を読み込む。</li>
+      <li>「図面管理ファイル」「フォルダ構成」「エンティティ」の各チェック結果を確認する。</li>
+      <li>エラーが出た項目を <code>sxfP21.ts</code> に反映し、再度出力→チェックを繰り返す（最大 3 ラウンドを目安）。</li>
+      <li>全チェック合格後、チェック結果・版・適用基準（例: 令和5年3月版）を管理ファイルへ記録する。</li>
+    </ol>
+    <div class="note">⚠ 電子納品チェックシステムは発注者・地域により利用方法が異なります。必ず当該工事の発注者仕様を確認してください。</div>
+  </div>
+
+  <h3>1-5. 完了チェックリスト（SXF）</h3>
+  <div class="card">
+    <table>
+      <thead><tr><th>#</th><th>項目</th><th>確認欄</th></tr></thead>
+      <tbody>
+        <tr><td>1</td><td>属性エンティティ（レイヤー・図面属性）を出力できる</td><td>□</td></tr>
+        <tr><td>2</td><td>CAD製図基準のレイヤー命名・文字・線種を反映</td><td>□</td></tr>
+        <tr><td>3</td><td>電子納品チェックシステムでエラー 0</td><td>□</td></tr>
+        <tr><td>4</td><td>非対応図形の警告と代替手段を明記</td><td>□</td></tr>
+        <tr><td>5</td><td>適用基準・版・出典を管理ファイルへ記録</td><td>□</td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <h2 id="pdfa">2. PDF/A 認証（ICC 埋め込み＋verapdf 検証）</h2>
+
+  <h3>2-1. 現状の実装</h3>
+  <div class="card">
+    <p><code>src/domain/pdf/pdfA.ts</code> の <code>applyPdfAMetadata()</code> が以下を実施済み:</p>
+    <ul>
+      <li>XMP メタデータ（<code>pdfaid:part=1 / conformance=B</code>、タイトル・作成者・日時）</li>
+      <li>OutputIntent（<code>GTS_PDFA1</code>・sRGB IEC61966-2.1 を宣言）</li>
+      <li>フォントは pdf-lib の fontkit サブセット埋め込みに依存</li>
+    </ul>
+    <p>未実装: <strong>ICC プロファイル（DestOutputProfile）の埋め込み</strong>と、<strong>verapdf 等による第三者検証</strong>。</p>
+  </div>
+
+  <h3>2-2. ICC プロファイルの埋め込み</h3>
+  <div class="card">
+    <ol>
+      <li>sRGB ICC プロファイル（sRGB IEC61966-2.1、約 3.2 KB）を用意する。公開プロファイル（例: カラーマネジメント団体・OS 付属の <code>sRGB Color Space Profile.icm</code>）を利用する。</li>
+      <li>プロファイルを <code>src/domain/pdf/assets/</code> 等へ配置し、TypeScript のバイナリ import（<code>?arraybuffer</code>）または base64 定数として読み込む。</li>
+      <li><code>applyPdfAMetadata()</code> 内で、ICC ストリームを埋め込み、OutputIntent の <code>/DestOutputProfile</code> へ参照を追加する（pdf-lib の低レベル API 使用）。</li>
+      <li>PDF/A-1b では全フォント埋め込みも要件。pdf-lib 出力は通常サブセット埋め込みになるが、日本語フォント未注入時のフォールバック文字（代替描画）が残らないことを確認する。</li>
+    </ol>
+    <div class="note">⚠ 埋め込み後も「自己宣言」は変わりません。必ず 2-3 の verapdf 検証を通過させてください。</div>
+  </div>
+
+  <h3>2-3. verapdf による検証</h3>
+  <div class="card">
+    <ol>
+      <li>verapdf を入手する（公式サイト <a href="https://verapdf.org/" target="_blank" rel="noopener">verapdf.org</a> のインストーラ。Java 11+ が必要）。</li>
+      <li>検証対象の PDF を生成（アプリの「PDF/A-1b 指向メタデータ付与」で出力）。</li>
+      <li>コマンド例:
+        <pre><code>verapdf --format text --profile pdfa-1b civildraft-pdfa1b.pdf</code></pre>
+      </li>
+      <li>出力の <code>Validation Result</code> を確認:
+        <table>
+          <thead><tr><th>結果</th><th>意味</th></tr></thead>
+          <tbody>
+            <tr><td>Compliant</td><td>PDF/A-1b 適合（このまま電子納品候補）</td></tr>
+            <tr><td>Non-compliant</td><td>不適合。失敗ルール名（例: <code>6.1.3-1</code>）を確認して修正</td></tr>
+          </tbody>
+        </table>
+      </li>
+      <li>失敗ルールの代表例と対処:
+        <table>
+          <thead><tr><th>失敗例</th><th>対処</th></tr></thead>
+          <tbody>
+            <tr><td>ICC プロファイル不足（OutputIntent）</td><td>2-2 の DestOutputProfile 埋め込みを実施</td></tr>
+            <tr><td>透明（Transparency）使用</td><td>PDF/A-1 では透明禁止。透かし・墨消しの opacity を 1 にし、ExtGState を除去</td></tr>
+            <tr><td>フォント未埋め込み</td><td>日本語フォントを常に注入（<code>fontLoader</code>）し、代替描画を無効化</td></tr>
+            <tr><td>メタデータ不備</td><td>XMP の <code>pdfaid</code> 宣言とドキュメント情報の整合を確認</td></tr>
+          </tbody>
+        </table>
+      </li>
+    </ol>
+  </div>
+
+  <h3>2-4. Ghostscript による代替生成（変換ツールとして）</h3>
+  <div class="card">
+    <p>アプリ側で PDF/A を完全生成できない場合は、Ghostscript で後処理することもできます（内容が再処理されるため、ベクター品質の劣化やフォント差し替えに注意）。</p>
+    <pre><code># PDFA_def.ps は Ghostscript のサンプル設定（sRGB ICC パスを指定）
+gs -dPDFA=2 -dBATCH -dNOPAUSE -dPDFACompatibilityPolicy=1 \
+   -sDEVICE=pdfwrite -sColorConversionStrategy=RGB \
+   -sOutputFile=out-pdfa2.pdf \
+   -dPDFAConfigFile=/path/to/PDFA_def.ps \
+   input.pdf</code></pre>
+    <div class="danger">⚠ 変換後も必ず verapdf で検証し、電子納品要件（PDF/A-1b か 2b かは発注者仕様）に合うものを選んでください。</div>
+  </div>
+
+  <h3>2-5. 完了チェックリスト（PDF/A）</h3>
+  <div class="card">
+    <table>
+      <thead><tr><th>#</th><th>項目</th><th>確認欄</th></tr></thead>
+      <tbody>
+        <tr><td>1</td><td>ICC プロファイル（DestOutputProfile）を埋め込んだ</td><td>□</td></tr>
+        <tr><td>2</td><td>全フォント埋め込み・透明なしを確認した</td><td>□</td></tr>
+        <tr><td>3</td><td>verapdf で Compliant を確認した（プロファイル PDF/A-1b）</td><td>□</td></tr>
+        <tr><td>4</td><td>発注者仕様の PDF/A バージョンと一致している</td><td>□</td></tr>
+        <tr><td>5</td><td>検証結果・版・適用基準を管理ファイルへ記録した</td><td>□</td></tr>
+      </tbody>
+    </table>
+  </div>
+</div>
+</body>
+</html>
