@@ -1,0 +1,195 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Neon 本番マイグレーション適用手順｜CivilDraft-Web-CAD</title>
+  <style>
+    :root { --bg:#f5f7fa; --card:#fff; --ink:#1a2433; --muted:#5a6678; --line:#dde3ec; --accent:#1f6feb; --ok:#1f8255; --warn:#b7791f; --err:#c5392f; }
+    * { box-sizing:border-box; }
+    body { margin:0; background:var(--bg); color:var(--ink); font-family:"Hiragino Kaku Gothic ProN","Noto Sans JP",Meiryo,sans-serif; line-height:1.8; }
+    .wrap { max-width:920px; margin:0 auto; padding:32px 20px 64px; }
+    header { border-bottom:2px solid var(--accent); padding-bottom:16px; margin-bottom:24px; }
+    h1 { font-size:26px; margin:0 0 8px; }
+    .meta { color:var(--muted); font-size:13px; }
+    h2 { font-size:20px; margin:36px 0 12px; border-left:5px solid var(--accent); padding-left:10px; }
+    h3 { font-size:16px; margin:24px 0 8px; }
+    table { width:100%; border-collapse:collapse; background:var(--card); border:1px solid var(--line); }
+    th,td { border:1px solid var(--line); padding:9px 12px; text-align:left; vertical-align:top; font-size:14px; }
+    th { background:#eef2f8; }
+    code { background:#eef2f8; border-radius:4px; padding:2px 5px; font-size:13px; }
+    pre { background:#141b26; color:#e6edf3; padding:14px 16px; border-radius:8px; overflow-x:auto; font-size:13px; line-height:1.6; }
+    pre code { background:none; color:inherit; padding:0; }
+    .card { background:var(--card); border:1px solid var(--line); border-radius:10px; padding:18px 20px; margin-bottom:16px; }
+    .note { background:#fdf6e3; border-left:4px solid var(--warn); padding:10px 14px; border-radius:0 6px 6px 0; font-size:14px; }
+    .danger { background:#fdeceb; border-left:4px solid var(--err); padding:10px 14px; border-radius:0 6px 6px 0; font-size:14px; }
+    .ok { background:#e4f3ec; border-left:4px solid var(--ok); padding:10px 14px; border-radius:0 6px 6px 0; font-size:14px; }
+    .step { display:flex; gap:12px; margin:10px 0; }
+    .stepnum { flex:0 0 30px; height:30px; border-radius:50%; background:var(--accent); color:#fff; font-weight:700; display:flex; align-items:center; justify-content:center; font-size:14px; }
+    a { color:var(--accent); text-decoration:none; }
+    a:hover { text-decoration:underline; }
+    .crumb { font-size:13px; color:var(--muted); margin-bottom:12px; }
+  </style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <h1>Neon 本番マイグレーション適用手順</h1>
+    <div class="meta">対象: migrations 0003〜0007 ・ 更新日: 2026-08-10</div>
+  </header>
+  <div class="crumb"><a href="index.html">← 索引へ戻る</a></div>
+
+  <div class="card">
+    <strong>この手順で行うこと</strong>: 本番 Neon（civildraft-production）の main ブランチへ、
+    <code>0003_persistence_schema_drift_fix</code>・<code>0004_id_type_alignment</code>・
+    <code>0005_export_jobs_object_provider_alignment</code>・<code>0006_audit_log_previous_hash_unique</code>・
+    <code>0007_drawing_checkouts</code> を適用します（0001・0002 は適用済み前提）。
+    スクリプトは適用済みマーカーを検査し、既適用のものは自動スキップします。
+  </div>
+
+  <h2>1. 前提確認</h2>
+  <div class="card">
+    <table>
+      <thead><tr><th>項目</th><th>条件</th></tr></thead>
+      <tbody>
+        <tr><td>接続手段</td><td>Neon コンソール（console.neon.tech）へログインできること、または接続文字列を入手できること</td></tr>
+        <tr><td>psql</td><td><code>psql --version</code> で動作確認（PostgreSQL クライアント 13+）</td></tr>
+        <tr><td>適用スクリプト</td><td><code>scripts/apply-prod-migrations.sh</code> がリポジトリ main に存在すること</td></tr>
+        <tr><td>承認</td><td>本番 DDL 適用の人間承認が得られていること（AGENTS.md §8.6 の決裁必須）</td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <h2>2. 接続情報の準備</h2>
+  <h3>2-A. 既存の接続文字列を使う場合（推奨・最簡易）</h3>
+  <div class="card">
+    <ol>
+      <li>Neon コンソール → プロジェクト <code>civildraft-production</code> → <strong>Branches → main</strong> → <strong>Connect</strong> を開く。</li>
+      <li>「Connection string」欄をコピーする（<code>postgresql<wbr>://&lt;user&gt;:&lt;password&gt;@&lt;host&gt;/&lt;db&gt;?sslmode=require</code>）。</li>
+      <li>この文字列は秘密情報として扱い、コマンド履歴・チャット・リポジトリへ残さない。</li>
+    </ol>
+    <div class="note">⚠ パスワードはコンソール上で「Reset password」を押すと再発行されます。既存の接続文字列（Worker のシークレット等）と異なる場合は、後述 5-D の Worker シークレット更新が必要になります。</div>
+  </div>
+
+  <h3>2-B. 一時ロールを作って使う場合（本番パスワードを変えない安全な方法）</h3>
+  <div class="card">
+    <ol>
+      <li>Neon コンソール → main ブランチ → <strong>Roles</strong> → <strong>New role</strong> で <code>cd_migrate_&lt;日付&gt;</code> を作成。</li>
+      <li>作成したロールのパスワードを「Reset password」で発行し、接続文字列を作る。</li>
+      <li>適用完了後、手順 6 でこの一時ロールを削除する。</li>
+    </ol>
+  </div>
+
+  <h2>3. 適用前チェック（読み取りのみ）</h2>
+  <div class="card">
+    <p>スクリプトが自動でマーカー検査を行うため通常は不要ですが、念のため手動でも確認できます。</p>
+    <pre><code>psql "$CIVILDRAFT_NEON_DSN" -v ON_ERROR_STOP=1 -c "
+  SELECT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name='drawing_contents' AND column_name='content') AS m0003;
+  SELECT data_type='text' FROM information_schema.columns WHERE table_name='projects' AND column_name='id' AS m0004;
+  SELECT column_default LIKE '%unassigned%' FROM information_schema.columns WHERE table_name='export_jobs' AND column_name='object_provider' AS m0005;
+  SELECT EXISTS (SELECT 1 FROM pg_indexes WHERE indexname='audit_logs_previous_hash_unique') AS m0006;
+  SELECT EXISTS (SELECT 1 FROM information_schema.tables WHERE table_name='drawing_checkouts') AS m0007;
+"</code></pre>
+    <p><code>t</code> が返る項目は適用済み（スキップ対象）、<code>f</code>/NULL が返る項目が今回の適用対象です。</p>
+  </div>
+
+  <h2>4. 適用の実行</h2>
+  <div class="card">
+    <pre><code># リポジトリ root で実行
+git checkout main &amp;&amp; git pull
+
+CIVILDRAFT_NEON_DSN='postgresql:' '//&lt;user&gt;:&lt;password&gt;@&lt;host&gt;/&lt;db&gt;?sslmode=require' \
+  bash scripts/apply-prod-migrations.sh</code></pre>
+    <p>出力の例:</p>
+    <pre><code>== 適用前スキーマ状態 ==
+...
+SKIP: 0003 persistence_schema_drift_fix は適用済みです
+APPLY: 0004 id_type_alignment (migrations/0004_id_type_alignment.sql)
+APPLY: 0005 export_jobs object_provider default (...)
+APPLY: 0006 audit_logs previous_hash unique (...)
+APPLY: 0007 drawing_checkouts (...)
+== 適用後スキーマ状態 ==
+content:text
+'unassigned'::text
+audit_logs_previous_hash_unique
+drawing_checkouts
+== 完了 ==</code></pre>
+  </div>
+
+  <h2>5. 適用後検証</h2>
+  <h3>5-A. スキーマ検証（スクリプト内でも実施）</h3>
+  <div class="card">
+    <ol>
+      <li><code>drawing_contents.content</code> 列が存在</li>
+      <li><code>projects.id</code> が text</li>
+      <li><code>export_jobs.object_provider</code> の既定値が <code>'unassigned'</code></li>
+      <li>索引 <code>audit_logs_previous_hash_unique</code> が存在</li>
+      <li>テーブル <code>drawing_checkouts</code> が存在</li>
+    </ol>
+  </div>
+  <h3>5-B. 実データ件数確認</h3>
+  <div class="card">
+    <pre><code>SELECT (SELECT count(*) FROM export_jobs) AS export_jobs,
+       (SELECT count(*) FROM drawing_checkouts) AS checkouts,
+       (SELECT count(*) FROM audit_logs) AS audit_logs;</code></pre>
+    <p>実データ 0 件を確認（既存データへの影響なし）。</p>
+  </div>
+  <h3>5-C. Worker 経由スモーク（本番 API）</h3>
+  <div class="card">
+    <ol>
+      <li>ブラウザで <code>https://civildraft-web-cad.mirai-dx-platform.com</code> を開き、Access ログインする。</li>
+      <li>DevTools → Network から API リクエストの <code>Cf-Access-Jwt-Assertion</code> ヘッダー値をコピー（または Access Service Token を使う）。</li>
+      <li>下記で一覧 API が 200 を返すことを確認:
+        <pre><code>curl -sS -H 'Cf-Access-Jwt-Assertion: &lt;JWT&gt;' \
+  https://civildraft-web-cad.kensan1969.workers.dev/api/v1/projects</code></pre>
+      </li>
+    </ol>
+  </div>
+  <h3>5-D. 接続文字列を変更した場合のみ</h3>
+  <div class="card">
+    <p>一時ロールやパスワード再発行で Worker の接続文字列と異なる場合、Worker シークレットを更新し再デプロイします。</p>
+    <pre><code>printf '%s' 'postgresql:' '//&lt;新しい接続文字列&gt;' | wrangler secret put CIVILDRAFT_NEON_CONNECTION
+wrangler deploy</code></pre>
+    <div class="danger">⚠ 接続文字列更新後は必ず 5-C のスモークで API が 200/401（fail-closed）になることを確認してください。失敗時は旧値へ戻して再デプロイします。</div>
+  </div>
+
+  <h2>6. 一時ロールの削除（2-B を使った場合）</h2>
+  <div class="card">
+    <ol>
+      <li>検証がすべて成功したことを確認。</li>
+      <li>Neon コンソール → main ブランチ → Roles → <code>cd_migrate_&lt;日付&gt;</code> → Delete。</li>
+      <li>削除後、5-C のスモークをもう一度実行して問題がないことを確認。</li>
+    </ol>
+  </div>
+
+  <h2>7. 失敗時の対処・ロールバック</h2>
+  <div class="card">
+    <table>
+      <thead><tr><th>症状</th><th>対処</th></tr></thead>
+      <tbody>
+        <tr><td><code>ON_ERROR_STOP</code> で途中停止</td><td>各マイグレーションは BEGIN/COMMIT 単位なので、失敗したファイルはロールバック済み。エラー内容を確認し、原因を解消してスクリプトを再実行（既適用分はスキップされます）。</td></tr>
+        <tr><td>0006 の一意索引作成失敗（既存 previous_hash 重複）</td><td>過去の並行分岐が存在。前進修正マイグレーションで重複解消後に再適用（migration 0006 冒頭コメント参照）。</td></tr>
+        <tr><td>Worker が 503（CD-SYS-002）</td><td>接続文字列・シークレットの不整合。5-D を参照して旧値へ戻す。</td></tr>
+        <tr><td>業務データへの影響</td><td>全マイグレーションは前方互換 DDL のみ（列削除なし）。影響が出た場合は <code>docs/operations/rollback-procedure.md</code> に従う。</td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <h2>8. 完了チェックリスト</h2>
+  <div class="card">
+    <table>
+      <thead><tr><th>#</th><th>確認項目</th><th>確認欄</th></tr></thead>
+      <tbody>
+        <tr><td>1</td><td>適用前スキーマ状態を記録した</td><td>□</td></tr>
+        <tr><td>2</td><td>スクリプト出力で SKIP/APPLY の内訳を確認した</td><td>□</td></tr>
+        <tr><td>3</td><td>5-A の 5 項目がすべて検証できた</td><td>□</td></tr>
+        <tr><td>4</td><td>実データ件数（export_jobs / drawing_checkouts / audit_logs）を確認した</td><td>□</td></tr>
+        <tr><td>5</td><td>Worker 経由スモーク（JWT 付き API 200 / 無認証 401）を確認した</td><td>□</td></tr>
+        <tr><td>6</td><td>一時ロールを使った場合は削除し再スモークした</td><td>□</td></tr>
+        <tr><td>7</td><td>state.json / README へ適用結果を追記した</td><td>□</td></tr>
+      </tbody>
+    </table>
+  </div>
+</div>
+</body>
+</html>
