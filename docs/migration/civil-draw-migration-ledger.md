@@ -135,12 +135,12 @@ LICENSE・自作素材・要件定義文書・TypeScript strict・依存グラ�
 | --- | --- | --- |
 | フォルダ構成・命名・管理ファイル | ✅ DRAWINGF 等 10 フォルダ + INDEX_C.XML/DRAWINGF.XML 案内 + CSV 管理ファイル | XML/DTD 実生成（発注者 DTD 依存） |
 | 禁則文字・形式チェック | ✅ 機種依存文字・半角英数・DXF 警告 | チェックシステム相当の厳密一致 |
-| SXF(P21) 変換 | 🔴 未実装 | SXF P21 は専用ライブラリ/変換器が必要。電子納品チェックシステム推奨 |
-| PDF/A 変換 | 🔴 未実装（確認チェックのみ） | pdf-lib は PDF/A 非対応。Ghostscript 等の後処理が必要 |
-| 電子署名 | 🟡 SHA-256 署名マニフェスト | PAdES/JAdES は外部署名サービス導入が必要（電子署名法上の署名ではない旨を UI・文書に明記） |
-| 墨消し | 🟡 視覚的塗りつぶし | コンテンツストリームからの物理削除は専用ツール要（UI に注意書き） |
+| SXF(P21) 変換 | 🟡 試作エクスポータ実装（AP202 サブセット・LINE/POLYLINE/CIRCLE・`FILE_SCHEMA('SXF')`・検証必須警告付き） | 円弧/楕円/スプライン/属性（SXF_LAYER 等）・CAD 製図基準完全適合は未対応。**電子納品チェックシステムでの検証必須** |
+| PDF/A 変換 | 🟡 PDF/A-1b 指向メタデータ付与を実装（XMP・OutputIntent・フォント埋め込み依存） | ICC プロファイル（DestOutputProfile）未埋め込み・第三者認証なし。verapdf 等での検証必須 |
+| 電子署名 | 🟡 PAdES-CMS detached 署名（.p7s）を実装（signedAttrs: contentType/messageDigest/signingTime・RSA/SHA-256・DER 生成・検証テスト付き） | 証明書（X.509）チェーンなし・PDF 本体への ByteRange 埋め込み未対応。電子署名法上の署名には認証局証明書と埋め込み署名の導入が必要 |
+| 墨消し | ✅ テキスト演算子（Tj/'/"/TJ）の物理削除＋黒矩形を実装（コンテンツストリーム解析・非対応時は視覚モードへフォールバック） | 埋め込み画像内の文字は削除不可（専用ツール要） |
 | 版管理・差分 | ✅ drawingDiff + DrawingComparePage | — |
-| チェックイン/アウト | 🟡 ドメイン+ローカル永続化 | サーバー横断ロックはスキーマ拡張（migration 0006 相当）で課題化 |
+| チェックイン/アウト | ✅ サーバー横断永続化を実装（migration 0007 `drawing_checkouts`・Worker API `PUT/DELETE /drawings/:id/checkout`・rowcount 検査 409・監査ログ・クライアント/UI 配線） | 本番適用は人間決裁（migration 0007 未適用） |
 | 照査・承認 | ✅ workflow + ReviewApprovalPage | — |
 | 監査証跡 | ✅ auditChain（hash chain）+ AuditLogPage | — |
 | 承認後改変防止 | ✅ approved 状態 + checksum 照合 + 楽観ロック 409 | — |
@@ -154,9 +154,9 @@ LICENSE・自作素材・要件定義文書・TypeScript strict・依存グラ�
 
 ## 未決・残課題
 
-1. Neon migration 0003〜0005 の本番適用（人間承認待ち・現状は実データ影響なし）
+1. Neon migration 0003〜0005・0007（drawing_checkouts）の本番適用（人間承認待ち）
 2. Cloudflare Access binding（ACCESS_TEAM_DOMAIN / ACCESS_AUD）登録（人間操作）
-3. SXF(P21)・PDF/A 変換の実装可否（本 Goal では課題化・発注者協議を推奨）
-4. サーバー横断チェックアウト（スキーマ + Worker API）
+3. SXF(P21) 完全適合（円弧 TRIMMED_CURVE・SXF 属性・CAD 製図基準）・PDF/A 認証（ICC・verapdf）
+4. PAdES の証明書チェーン・PDF 埋め込み署名（ByteRange）
 5. Neon 検証ブランチ 2 本・不要 worktree の削除（人間判断待ち）
-6. 外部 AI 評価（2026-08-05 実施分）の指摘反映（#114 Phase 2〜4 等）
+6. 外部 AI 評価（2026-08-05 実施分）の残対応（#114 は Phase 1〜4 完了・クローズ済み。他指摘はバックログ #58/#62 等）

@@ -14,11 +14,14 @@ import {
   addPdfWatermark,
   getPdfPageCount,
   mergePdfBytes,
-  redactPdfPages,
   rotatePdfPages,
   splitPdfBytes,
 } from '@/domain/pdf/pdfEdit'
 import { createPdfSignatureManifest, signatureManifestToJson } from '@/domain/pdf/pdfSignature'
+import { applyPdfAMetadata } from '@/domain/pdf/pdfA'
+import { redactPdfText } from '@/domain/pdf/pdfRedact'
+import { createPadesDetachedSignature } from '@/domain/pdf/pdfSignaturePades'
+import { exportSxfP21 } from '@/domain/edelivery/sxfP21'
 import {
   ghostButtonStyle,
   pageHeaderStyle,
@@ -75,11 +78,13 @@ export function PrintExportPage() {
   const [pdfChecked, setPdfChecked] = useState(true)
   const [dxfChecked, setDxfChecked] = useState(false)
   const [csvChecked, setCsvChecked] = useState(false)
+  const [sxfChecked, setSxfChecked] = useState(false)
   const [message, setMessage] = useState<string | null>(null)
   const [history, setHistory] = useState<readonly ExportHistoryRow[]>(INITIAL_HISTORY)
   const [pdfFiles, setPdfFiles] = useState<readonly LoadedPdfFile[]>([])
   const [watermarkText, setWatermarkText] = useState('社外秘')
   const [signerName, setSignerName] = useState('')
+  const [signerKeyPem, setSignerKeyPem] = useState('')
   const [pdfMessage, setPdfMessage] = useState<string | null>(null)
 
   const runExport = async () => {
@@ -128,6 +133,13 @@ export function PrintExportPage() {
           'civildraft-quantities.csv',
         )
         results.push(`CSV✓(${summary.items.length}件)`)
+      }
+      if (sxfChecked) {
+        const sxf = exportSxfP21(s.geometries, { fileName: 'civildraft.P21', drawingName: '施工ヤード計画図' })
+        downloadBlob(new Blob([sxf.text], { type: 'application/step' }), 'civildraft.P21')
+        results.push(
+          `SXF✓(試作${sxf.exportedCount}件${sxf.issues.length > 0 ? `・警告${sxf.issues.length}` : ''})`,
+        )
       }
       if (results.length > 0) {
         const today = new Date().toLocaleDateString('ja-JP', { month: '2-digit', day: '2-digit' }).replace('/', '-')
@@ -233,16 +245,74 @@ export function PrintExportPage() {
     }
     const file = pdfFiles[0]
     if (file === undefined) return
-    // 先頭ページの中央付近を黒塗り（視覚的な墨消し。物理削除は課題）。
-    const result = await redactPdfPages(file.bytes, [
+    // テキスト演算子を物理削除したうえで黒矩形を重ねる（画像内文字は削除不可）。
+    const result = await redactPdfText(file.bytes, [
       { pageIndex: 0, x: 80, y: 80, width: 320, height: 48 },
     ])
     if (result.ok) {
-      downloadPdf(result.value, `${file.name.replace(/\.pdf$/i, '')}-redacted.pdf`)
-      setPdfMessage('✅ 墨消し（視覚的塗りつぶし）を適用しました ※物理削除ではありません')
+      downloadPdf(result.value.bytes, `${file.name.replace(/\.pdf$/i, '')}-redacted.pdf`)
+      setPdfMessage(
+        `✅ 墨消しを適用しました（テキスト${result.value.removedTextCount}件を物理削除・画像内文字は要専用ツール）`,
+      )
     } else {
       setPdfMessage(`⚠️ ${result.error.message}`)
     }
+  }
+
+  const runPdfA = async () => {
+    if (pdfFiles.length === 0) {
+      setPdfMessage('⚠️ PDF を選択してください')
+      return
+    }
+    const file = pdfFiles[0]
+    if (file === undefined) return
+    const result = await applyPdfAMetadata(file.bytes, {
+      title: 'CivilDraft 図面出力',
+      author: signerName || 'CivilDraft',
+      subject: '電子納品用 PDF/A-1b 指向',
+    })
+    if (result.ok) {
+      downloadPdf(result.value.bytes, `${file.name.replace(/\.pdf$/i, '')}-pdfa1b.pdf`)
+      setPdfMessage(`✅ PDF/A-1b 指向メタデータを付与しました（自己宣言・検証必須）`)
+    } else {
+      setPdfMessage(`⚠️ ${result.error.message}`)
+    }
+  }
+
+  const runPades = async () => {
+    if (pdfFiles.length === 0) {
+      setPdfMessage('⚠️ PDF を選択してください')
+      return
+    }
+    if (signerKeyPem.trim() === '') {
+      setPdfMessage('⚠️ PKCS#8 RSA 秘密鍵（PEM）を選択してください')
+      return
+    }
+    const file = pdfFiles[0]
+    if (file === undefined) return
+    const result = await createPadesDetachedSignature({
+      pdfBytes: file.bytes,
+      privateKeyPem: signerKeyPem,
+      signerName,
+    })
+    if (result.ok) {
+      downloadBlob(
+        new Blob([result.value.p7sBytes.slice()], { type: 'application/pkcs7-signature' }),
+        `${file.name.replace(/\.pdf$/i, '')}.p7s`,
+      )
+      setPdfMessage(
+        `✅ PAdES-CMS detached 署名を生成しました（SHA-256: ${result.value.sha256.slice(0, 16)}… ※証明書なしのため電子署名法上の署名ではありません）`,
+      )
+    } else {
+      setPdfMessage(`⚠️ ${result.error.message}`)
+    }
+  }
+
+  const handleSignerKey = async (event: ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0]
+    if (file === undefined) return
+    setSignerKeyPem(await file.text())
+    event.target.value = ''
   }
 
   const runSignatureManifest = async () => {
@@ -357,6 +427,15 @@ export function PrintExportPage() {
                   />
                   CSV（数量根拠付き）
                 </label>
+                <label style={checkLabel}>
+                  <input
+                    type="checkbox"
+                    checked={sxfChecked}
+                    onChange={(e) => setSxfChecked(e.target.checked)}
+                    style={{ width: 'auto' }}
+                  />
+                  SXF(P21) 試作（AP202 サブセット・検証必須）
+                </label>
               </div>
             </div>
 
@@ -425,8 +504,18 @@ export function PrintExportPage() {
                   透かし追加
                 </button>
                 <button type="button" style={pdfActionStyle} onClick={() => void runRedact()}>
-                  墨消し（先頭ページ中央・視覚的）
+                  墨消し（先頭ページ中央・テキスト物理削除）
                 </button>
+                <button type="button" style={pdfActionStyle} onClick={() => void runPdfA()}>
+                  PDF/A-1b 指向メタデータ付与
+                </button>
+                <input
+                  type="file"
+                  accept=".pem,.key,text/plain"
+                  aria-label="署名鍵（PKCS#8 PEM）"
+                  onChange={(e) => void handleSignerKey(e)}
+                  style={{ fontSize: 12 }}
+                />
                 <input
                   aria-label="署名者名"
                   style={pdfInputStyle}
@@ -435,7 +524,10 @@ export function PrintExportPage() {
                   onChange={(e) => setSignerName(e.target.value)}
                 />
                 <button type="button" style={pdfActionStyle} onClick={() => void runSignatureManifest()}>
-                  署名マニフェスト（SHA-256）生成
+                  SHA-256 署名マニフェスト（JSON）
+                </button>
+                <button type="button" style={pdfActionStyle} onClick={() => void runPades()}>
+                  PAdES-CMS detached 署名（.p7s）生成
                 </button>
                 {pdfMessage !== null && (
                   <div role="status" style={{ fontSize: 11.5, color: 'var(--muted)' }}>

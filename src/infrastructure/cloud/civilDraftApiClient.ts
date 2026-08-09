@@ -69,6 +69,16 @@ export interface CloudRevision {
   readonly contentChecksum: string
 }
 
+/** 図面チェックイン/アウト状態（migration 0007）。 */
+export interface CloudDrawingCheckout {
+  readonly drawingId: string
+  readonly revisionId: string
+  readonly checkedOutBy: string
+  readonly checkedOutAt: string
+  readonly status: 'checkedOut' | 'checkedIn'
+  readonly checkedInAt?: string
+}
+
 export interface CloudContent {
   readonly revisionId: string
   readonly content: unknown
@@ -259,6 +269,30 @@ export class CivilDraftApiClient {
     const body = asRecord(response.value, 'response')
     if (!body.ok) return body
     return asRecord(body.value.content, 'content') as Result<CloudContent, ValidationIssue>
+  }
+
+  /**
+   * 図面チェックイン/アウト（migration 0007 の Worker API クライアント）。
+   * action='checkout' は PUT /drawings/:id/checkout、'checkin' は DELETE。
+   */
+  async updateCheckout(
+    drawingId: string,
+    action: 'checkout' | 'checkin',
+    revisionId?: string,
+  ): Promise<Result<CloudDrawingCheckout, ValidationIssue>> {
+    const response =
+      action === 'checkout'
+        ? await this.request(`/api/v1/drawings/${encodeURIComponent(drawingId)}/checkout`, {
+            method: 'PUT',
+            body: { revisionId },
+          })
+        : await this.request(`/api/v1/drawings/${encodeURIComponent(drawingId)}/checkout`, {
+            method: 'DELETE',
+          })
+    if (!response.ok) return response
+    const body = asRecord(response.value, 'response')
+    if (!body.ok) return body
+    return asRecord(body.value.checkout, 'checkout') as Result<CloudDrawingCheckout, ValidationIssue>
   }
 
   async createExportJob(

@@ -154,6 +154,20 @@ export interface AuditLogRecord {
   readonly entryHash?: string
 }
 
+/**
+ * 図面チェックイン/アウトの永続化レコード（migration 0007）。
+ * domain/revisions/checkout.ts の DrawingCheckout に対応し、
+ * drawing_id ごとに最大 1 行（再チェックアウトは UPDATE）。
+ */
+export interface DrawingCheckoutRecord {
+  readonly drawingId: string
+  readonly revisionId: string
+  readonly checkedOutBy: string
+  readonly checkedOutAt: string
+  readonly status: 'checkedOut' | 'checkedIn'
+  readonly checkedInAt?: string
+}
+
 export interface ApiStore {
   readonly projects: Map<string, ProjectRecord>
   readonly projectMembers: Map<string, ProjectMemberRecord>
@@ -164,6 +178,8 @@ export interface ApiStore {
   readonly workflowActions: WorkflowActionRecord[]
   readonly exportJobs: Map<string, ExportJobRecord>
   readonly auditLogs: AuditLogRecord[]
+  /** drawingId → チェックアウト状態（memory/dev モードの Map 契約）。 */
+  readonly checkouts: Map<string, DrawingCheckoutRecord>
 
   // -- 任意の永続化フック（#66） --
   // NeonApiStore のような永続化バックエンド付き実装は、これらのフックで
@@ -215,6 +231,14 @@ export interface ApiStore {
   queryProjectMembers?(projectId: string): Promise<readonly ProjectMemberRecord[]>
   queryContent?(revisionId: string): Promise<ContentRecord | undefined>
   queryQuantities?(revisionId: string): Promise<QuantitySnapshotRecord | undefined>
+  /** チェックアウト状態の取得（SQL-first。無ければ Map 参照へフォールバック）。 */
+  queryCheckout?(drawingId: string): Promise<DrawingCheckoutRecord | undefined>
+  /**
+   * チェックアウト状態の永続化。NeonApiStore は
+   * `UPDATE ... WHERE drawing_id = $1 AND checked_out_by = $2` の rowcount 検査で
+   * 他ユーザーによる上書きを DB レベルで拒否する（rowcount=0 → CheckoutConflictError）。
+   */
+  persistCheckout?(checkout: DrawingCheckoutRecord): Promise<void>
 }
 
 export function createMemoryStore(): ApiStore {
@@ -228,5 +252,6 @@ export function createMemoryStore(): ApiStore {
     workflowActions: [],
     exportJobs: new Map(),
     auditLogs: [],
+    checkouts: new Map(),
   }
 }

@@ -1362,3 +1362,76 @@ describe('NeonApiStore SQL-first read methods（Issue #114 Phase 2）', () => {
     expect(sql).not.toHaveBeenCalled()
   })
 })
+
+describe('NeonApiStore チェックアウト永続化（migration 0007）', () => {
+  function checkoutRow(): Record<string, unknown> {
+    return {
+      drawing_id: 'draw-1',
+      revision_id: 'rev-1',
+      checked_out_by: 'user-a@example.test',
+      checked_out_at: now,
+      checked_in_at: null,
+      status: 'checkedOut',
+      created_at: now,
+      updated_at: now,
+    }
+  }
+
+  it('queryCheckout は drawing_id 述語で 1 行を返す', async () => {
+    const sql = makeSqlClient({ 'FROM drawing_checkouts WHERE drawing_id': [checkoutRow()] })
+    const store = new NeonApiStore(sql)
+
+    const checkout = await store.queryCheckout('draw-1')
+    expect(checkout?.drawingId).toBe('draw-1')
+    expect(checkout?.checkedOutBy).toBe('user-a@example.test')
+    expect(checkout?.status).toBe('checkedOut')
+    const texts = sqlCalls(sql).map((call) => call[0]?.join('') ?? '')
+    expect(texts.some((text) => text.includes('FROM drawing_checkouts WHERE drawing_id'))).toBe(true)
+  })
+
+  it('persistCheckout は同一所有者の再チェックアウトを UPDATE で上書きできる', async () => {
+    const sql = makeSqlClient({ '/* drawing_checkouts upsert */': [checkoutRow()] })
+    const store = new NeonApiStore(sql)
+
+    await store.persistCheckout({
+      drawingId: 'draw-1',
+      revisionId: 'rev-2',
+      checkedOutBy: 'user-a@example.test',
+      checkedOutAt: now,
+      status: 'checkedOut',
+    })
+    expect(store.checkouts.get('draw-1')?.revisionId).toBe('rev-2')
+  })
+
+  it('persistCheckout は他ユーザー保有中の上書きを rowcount=0 で拒否する', async () => {
+    const sql = makeSqlClient({}) // RETURNING 0 行 = 競合
+    const store = new NeonApiStore(sql)
+
+    await expect(
+      store.persistCheckout({
+        drawingId: 'draw-1',
+        revisionId: 'rev-1',
+        checkedOutBy: 'user-b@example.test',
+        checkedOutAt: now,
+        status: 'checkedOut',
+      }),
+    ).rejects.toMatchObject({ name: 'CheckoutConflictError' })
+    expect(store.checkouts.has('draw-1')).toBe(false)
+  })
+
+  it('persistCheckout のチェックインは checked_in_at を保持する', async () => {
+    const sql = makeSqlClient({ '/* drawing_checkouts upsert */': [checkoutRow()] })
+    const store = new NeonApiStore(sql)
+
+    await store.persistCheckout({
+      drawingId: 'draw-1',
+      revisionId: 'rev-1',
+      checkedOutBy: 'user-a@example.test',
+      checkedOutAt: now,
+      status: 'checkedIn',
+      checkedInAt: now,
+    })
+    expect(store.checkouts.get('draw-1')?.status).toBe('checkedIn')
+    expect(store.checkouts.get('draw-1')?.checkedInAt).toBe(now)
+  })
+})

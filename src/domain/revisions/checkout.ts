@@ -11,13 +11,13 @@
  * - 承認後改変防止は revisions/workflow.ts の approved 状態と contentChecksum 照合で担保され、
  *   チェックアウトは draft 状態の改訂に対してのみ許可する。
  */
-import type { DrawingId, Result, RevisionId, ValidationIssue } from '@/shared/types'
+import type { Result, ValidationIssue } from '@/shared/types'
 
 export type CheckoutStatus = 'checkedOut' | 'checkedIn'
 
 export interface DrawingCheckout {
-  readonly drawingId: DrawingId
-  readonly revisionId: RevisionId
+  readonly drawingId: string
+  readonly revisionId: string
   readonly checkedOutBy: string
   readonly checkedOutAt: string
   readonly status: CheckoutStatus
@@ -29,8 +29,8 @@ function fail(code: string, message: string): ValidationIssue {
 }
 
 export interface AcquireCheckoutInput {
-  readonly drawingId: DrawingId
-  readonly revisionId: RevisionId
+  readonly drawingId: string
+  readonly revisionId: string
   readonly actorId: string
   readonly revisionStatus: 'draft' | 'inReview' | 'returned' | 'pendingApproval' | 'approved' | 'obsolete'
   readonly now: string

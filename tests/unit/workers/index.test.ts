@@ -196,7 +196,7 @@ describe('§25.1 共通ヘッダー検証', () => {
     // 23 経路全数で確認する（『一時停止』応答が残っていないことも見る）。
     // ※19経路目は GET /api/v1/audit-logs/verify（Issue #61 監査チェーン検証）。
     //   #119 でメンバー管理 4 経路を追加（計 23 経路）。
-    expect(API_ROUTES).toHaveLength(23)
+    expect(API_ROUTES).toHaveLength(25)
 
     for (const r of API_ROUTES) {
       const res = await handleRequest(
@@ -222,7 +222,7 @@ describe('§25.1 共通ヘッダー検証', () => {
 
 describe('§25.2 ルーティング', () => {
   it('エンドポイント一覧が仕様の22経路+監査チェーン検証（計23経路）を網羅する', () => {
-    expect(API_ROUTES).toHaveLength(23)
+    expect(API_ROUTES).toHaveLength(25)
     expect(API_ROUTES.some((r) => r.template === '/api/v1/audit-logs/verify')).toBe(true)
     expect(API_ROUTES.some((r) => r.template === '/api/v1/projects/{projectId}/members')).toBe(true)
     expect(API_ROUTES.some((r) => r.template === '/api/v1/projects/{projectId}/members/{userId}')).toBe(true)
@@ -1417,5 +1417,142 @@ describe('#66 永続化フック配線（persistX wiring）', () => {
       )
       expect(patchRes.status).toBe(404)
     })
+  })
+})
+
+describe('チェックイン/アウト API（migration 0007）', () => {
+  interface Seed {
+    readonly projectId: string
+    readonly drawingId: string
+    readonly revisionId: string
+  }
+
+  async function seed(env: WorkerEnv): Promise<Seed> {
+    const projectRes = await handleRequest(
+      authedRequest('POST', '/api/v1/projects', {
+        projectNumber: 'P-CHECKOUT-001',
+        name: 'チェックアウト検証工事',
+      }),
+      env,
+    )
+    expect(projectRes.status).toBe(201)
+    const projectBody = await json<{ project: { id: string } }>(projectRes)
+    const drawingRes = await handleRequest(
+      authedRequest('POST', `/api/v1/projects/${projectBody.project.id}/drawings`, {
+        drawingNumber: 'DWG-001',
+        name: '施工ヤード図',
+        drawingType: 'temporary-yard-plan',
+        settings: {},
+      }),
+      env,
+    )
+    expect(drawingRes.status).toBe(201)
+    const drawingBody = await json<{ drawing: { id: string } }>(drawingRes)
+    const revisionRes = await handleRequest(
+      authedRequest('POST', `/api/v1/drawings/${drawingBody.drawing.id}/revisions`, {
+        revisionNumber: '1',
+        changeSummary: '初版',
+      }),
+      env,
+    )
+    expect(revisionRes.status).toBe(201)
+    const revisionBody = await json<{ revision: { id: string } }>(revisionRes)
+    return {
+      projectId: projectBody.project.id,
+      drawingId: drawingBody.drawing.id,
+      revisionId: revisionBody.revision.id,
+    }
+  }
+
+  it('draft 改訂をチェックアウト→チェックインでき、監査ログに記録される', async () => {
+    const env = testEnv()
+    const { projectId, drawingId, revisionId } = await seed(env)
+
+    const checkoutRes = await handleRequest(
+      authedRequest('PUT', `/api/v1/drawings/${drawingId}/checkout`, { revisionId }),
+      env,
+    )
+    expect(checkoutRes.status).toBe(200)
+    const checkoutBody = await json<{ checkout: { status: string; checkedOutBy: string } }>(checkoutRes)
+    expect(checkoutBody.checkout.status).toBe('checkedOut')
+    expect(checkoutBody.checkout.checkedOutBy).toBe('engineer@example.test')
+
+    const reacquireRes = await handleRequest(
+      authedRequest('PUT', `/api/v1/drawings/${drawingId}/checkout`, { revisionId }),
+      env,
+    )
+    expect(reacquireRes.status).toBe(200)
+
+    const checkinRes = await handleRequest(
+      authedRequest('DELETE', `/api/v1/drawings/${drawingId}/checkout`),
+      env,
+    )
+    expect(checkinRes.status).toBe(200)
+    const checkinBody = await json<{ checkout: { status: string; checkedInAt?: string } }>(checkinRes)
+    expect(checkinBody.checkout.status).toBe('checkedIn')
+    expect(checkinBody.checkout.checkedInAt).toBeTruthy()
+
+    const auditRes = await handleRequest(
+      authedRequest('GET', `/api/v1/audit-logs?projectId=${projectId}`),
+      env,
+    )
+    const auditBody = await json<AuditLogsBody>(auditRes)
+    const eventNames = auditBody.auditLogs.map((log) => log.eventName)
+    expect(eventNames).toContain('drawing.checkout')
+    expect(eventNames).toContain('drawing.checkin')
+  })
+
+  it('他ユーザー保有中のチェックアウトは 409、保有者以外のチェックインも 409', async () => {
+    const env = testEnv()
+    const { projectId, drawingId, revisionId } = await seed(env)
+    for (const userId of ['user-a@example.test', 'user-b@example.test']) {
+      const memberRes = await handleRequest(
+        authedRequest('POST', `/api/v1/projects/${projectId}/members`, { userId, role: 'editor' }),
+        env,
+      )
+      expect(memberRes.status).toBe(201)
+    }
+
+    const checkoutRes = await handleRequest(
+      authedRequestAs('user-a@example.test', 'PUT', `/api/v1/drawings/${drawingId}/checkout`, { revisionId }),
+      env,
+    )
+    expect(checkoutRes.status).toBe(200)
+
+    const conflictRes = await handleRequest(
+      authedRequestAs('user-b@example.test', 'PUT', `/api/v1/drawings/${drawingId}/checkout`, { revisionId }),
+      env,
+    )
+    expect(conflictRes.status).toBe(409)
+    const conflictBody = await json<ApiErrorBody>(conflictRes)
+    expect(conflictBody.error.code).toBe('CD-CONFLICT-001')
+
+    const wrongCheckinRes = await handleRequest(
+      authedRequestAs('user-b@example.test', 'DELETE', `/api/v1/drawings/${drawingId}/checkout`),
+      env,
+    )
+    expect(wrongCheckinRes.status).toBe(409)
+  })
+
+  it('approved 改訂はチェックアウトできない（承認後改変防止）', async () => {
+    const env = testEnv()
+    const { drawingId, revisionId } = await seed(env)
+    // 承認フローは内容チェックサム等の前提があるため、ハンドラのゲート検証は
+    // ストア状態を approved へ直接遷移させて行う（ユニットテストの責務）。
+    const store = env.CIVILDRAFT_DEV_STORE
+    expect(store).toBeDefined()
+    const revision = store?.revisions.get(revisionId)
+    expect(revision).toBeDefined()
+    if (store && revision) {
+      store.revisions.set(revisionId, { ...revision, status: 'approved' })
+    }
+
+    const checkoutRes = await handleRequest(
+      authedRequest('PUT', `/api/v1/drawings/${drawingId}/checkout`, { revisionId }),
+      env,
+    )
+    expect(checkoutRes.status).toBe(422)
+    const body = await json<ApiErrorBody>(checkoutRes)
+    expect(body.error.message).toContain('承認後改変防止')
   })
 })
