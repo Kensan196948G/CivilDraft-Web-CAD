@@ -73,6 +73,20 @@ beforeEach(() => {
 })
 
 describe('CivilDraftApiClient', () => {
+  it('listProjects は参加案件一覧を返す', async () => {
+    const env: WorkerEnv = { CIVILDRAFT_API_MODE: 'memory', CIVILDRAFT_DEV_STORE: createMemoryStore() }
+    const client = makeClient(env)
+    const created = await client.createProject({ projectNumber: 'P-100', name: '一覧検証工事' })
+    expect(created.ok).toBe(true)
+
+    const listed = await client.listProjects()
+    expect(listed.ok).toBe(true)
+    if (listed.ok) {
+      expect(listed.value.length).toBe(1)
+      expect(listed.value[0]?.name).toBe('一覧検証工事')
+    }
+  })
+
   it('Workers API P0縦線をブラウザ側クライアントから保存・再読込・Export作成できる', async () => {
     const env: WorkerEnv = { CIVILDRAFT_API_MODE: 'memory', CIVILDRAFT_DEV_STORE: createMemoryStore() }
     const client = makeClient(env)

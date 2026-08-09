@@ -82,15 +82,19 @@ const ACCESS_JWT_HEADER = 'Cf-Access-Jwt-Assertion'
 const ACCESS_USER_HEADER = 'Cf-Access-Authenticated-User-Email'
 const CORRELATION_ID_HEADER = 'X-Correlation-Id'
 
-// 全レスポンス（API・SPA配信とも）に付与するセキュリティヘッダー（2026-08-01 監査）。
-// Content-Security-Policy は zone レベル（Cloudflare Transform Rules）で導入予定のため
-// ここでは最小限のハードニングに留める（docs/operations/production-deployment.md 参照）。
+// 全レスポンス（API・SPA配信とも）に付与するセキュリティヘッダー（2026-08-01 監査・
+// 2026-08-10 CSP 追加）。SPA はインライン style 多用・Google Fonts 利用のため
+// style-src 'unsafe-inline' と fonts ドメインを許可する（script-src は 'self' のみ）。
 const SECURITY_RESPONSE_HEADERS: Readonly<Record<string, string>> = {
   'X-Content-Type-Options': 'nosniff',
   'X-Frame-Options': 'SAMEORIGIN',
   'Referrer-Policy': 'no-referrer',
   'Permissions-Policy': 'camera=(), microphone=(), geolocation=(), payment=(), usb=()',
   'Strict-Transport-Security': 'max-age=31536000',
+  'Content-Security-Policy':
+    "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; " +
+    "font-src 'self' data: https://fonts.gstatic.com; img-src 'self' data: blob:; connect-src 'self'; " +
+    "object-src 'none'; base-uri 'self'; frame-ancestors 'none'; form-action 'self'",
 }
 
 /** 既存ヘッダーを上書きせずセキュリティヘッダーを付与した Response を返す。 */

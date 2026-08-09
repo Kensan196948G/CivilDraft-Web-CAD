@@ -9,10 +9,18 @@ import { createDemoDrawingGeometries } from '@/app/demoData'
 import { createDefaultLayer } from '@/app/store/editorStore'
 import { useEditorStoreApi } from '@/app/store/useEditorStore'
 import type { AutosaveSnapshot, AutosaveStore } from '@/infrastructure/autosave/autosaveStore'
+import {
+  createCivilDraftApiClient,
+  type CloudProject,
+} from '@/infrastructure/cloud/civilDraftApiClient'
 
 export interface HomePageProps {
   readonly autosaveStore: AutosaveStore
   readonly onOpenEditor: () => void
+  /** Workers API クライアント（テスト注入用。未指定時は同一オリジン API を使用）。 */
+  readonly cloudApiClient?: Pick<ReturnType<typeof createCivilDraftApiClient>, 'listProjects'>
+  /** 本番モード（共有データを API から取得し、サンプルデータを表示しない）。App が MODE=production 時に true を渡す。 */
+  readonly enableCloudData?: boolean
 }
 
 type HomeMode = 'dashboard' | 'new' | 'detail' | 'all' | 'recent' | 'notice' | 'metric'
@@ -109,14 +117,15 @@ function statusBadge(color: string, bg: string): CSSProperties {
   return { display: 'inline-block', padding: '2px 8px', borderRadius: 6, fontSize: 11, fontWeight: 600, color, background: bg }
 }
 
-function metricProjects(metric: MetricKey): readonly ProjectRow[] {
-  if (metric === 'active') return PROJECTS.filter((p) => p.status === '進行中')
-  if (metric === 'review') return PROJECTS.filter((p) => p.status === '照査待ち')
-  if (metric === 'approval') return PROJECTS.filter((p) => p.status === '承認待ち')
+function metricProjects(metric: MetricKey, projects: readonly ProjectRow[]): readonly ProjectRow[] {
+  const source = projects.length > 0 ? projects : PROJECTS
+  if (metric === 'active') return source.filter((p) => p.status === '進行中')
+  if (metric === 'review') return source.filter((p) => p.status === '照査待ち')
+  if (metric === 'approval') return source.filter((p) => p.status === '承認待ち')
   return []
 }
 
-export function HomePage({ autosaveStore, onOpenEditor }: HomePageProps) {
+export function HomePage({ autosaveStore, onOpenEditor, cloudApiClient, enableCloudData = false }: HomePageProps) {
   const storeApi = useEditorStoreApi()
   const [snapshot, setSnapshot] = useState<AutosaveSnapshot | null>(null)
   const [recoveryMessage, setRecoveryMessage] = useState<string | null>(null)
@@ -144,7 +153,48 @@ export function HomePage({ autosaveStore, onOpenEditor }: HomePageProps) {
     }
   }, [autosaveStore])
 
-  const projects = useMemo(() => [...createdProjects, ...PROJECTS], [createdProjects])
+  const demoMode = typeof window !== 'undefined' && new URLSearchParams(window.location.search).has('demo')
+  const useCloudData = enableCloudData && !demoMode
+  const [cloudProjects, setCloudProjects] = useState<readonly CloudProject[] | null>(null)
+  const [cloudError, setCloudError] = useState<string | null>(null)
+
+  useEffect(() => {
+    if (!useCloudData) return
+    const client = cloudApiClient ?? createCivilDraftApiClient()
+    let cancelled = false
+    void client.listProjects().then((result) => {
+      if (cancelled) return
+      if (result.ok) {
+        setCloudProjects(result.value)
+        setCloudError(null)
+      } else {
+        setCloudError(result.error.message)
+      }
+    })
+    return () => {
+      cancelled = true
+    }
+  }, [cloudApiClient, useCloudData])
+
+  const useDemoData = !useCloudData
+  const projects = useMemo(() => {
+    if (useDemoData) return [...createdProjects, ...PROJECTS]
+    return (cloudProjects ?? []).map((project) => ({
+      name: project.name,
+      area: '未設定',
+      status: (project.status ?? 'active') === 'active' ? ('進行中' as const) : ('承認済み' as const),
+      color: '#2E5AAC',
+      bg: '#E9F0FB',
+      drawings: 0,
+      updated: '',
+      manager: '',
+      client: project.clientName ?? '',
+      note: project.projectNumber,
+    }))
+  }, [useDemoData, createdProjects, cloudProjects])
+  const activeCount = projects.filter((project) => project.status === '進行中').length
+  const reviewCount = projects.filter((project) => project.status === '照査待ち').length
+  const approvalCount = projects.filter((project) => project.status === '承認待ち').length
   const recoveryCount = snapshot !== null ? 1 : 0
 
   const restoreSnapshot = () => {
@@ -242,7 +292,7 @@ export function HomePage({ autosaveStore, onOpenEditor }: HomePageProps) {
       )
       return project.name.toLowerCase().includes(normalizedSearch) || drawingHit
     })
-  const visibleProjects = mode === 'metric' ? metricProjects(metric) : searchedProjects.slice(0, 5)
+  const visibleProjects = mode === 'metric' ? metricProjects(metric, projects) : searchedProjects.slice(0, 5)
   const tableProjects = mode === 'all' ? searchedProjects : visibleProjects
 
   return (
@@ -264,21 +314,26 @@ export function HomePage({ autosaveStore, onOpenEditor }: HomePageProps) {
 
       <main style={{ flex: 1, overflow: 'auto', padding: 22 }}>
         <div role="status" style={demoBannerStyle}>
-          ⚠️ デモ表示: 共有API（Cloudflare Access設定）接続前のため、案件一覧・統計はサンプルデータです。
-          Access設定後は本番の実案件データへ切り替わります（Issue #36・#62）。
+          {useDemoData
+            ? '⚠️ デモ表示: ?demo=1 のため案件一覧・統計はサンプルデータです。'
+            : cloudError !== null
+              ? `⚠️ 共有データに接続できません: ${cloudError}（サンプルデータは表示しません）`
+              : cloudProjects === null
+                ? '📡 共有データを読み込み中…'
+                : '✅ 共有データ接続済み: 実案件データを表示中です。'}
         </div>
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit,minmax(170px,1fr))', gap: 14, marginBottom: 16 }}>
           <button style={cardStyle} onClick={() => openMetric('active')}>
             <div style={cardTitleRow}><div style={cardTitleStyle}>進行中案件</div><span style={{ width: 8, height: 8, borderRadius: 3, background: '#2E5AAC' }} /></div>
-            <div style={cardValueStyle}>9</div><div style={{ fontSize: 11, fontWeight: 500, color: 'var(--muted)' }}>全 14 案件中</div>
+            <div style={cardValueStyle}>{activeCount}</div><div style={{ fontSize: 11, fontWeight: 500, color: 'var(--muted)' }}>全 {projects.length} 案件中</div>
           </button>
           <button style={cardStyle} onClick={() => openMetric('review')}>
             <div style={cardTitleRow}><div style={cardTitleStyle}>照査待ち図面</div><span style={{ width: 8, height: 8, borderRadius: 3, background: '#B5701A' }} /></div>
-            <div style={cardValueStyle}>5</div><div style={{ fontSize: 11, fontWeight: 500, color: '#B5701A' }}>2件が3日以上滞留</div>
+            <div style={cardValueStyle}>{reviewCount}</div><div style={{ fontSize: 11, fontWeight: 500, color: '#B5701A' }}>{useDemoData ? '2件が3日以上滞留' : '照査ステータス集計は未連携'}</div>
           </button>
           <button style={cardStyle} onClick={() => openMetric('approval')}>
             <div style={cardTitleRow}><div style={cardTitleStyle}>承認待ち図面</div><span style={{ width: 8, height: 8, borderRadius: 3, background: '#6B45B0' }} /></div>
-            <div style={cardValueStyle}>3</div><div style={{ fontSize: 11, fontWeight: 500, color: 'var(--muted)' }}>承認者確認待ち</div>
+            <div style={cardValueStyle}>{approvalCount}</div><div style={{ fontSize: 11, fontWeight: 500, color: 'var(--muted)' }}>{useDemoData ? '承認者確認待ち' : '承認ステータス集計は未連携'}</div>
           </button>
           <button style={cardStyle} onClick={() => openMetric('recovery')}>
             <div style={cardTitleRow}><div style={cardTitleStyle}>自動保存の復旧候補</div><span style={{ width: 8, height: 8, borderRadius: 3, background: '#C5392F' }} /></div>
@@ -412,12 +467,20 @@ export function HomePage({ autosaveStore, onOpenEditor }: HomePageProps) {
 
             <div style={panelStyle}>
               <div style={{ padding: '16px 18px', borderBottom: '1px solid var(--line2)', fontSize: 14, fontWeight: 600 }}>最近開いた図面</div>
-              <div>{RECENT_DRAWINGS.map((r, i) => <button key={r.no} onClick={() => openRecent(r)} style={{ display: 'flex', alignItems: 'center', gap: 14, padding: '13px 18px', border: 'none', borderBottom: i === RECENT_DRAWINGS.length - 1 ? 'none' : '1px solid var(--line2)', width: '100%', background: 'none', color: 'inherit', font: 'inherit', cursor: 'pointer', textAlign: 'left' }}><span>{r.icon}</span><div style={{ flex: 1 }}><div style={{ fontSize: 12.5, fontWeight: 500 }}>{r.name} {r.rev}</div><div style={{ fontSize: 11, color: 'var(--muted)' }}>{r.project}</div></div><span style={{ fontSize: 11, color: 'var(--muted)' }}>{r.when}</span></button>)}</div>
+              <div>
+                {useDemoData
+                  ? RECENT_DRAWINGS.map((r, i) => <button key={r.no} onClick={() => openRecent(r)} style={{ display: 'flex', alignItems: 'center', gap: 14, padding: '13px 18px', border: 'none', borderBottom: i === RECENT_DRAWINGS.length - 1 ? 'none' : '1px solid var(--line2)', width: '100%', background: 'none', color: 'inherit', font: 'inherit', cursor: 'pointer', textAlign: 'left' }}><span>{r.icon}</span><div style={{ flex: 1 }}><div style={{ fontSize: 12.5, fontWeight: 500 }}>{r.name} {r.rev}</div><div style={{ fontSize: 11, color: 'var(--muted)' }}>{r.project}</div></div><span style={{ fontSize: 11, color: 'var(--muted)' }}>{r.when}</span></button>)
+                  : <div style={{ padding: '10px 18px', fontSize: 12, color: 'var(--muted)' }}>閲覧履歴の共有連携は未実装です（実案件データのみ表示）。</div>}
+              </div>
             </div>
 
             <div style={panelStyle}>
               <div style={{ padding: '16px 18px', borderBottom: '1px solid var(--line2)', fontSize: 14, fontWeight: 600 }}>お知らせ</div>
-              <div style={{ padding: '10px 0' }}>{NOTICES.map((notice) => <button key={notice.title} onClick={() => openNotice(notice)} style={{ display: 'block', width: '100%', border: 'none', background: 'none', color: 'var(--ink2)', textAlign: 'left', padding: '8px 18px', font: 'inherit', fontSize: 12, cursor: 'pointer' }}>・ {notice.title}（{notice.date}）</button>)}</div>
+              <div style={{ padding: '10px 0' }}>
+                {useDemoData
+                  ? NOTICES.map((notice) => <button key={notice.title} onClick={() => openNotice(notice)} style={{ display: 'block', width: '100%', border: 'none', background: 'none', color: 'var(--ink2)', textAlign: 'left', padding: '8px 18px', font: 'inherit', fontSize: 12, cursor: 'pointer' }}>・ {notice.title}（{notice.date}）</button>)
+                  : <div style={{ padding: '0 18px', fontSize: 12, color: 'var(--muted)' }}>お知らせ配信機能は未実装です。</div>}
+              </div>
             </div>
           </div>
         </div>
