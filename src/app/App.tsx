@@ -47,6 +47,9 @@ const CrossSectionPage = lazy(() =>
 const ConstructionStepsPage = lazy(() =>
   import('./pages/ConstructionStepsPage').then((m) => ({ default: m.ConstructionStepsPage })),
 )
+const FieldExplanationPage = lazy(() =>
+  import('./pages/FieldExplanationPage').then((m) => ({ default: m.FieldExplanationPage })),
+)
 const DrawingComparePage = lazy(() =>
   import('./pages/DrawingComparePage').then((m) => ({ default: m.DrawingComparePage })),
 )
@@ -79,6 +82,7 @@ function loadTheme(): 'light' | 'dark' {
 function AppShell() {
   const [view, setView] = useState<AppView>('home')
   const [theme, setTheme] = useState<'light' | 'dark'>(loadTheme)
+  const [isSidebarOpen, setIsSidebarOpen] = useState(false)
   const [autosaveStore] = useState<AutosaveStore>(() => createAutosaveStore())
   const [cloudDraftSession, setCloudDraftSession] = useState<CloudDraftSession>(DEFAULT_CLOUD_DRAFT_SESSION)
   const [selectedProjectId, setSelectedProjectId] = useState<string | null>(null)
@@ -113,6 +117,12 @@ function AppShell() {
       quantity: <QuantitySummaryPage onNavigate={(view) => setView(view as AppView)} />,
       section: <CrossSectionPage enableSampleData={import.meta.env.MODE !== 'production'} />,
       steps: <ConstructionStepsPage />,
+      field: (
+        <FieldExplanationPage
+          cloudDraftSession={cloudDraftSession}
+          onOpenEditor={() => setView('editor')}
+        />
+      ),
       compare: <DrawingComparePage autosaveStore={autosaveStore} />,
       approval: <ReviewApprovalPage enableCloudData={import.meta.env.MODE === 'production'} />,
       print: <PrintExportPage enableSampleHistory={import.meta.env.MODE !== 'production'} />,
@@ -153,13 +163,27 @@ function AppShell() {
         color: 'var(--ink)',
       }}
     >
-      <Sidebar
-        activeView={view}
-        theme={theme}
-        implementedViews={implementedViews}
-        onNavigate={setView}
-        onToggleTheme={toggleTheme}
-      />
+      <button
+        type="button"
+        className="cd-mobile-menu-button"
+        aria-label="メニューを開く"
+        aria-expanded={isSidebarOpen}
+        onClick={() => setIsSidebarOpen((current) => !current)}
+      >
+        ☰
+      </button>
+      <div className={`cd-sidebar-mount${isSidebarOpen ? ' cd-sidebar-open' : ''}`}>
+        <Sidebar
+          activeView={view}
+          theme={theme}
+          implementedViews={implementedViews}
+          onNavigate={(next) => {
+            setView(next)
+            setIsSidebarOpen(false)
+          }}
+          onToggleTheme={toggleTheme}
+        />
+      </div>
       <Suspense
         fallback={
           <div style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--muted)', fontSize: 13 }}>

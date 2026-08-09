@@ -117,6 +117,15 @@ copyleft を検出した場合の可否判断は自動化せず、以下の順�
 SBOM は timestamp/serialNumber を生成スクリプトで固定するため、CI の drift 検出対象に含める。
 SBOM を用いた追加脆弱性スキャン（CycloneDX 対応スキャナ）は、導入ツールと許可ポリシーを人間承認後に追加する。
 
+## 📝 2026-08-10: exceljs / jszip 導入時のライセンス判断
+
+- 目的: Excel（.xlsx）出力（数量・図面リスト・サマリー）。
+- `exceljs@4.4.0`（MIT）の推移依存 `jszip@3.10.1` は **`MIT OR GPL-3.0-or-later`**。
+- 判断: デュアルライセンスの許諾側（MIT）を選択する。jszip のソース・配布物に
+  GPL 由来の変更を加えていないため、GPL 義務は発生しない。ビルド成果物への再配布は MIT 条件で可。
+- 対策: `uuid` は `package.json` の `overrides` で 11.1.1 以上へ固定（GHSA-w5hq-g745-h8pq 対応）。
+- 残確認: 人間による最終承認（本記録は CTO 判断の一次記録）。
+
 ## 🔗 関連
 
 - 生成スクリプト: `scripts/generate-third-party-notices.mjs`

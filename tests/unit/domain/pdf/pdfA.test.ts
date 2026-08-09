@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { PDFDocument, PDFName } from 'pdf-lib'
+import { PDFDocument, PDFName, type PDFArray, type PDFDict, type PDFStream } from 'pdf-lib'
 import { applyPdfAMetadata } from '@/domain/pdf/pdfA'
 
 async function makePdf(): Promise<Uint8Array> {
@@ -38,5 +38,24 @@ describe('pdfA / PDF/A-1b 指向メタデータ', () => {
       author: 'y',
     })
     expect(result.ok).toBe(false)
+  })
+
+  it('OutputIntent に sRGB ICC プロファイル（DestOutputProfile）を埋め込む', async () => {
+    const pdf = await makePdf()
+    const result = await applyPdfAMetadata(pdf, { title: 'x', author: 'y' })
+    expect(result.ok).toBe(true)
+    if (!result.ok) return
+
+    const doc = await PDFDocument.load(result.value.bytes)
+    const outputIntents = doc.catalog.get(PDFName.of('OutputIntents')) as PDFArray
+    expect(outputIntents).toBeDefined()
+    const outputIntent = outputIntents.get(0) as PDFDict
+    expect(outputIntent.get(PDFName.of('S'))?.toString()).toContain('GTS_PDFA1')
+    const profile = outputIntent.get(PDFName.of('DestOutputProfile')) as PDFStream
+    expect(profile).toBeDefined()
+    expect(profile.contents.length).toBeGreaterThan(1000)
+    // sRGB2014 ICC のヘッダーシグネチャ（'acsp'）を確認
+    const signature = new TextDecoder().decode(profile.contents.subarray(36, 40))
+    expect(signature).toBe('acsp')
   })
 })

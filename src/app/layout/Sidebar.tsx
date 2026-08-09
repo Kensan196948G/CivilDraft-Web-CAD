@@ -16,6 +16,7 @@ export type AppView =
   | 'quantity'
   | 'section'
   | 'steps'
+  | 'field'
   | 'compare'
   | 'approval'
   | 'print'
@@ -66,6 +67,7 @@ const NAV_SECTIONS: readonly NavSection[] = [
       { icon: '🧮', label: '数量集計', view: 'quantity' },
       { icon: '📉', label: '縦横断管理', view: 'section' },
       { icon: '🕒', label: '施工ステップ', view: 'steps' },
+      { icon: '📢', label: '現場説明モード', view: 'field' },
       { icon: '🔍', label: '図面比較', view: 'compare' },
       { icon: '✅', label: '照査・承認', view: 'approval' },
     ],

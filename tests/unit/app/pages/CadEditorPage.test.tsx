@@ -108,6 +108,25 @@ describe('CadEditorPage cloud save', () => {
     await waitFor(() => expect(screen.getByRole('status').textContent).toContain('選択なし'))
   })
 
+  it('現場説明モード（#58）への切替ボタンがCAD編集画面に存在し遷移する', async () => {
+    const store = createEditorStore()
+    const cloudApiClient: CloudSaveClient = { saveDraft: vi.fn(), getRevisionContent: vi.fn() }
+    const onNavigate = vi.fn()
+    render(
+      <EditorStoreProvider store={store}>
+        <CadEditorPage
+          autosaveStore={new MemoryAutosaveStore()}
+          onNavigate={onNavigate}
+          cloudApiClient={cloudApiClient}
+        />
+      </EditorStoreProvider>,
+    )
+    const button = screen.getByRole('button', { name: '現場説明モード' })
+    expect(button).toBeInTheDocument()
+    await userEvent.click(button)
+    expect(onNavigate).toHaveBeenCalledWith('field')
+  })
+
   it('コマンドラインから undo / layer / help を実行できる（Issue #47）', async () => {
     const store = createEditorStore()
     store.getState().dispatchCommand(createAddGeometryCommand(line('g-1'), defaultCreationContext))

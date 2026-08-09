@@ -1,0 +1,40 @@
+name: SLO Report
+
+# 週次（日曜 23:00 UTC）の合成監視実績集計。対外公開・通知先の決定は人間決裁事項。
+"on":
+  schedule:
+    - cron: '0 23 * * 0'
+  workflow_dispatch: {}
+
+permissions:
+  contents: read
+  actions: read
+
+jobs:
+  slo:
+    name: Compute SLO availability
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+        with:
+          node-version: 25
+          cache: npm
+
+      - run: npm ci
+
+      - name: Run SLO tracking
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+          GITHUB_REPOSITORY: ${{ github.repository }}
+        run: |
+          node scripts/slo-tracking.mjs > slo-report.md
+          node scripts/slo-tracking.mjs --json > slo-report.json
+          cat slo-report.md >> "$GITHUB_STEP_SUMMARY"
+
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: slo-report
+          path: slo-report.json
+          retention-days: 90
