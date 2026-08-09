@@ -1638,6 +1638,15 @@ export function CadEditorPage({
             void handleImportDxf(e.target.files?.[0])
           }}
         />
+        <button
+          type="button"
+          style={ghostButtonStyle}
+          aria-label="現場説明モード"
+          title="現場説明モード（閲覧特化）"
+          onClick={() => onNavigate('field')}
+        >
+          📢 説明
+        </button>
         <button style={primaryButtonStyle} onClick={() => onNavigate('print')}>
           出力
         </button>
