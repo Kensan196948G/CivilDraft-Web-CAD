@@ -20,7 +20,7 @@ import {
 import { createPdfSignatureManifest, signatureManifestToJson } from '@/domain/pdf/pdfSignature'
 import { applyPdfAMetadata } from '@/domain/pdf/pdfA'
 import { redactPdfText } from '@/domain/pdf/pdfRedact'
-import { createPadesDetachedSignature } from '@/domain/pdf/pdfSignaturePades'
+import { createPadesDetachedSignature, signPdfEmbedded } from '@/domain/pdf/pdfSignaturePades'
 import { exportSxfP21 } from '@/domain/edelivery/sxfP21'
 import {
   ghostButtonStyle,
@@ -308,6 +308,30 @@ export function PrintExportPage() {
     }
   }
 
+  const runPadesEmbedded = async () => {
+    if (pdfFiles.length === 0) {
+      setPdfMessage('⚠️ PDF を選択してください')
+      return
+    }
+    if (signerKeyPem.trim() === '') {
+      setPdfMessage('⚠️ PKCS#8 RSA 秘密鍵（PEM）を選択してください')
+      return
+    }
+    const file = pdfFiles[0]
+    if (file === undefined) return
+    const result = await signPdfEmbedded({
+      pdfBytes: file.bytes,
+      privateKeyPem: signerKeyPem,
+      signerName,
+    })
+    if (result.ok) {
+      downloadPdf(result.value.bytes, `${file.name.replace(/\.pdf$/i, '')}-signed.pdf`)
+      setPdfMessage('✅ PAdES 埋め込み署名を適用しました（自己署名証明書入り・署名者の証明書検証は別途必要）')
+    } else {
+      setPdfMessage(`⚠️ ${result.error.message}`)
+    }
+  }
+
   const handleSignerKey = async (event: ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0]
     if (file === undefined) return
@@ -528,6 +552,9 @@ export function PrintExportPage() {
                 </button>
                 <button type="button" style={pdfActionStyle} onClick={() => void runPades()}>
                   PAdES-CMS detached 署名（.p7s）生成
+                </button>
+                <button type="button" style={pdfActionStyle} onClick={() => void runPadesEmbedded()}>
+                  PAdES 埋め込み署名（PDF・自己署名証明書）
                 </button>
                 {pdfMessage !== null && (
                   <div role="status" style={{ fontSize: 11.5, color: 'var(--muted)' }}>

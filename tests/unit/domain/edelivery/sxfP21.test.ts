@@ -67,7 +67,7 @@ describe('sxfP21 / 試作エクスポータ', () => {
     expect(result.issues).toHaveLength(0)
   })
 
-  it('未対応図形（円弧・楕円）は出力せず警告を積む', () => {
+  it('円弧は TRIMMED_CURVE として出力し、未対応図形（楕円）は警告を積む', () => {
     const geometries: Geometry[] = [
       {
         ...base,
@@ -76,7 +76,7 @@ describe('sxfP21 / 試作エクスポータ', () => {
         center: { x: 0, y: 0 },
         radius: 100,
         startAngleDeg: 0,
-        endAngleDeg: 90,
+        endAngleDeg: 180,
       },
       {
         ...base,
@@ -89,9 +89,9 @@ describe('sxfP21 / 試作エクスポータ', () => {
       },
     ]
     const result = exportSxfP21(geometries, { fileName: 'test.P21', drawingName: '施工図' })
-    expect(result.exportedCount).toBe(0)
-    expect(result.issues.some((issue) => issue.includes('円弧'))).toBe(true)
+    expect(result.exportedCount).toBe(1)
+    expect(result.text).toContain('TRIMMED_CURVE(')
+    expect(result.text).toContain('PARAMETER_VALUE(')
     expect(result.issues.some((issue) => issue.includes('楕円'))).toBe(true)
-    expect(result.text).not.toContain('CIRCLE(')
   })
 })

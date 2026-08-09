@@ -82,9 +82,23 @@ export function exportSxfP21(
         exportedCount += 1
         break
       }
-      case 'arc':
-        issues.push('円弧は TRIMMED_CURVE 化が必要なため試作出力から除外しました')
+      case 'arc': {
+        // TRIMMED_CURVE（master_representation=.P. = parameter）で円弧を表現する。
+        // 角度は内部規約（Y 下方向・時計回り正）をそのままラジアン化しており、
+        // 電子納品チェックシステムでの検証が必須（実験的実装）。
+        const center = pointRef(geometry.center.x, geometry.center.y)
+        const basis = next()
+        lines.push(`#${basis}=CIRCLE('',${center},${fmt(geometry.radius)});`)
+        const startRad = (geometry.startAngleDeg * Math.PI) / 180
+        const endRad = (geometry.endAngleDeg * Math.PI) / 180
+        const curve = next()
+        lines.push(
+          `#${curve}=TRIMMED_CURVE('',#${basis},(PARAMETER_VALUE(${fmt(startRad)}),PARAMETER_VALUE(${fmt(endRad)})),.T.,.P.);`,
+        )
+        curveRefs.push(`#${curve}`)
+        exportedCount += 1
         break
+      }
       case 'ellipse':
         issues.push('楕円は試作出力から除外しました')
         break
