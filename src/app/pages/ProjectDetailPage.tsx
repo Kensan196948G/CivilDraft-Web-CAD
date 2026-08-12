@@ -176,6 +176,8 @@ const ACTIVITIES = [
 
 export interface ProjectDetailPageProps {
   readonly onOpenEditor?: (session: CloudDraftSession) => void
+  /** 編集権限（viewer ロールでは false。false 時は編集・作成ボタンを非表示）。 */
+  readonly canEdit?: boolean
   /** 実案件ID（ホームの案件一覧から選択した案件）。 */
   readonly projectId?: string
   /** 実データ未選択時にホームへ戻る導線。 */
@@ -186,7 +188,13 @@ export interface ProjectDetailPageProps {
   readonly enableCloudData?: boolean
 }
 
-function DemoProjectDetail({ onOpenEditor }: { readonly onOpenEditor?: (session: CloudDraftSession) => void }) {
+function DemoProjectDetail({
+  onOpenEditor,
+  canEdit = true,
+}: {
+  readonly onOpenEditor?: (session: CloudDraftSession) => void
+  readonly canEdit?: boolean
+}) {
   const [project, setProject] = useState<ProjectInfoState>(INITIAL_PROJECT)
   const [draftProject, setDraftProject] = useState<ProjectInfoState>(INITIAL_PROJECT)
   const [drawings, setDrawings] = useState<readonly DrawingRow[]>(DRAWINGS)
@@ -281,12 +289,16 @@ function DemoProjectDetail({ onOpenEditor }: { readonly onOpenEditor?: (session:
         >
           {project.status}
         </div>
-        <button style={secondaryButtonStyle} onClick={() => { setDraftProject(project); setMode('editProject') }}>
-          案件を編集
-        </button>
-        <button style={primaryButtonStyle} onClick={() => setMode('newDrawing')}>
-          ＋ 図面を作成
-        </button>
+        {canEdit && (
+          <button style={secondaryButtonStyle} onClick={() => { setDraftProject(project); setMode('editProject') }}>
+            案件を編集
+          </button>
+        )}
+        {canEdit && (
+          <button style={primaryButtonStyle} onClick={() => setMode('newDrawing')}>
+            ＋ 図面を作成
+          </button>
+        )}
       </header>
 
       <main style={pageMainStyle}>
@@ -334,7 +346,11 @@ function DemoProjectDetail({ onOpenEditor }: { readonly onOpenEditor?: (session:
             <div style={panelStyle}>
               <div style={{ ...panelHeaderStyle, display: 'flex', alignItems: 'center', gap: 10 }}>
                 <div style={{ flex: 1 }}>図面詳細: {selectedDrawing.no} {selectedDrawing.name}</div>
-                <button style={primaryButtonStyle} onClick={() => onOpenEditor?.(toCloudSession(selectedDrawing))}>CAD編集で開く</button>
+                {canEdit && (
+                  <button style={primaryButtonStyle} onClick={() => onOpenEditor?.(toCloudSession(selectedDrawing))}>
+                    CAD編集で開く
+                  </button>
+                )}
                 <button style={secondaryButtonStyle} onClick={() => setMode('overview')}>閉じる</button>
               </div>
               <div style={{ padding: 18, display: 'grid', gridTemplateColumns: 'repeat(5,minmax(0,1fr))', gap: 12, fontSize: 12.5 }}>
@@ -495,6 +511,7 @@ function DemoProjectDetail({ onOpenEditor }: { readonly onOpenEditor?: (session:
 
 export function ProjectDetailPage({
   onOpenEditor,
+  canEdit = true,
   projectId,
   onNavigateHome,
   cloudApiClient,
@@ -504,7 +521,7 @@ export function ProjectDetailPage({
     typeof window !== 'undefined' && new URLSearchParams(window.location.search).has('demo')
   const useCloudData = enableCloudData && !demoMode
   if (!useCloudData) {
-    return <DemoProjectDetail onOpenEditor={onOpenEditor} />
+    return <DemoProjectDetail onOpenEditor={onOpenEditor} canEdit={canEdit} />
   }
   return (
     <ProjectDetailCloudPage
@@ -513,6 +530,7 @@ export function ProjectDetailPage({
       onOpenEditor={onOpenEditor}
       onNavigateHome={onNavigateHome}
       cloudApiClient={cloudApiClient}
+      canEdit={canEdit}
     />
   )
 }

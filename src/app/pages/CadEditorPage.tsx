@@ -64,7 +64,6 @@ import type {
   DrawingLayer,
   Geometry,
   GeometryStyle,
-  GeometryType,
   HatchPattern,
   LayerId,
   LineGeometry,
@@ -72,6 +71,11 @@ import type {
   RevisionId,
 } from '@/shared/types'
 import { ghostButtonStyle, monoStyle, pageRootStyle, primaryButtonStyle, statusBadgeStyle } from './pageStyles'
+import { GeometryFields, NumInput } from './cadEditor/geometryFields'
+import { GEOMETRY_TYPE_LABELS, LINE_TYPE_LABELS } from './cadEditor/labels'
+import { withUpdatedAt } from './cadEditor/geometryUpdate'
+import { ParamInputControl } from './cadEditor/paramInputControl'
+import { editParamInputStyle, fieldInputStyle, fieldLabelStyle, fieldRowStyle } from './cadEditor/styles'
 import { formatLengthMm } from '@/domain/units'
 
 export interface CadEditorPageProps {
@@ -103,84 +107,6 @@ export interface CloudSaveClient {
   ): Promise<Result<{ readonly status: string; readonly checkedOutBy: string }, ValidationIssue>>
 }
 
-const GEOMETRY_TYPE_LABELS: Record<GeometryType, string> = {
-  line: '線分',
-  rectangle: '矩形',
-  circle: '円',
-  arc: '円弧',
-  ellipse: '楕円',
-  polyline: 'ポリライン',
-  spline: 'スプライン',
-  text: '文字',
-  dimension: '寸法',
-  leader: '引き出し線',
-  hatch: 'ハッチング',
-  symbol: '部材記号',
-  parametricObject: 'パラメトリック',
-  cloud: '改訂雲',
-  mline: '平行2線',
-}
-
-const LINE_TYPE_LABELS: Record<GeometryStyle['lineType'], string> = {
-  continuous: '実線',
-  dashed: '破線',
-  dashDot: '一点鎖線',
-  double: '二重線',
-}
-
-const FIELD_LABELS: Record<string, string> = {
-  start: '始点',
-  end: '終点',
-  center: '中心',
-  radius: '半径',
-  startAngleDeg: '開始角(°)',
-  endAngleDeg: '終了角(°)',
-  origin: '原点',
-  width: '幅',
-  height: '高さ',
-  rotationDeg: '回転角(°)',
-  radiusX: '半径X',
-  radiusY: '半径Y',
-  points: '頂点',
-  closed: '閉合',
-  tension: 'テンション',
-  orientation: '方向',
-  offset: 'オフセット',
-  textHeight: '文字高さ',
-  arrowSize: '矢印サイズ',
-  text: '内容',
-  boundaryPoints: '境界点',
-  pattern: 'パターン',
-  angleDeg: '角度(°)',
-  spacing: '間隔',
-  symbolId: '部材ID',
-  position: '位置',
-  scale: '倍率',
-  definitionId: '定義ID',
-  definitionVersion: 'バージョン',
-  parameters: 'パラメータ',
-  generatedGeometryIds: '生成図形',
-  anchor: '位置',
-  horizontalAlign: '配置',
-  x1: 'X1',
-  y1: 'Y1',
-  x2: 'X2',
-  y2: 'Y2',
-  arcSize: 'アークサイズ',
-}
-
-const GEOMETRY_BASE_KEYS = new Set([
-  'id',
-  'layerId',
-  'type',
-  'style',
-  'civilAttributeId',
-  'constructionStepIds',
-  'locked',
-  'createdAt',
-  'updatedAt',
-])
-
 const REAL_TOOLS: readonly { readonly tool: ToolType; readonly icon: string; readonly label: string }[] = [
   { tool: 'select', icon: '↖', label: '選択' },
   { tool: 'line', icon: '╱', label: '線分' },
@@ -204,23 +130,6 @@ const commaFmt = new Intl.NumberFormat('ja-JP', { minimumFractionDigits: 3, maxi
 /** activeLayerId に対応するレイヤーを解決する（見つからなければ先頭、無ければ既定レイヤー）。 */
 function resolveActiveLayer(layers: readonly DrawingLayer[], activeLayerId: LayerId): DrawingLayer {
   return layers.find((l) => l.id === activeLayerId) ?? layers[0] ?? createDefaultLayer()
-}
-
-function withUpdatedAt<T extends Geometry>(geometry: T, patch: Partial<T>): T {
-  return { ...geometry, ...patch, updatedAt: new Date().toISOString() }
-}
-
-function formatFieldValue(value: unknown): string {
-  if (value === undefined) return '未設定'
-  if (typeof value === 'number') return value.toFixed(3)
-  if (typeof value === 'boolean') return value ? 'true' : 'false'
-  if (typeof value === 'string') return value
-  if (Array.isArray(value)) return `${value.length}件`
-  if (value !== null && typeof value === 'object' && 'x' in value && 'y' in value) {
-    const p = value as { x: number; y: number }
-    return `(${p.x.toFixed(3)}, ${p.y.toFixed(3)})`
-  }
-  return String(value)
 }
 
 function getBoundaryPoints(geometry: Geometry): readonly Point[] | null {
@@ -257,234 +166,6 @@ const sectionLabelStyle: CSSProperties = {
   color: 'var(--side-label)',
   letterSpacing: 0.4,
   marginBottom: 8,
-}
-
-const fieldRowStyle: CSSProperties = {
-  display: 'flex',
-  alignItems: 'center',
-  justifyContent: 'space-between',
-  gap: 8,
-  fontSize: 12.5,
-  color: 'var(--ink2)',
-  marginBottom: 6,
-}
-
-const fieldLabelStyle: CSSProperties = { color: 'var(--muted)' }
-
-const fieldInputStyle: CSSProperties = {
-  width: 112,
-  padding: '4px 8px',
-  border: '1px solid var(--line)',
-  borderRadius: 6,
-  background: 'var(--subtle2)',
-  color: 'var(--ink)',
-  fontSize: 12.5,
-  font: 'inherit',
-  textAlign: 'right',
-}
-
-/** 数値入力欄。keyにgeometry.id+フィールド値を含めることで、選択切替・Undo/Redoによる外部変更時に defaultValue を再適用する（非制御コンポーネントの取りこぼしを防ぐ）。 */
-function NumInput({
-  value,
-  onCommit,
-  precision = 3,
-}: {
-  readonly value: number
-  readonly onCommit: (next: number) => void
-  readonly precision?: number
-}) {
-  return (
-    <input
-      type="text"
-      inputMode="decimal"
-      defaultValue={value.toFixed(precision)}
-      style={fieldInputStyle}
-      onBlur={(e) => {
-        const next = Number(e.target.value)
-        if (Number.isFinite(next) && next !== value) onCommit(next)
-      }}
-    />
-  )
-}
-
-/** 選択図形の「幾何」フィールド。実データが存在するline/circle/rectangle/textのみ編集可能、他9種は実フィールドの読み取り専用表示とする。 */
-function GeometryFields({
-  geometry,
-  onCommit,
-}: {
-  readonly geometry: Geometry
-  readonly onCommit: (next: Geometry) => void
-}) {
-  switch (geometry.type) {
-    case 'line': {
-      const g = geometry
-      return (
-        <>
-          <div style={fieldRowStyle}>
-            <span style={fieldLabelStyle}>始点 X</span>
-            <NumInput key={`${g.id}:sx:${g.start.x}`} value={g.start.x} onCommit={(v) => onCommit(withUpdatedAt(g, { start: { ...g.start, x: v } }))} />
-          </div>
-          <div style={fieldRowStyle}>
-            <span style={fieldLabelStyle}>始点 Y</span>
-            <NumInput key={`${g.id}:sy:${g.start.y}`} value={g.start.y} onCommit={(v) => onCommit(withUpdatedAt(g, { start: { ...g.start, y: v } }))} />
-          </div>
-          <div style={fieldRowStyle}>
-            <span style={fieldLabelStyle}>終点 X</span>
-            <NumInput key={`${g.id}:ex:${g.end.x}`} value={g.end.x} onCommit={(v) => onCommit(withUpdatedAt(g, { end: { ...g.end, x: v } }))} />
-          </div>
-          <div style={fieldRowStyle}>
-            <span style={fieldLabelStyle}>終点 Y</span>
-            <NumInput key={`${g.id}:ey:${g.end.y}`} value={g.end.y} onCommit={(v) => onCommit(withUpdatedAt(g, { end: { ...g.end, y: v } }))} />
-          </div>
-        </>
-      )
-    }
-    case 'circle': {
-      const g = geometry
-      return (
-        <>
-          <div style={fieldRowStyle}>
-            <span style={fieldLabelStyle}>中心 X</span>
-            <NumInput key={`${g.id}:cx:${g.center.x}`} value={g.center.x} onCommit={(v) => onCommit(withUpdatedAt(g, { center: { ...g.center, x: v } }))} />
-          </div>
-          <div style={fieldRowStyle}>
-            <span style={fieldLabelStyle}>中心 Y</span>
-            <NumInput key={`${g.id}:cy:${g.center.y}`} value={g.center.y} onCommit={(v) => onCommit(withUpdatedAt(g, { center: { ...g.center, y: v } }))} />
-          </div>
-          <div style={fieldRowStyle}>
-            <span style={fieldLabelStyle}>半径</span>
-            <NumInput key={`${g.id}:r:${g.radius}`} value={g.radius} precision={1} onCommit={(v) => onCommit(withUpdatedAt(g, { radius: v }))} />
-          </div>
-        </>
-      )
-    }
-    case 'rectangle': {
-      const g = geometry
-      return (
-        <>
-          <div style={fieldRowStyle}>
-            <span style={fieldLabelStyle}>原点 X</span>
-            <NumInput key={`${g.id}:ox:${g.origin.x}`} value={g.origin.x} onCommit={(v) => onCommit(withUpdatedAt(g, { origin: { ...g.origin, x: v } }))} />
-          </div>
-          <div style={fieldRowStyle}>
-            <span style={fieldLabelStyle}>原点 Y</span>
-            <NumInput key={`${g.id}:oy:${g.origin.y}`} value={g.origin.y} onCommit={(v) => onCommit(withUpdatedAt(g, { origin: { ...g.origin, y: v } }))} />
-          </div>
-          <div style={fieldRowStyle}>
-            <span style={fieldLabelStyle}>幅</span>
-            <NumInput key={`${g.id}:w:${g.width}`} value={g.width} precision={1} onCommit={(v) => onCommit(withUpdatedAt(g, { width: v }))} />
-          </div>
-          <div style={fieldRowStyle}>
-            <span style={fieldLabelStyle}>高さ</span>
-            <NumInput key={`${g.id}:h:${g.height}`} value={g.height} precision={1} onCommit={(v) => onCommit(withUpdatedAt(g, { height: v }))} />
-          </div>
-          <div style={fieldRowStyle}>
-            <span style={fieldLabelStyle}>回転角(°)</span>
-            <NumInput key={`${g.id}:rot:${g.rotationDeg}`} value={g.rotationDeg} precision={1} onCommit={(v) => onCommit(withUpdatedAt(g, { rotationDeg: v }))} />
-          </div>
-        </>
-      )
-    }
-    case 'text': {
-      const g = geometry
-      return (
-        <>
-          <div style={fieldRowStyle}>
-            <span style={fieldLabelStyle}>位置 X</span>
-            <NumInput key={`${g.id}:ax:${g.anchor.x}`} value={g.anchor.x} onCommit={(v) => onCommit(withUpdatedAt(g, { anchor: { ...g.anchor, x: v } }))} />
-          </div>
-          <div style={fieldRowStyle}>
-            <span style={fieldLabelStyle}>位置 Y</span>
-            <NumInput key={`${g.id}:ay:${g.anchor.y}`} value={g.anchor.y} onCommit={(v) => onCommit(withUpdatedAt(g, { anchor: { ...g.anchor, y: v } }))} />
-          </div>
-          <div style={fieldRowStyle}>
-            <span style={fieldLabelStyle}>内容</span>
-            <input
-              key={`${g.id}:text:${g.text}`}
-              type="text"
-              defaultValue={g.text}
-              style={fieldInputStyle}
-              onBlur={(e) => {
-                if (e.target.value !== g.text) onCommit(withUpdatedAt(g, { text: e.target.value }))
-              }}
-            />
-          </div>
-          <div style={fieldRowStyle}>
-            <span style={fieldLabelStyle}>文字高さ</span>
-            <NumInput key={`${g.id}:height:${g.height}`} value={g.height} precision={1} onCommit={(v) => onCommit(withUpdatedAt(g, { height: v }))} />
-          </div>
-          <div style={fieldRowStyle}>
-            <span style={fieldLabelStyle}>回転角(°)</span>
-            <NumInput key={`${g.id}:rot:${g.rotationDeg}`} value={g.rotationDeg} precision={1} onCommit={(v) => onCommit(withUpdatedAt(g, { rotationDeg: v }))} />
-          </div>
-          <div style={fieldRowStyle}>
-            <span style={fieldLabelStyle}>配置</span>
-            <select
-              value={g.horizontalAlign}
-              style={fieldInputStyle}
-              onChange={(e) => onCommit(withUpdatedAt(g, { horizontalAlign: e.target.value as typeof g.horizontalAlign }))}
-            >
-              <option value="left">左寄せ</option>
-              <option value="center">中央</option>
-              <option value="right">右寄せ</option>
-            </select>
-          </div>
-        </>
-      )
-    }
-    case 'leader': {
-      const g = geometry
-      return (
-        <>
-          <div style={fieldRowStyle}>
-            <span style={fieldLabelStyle}>始点 X</span>
-            <NumInput key={`${g.id}:sx:${g.start.x}`} value={g.start.x} onCommit={(v) => onCommit(withUpdatedAt(g, { start: { ...g.start, x: v } }))} />
-          </div>
-          <div style={fieldRowStyle}>
-            <span style={fieldLabelStyle}>始点 Y</span>
-            <NumInput key={`${g.id}:sy:${g.start.y}`} value={g.start.y} onCommit={(v) => onCommit(withUpdatedAt(g, { start: { ...g.start, y: v } }))} />
-          </div>
-          <div style={fieldRowStyle}>
-            <span style={fieldLabelStyle}>終点 X</span>
-            <NumInput key={`${g.id}:ex:${g.end.x}`} value={g.end.x} onCommit={(v) => onCommit(withUpdatedAt(g, { end: { ...g.end, x: v } }))} />
-          </div>
-          <div style={fieldRowStyle}>
-            <span style={fieldLabelStyle}>終点 Y</span>
-            <NumInput key={`${g.id}:ey:${g.end.y}`} value={g.end.y} onCommit={(v) => onCommit(withUpdatedAt(g, { end: { ...g.end, y: v } }))} />
-          </div>
-          <div style={fieldRowStyle}>
-            <span style={fieldLabelStyle}>内容</span>
-            <input
-              key={`${g.id}:text:${g.text}`}
-              type="text"
-              defaultValue={g.text}
-              style={fieldInputStyle}
-              onBlur={(e) => {
-                if (e.target.value !== g.text) onCommit(withUpdatedAt(g, { text: e.target.value }))
-              }}
-            />
-          </div>
-          <div style={fieldRowStyle}>
-            <span style={fieldLabelStyle}>文字高さ</span>
-            <NumInput key={`${g.id}:th:${g.textHeight}`} value={g.textHeight} precision={1} onCommit={(v) => onCommit(withUpdatedAt(g, { textHeight: v }))} />
-          </div>
-        </>
-      )
-    }
-    default: {
-      const entries = Object.entries(geometry).filter(([key]) => !GEOMETRY_BASE_KEYS.has(key))
-      return (
-        <>
-          {entries.map(([key, value]) => (
-            <div key={key} style={fieldRowStyle}>
-              <span style={fieldLabelStyle}>{FIELD_LABELS[key] ?? key}</span>
-              <span style={monoStyle}>{formatFieldValue(value)}</span>
-            </div>
-          ))}
-        </>
-      )
-    }
-  }
 }
 
 const headerBarStyle: CSSProperties = {
@@ -685,50 +366,6 @@ function isDocumentContent(content: unknown): content is {
   if (typeof content !== 'object' || content === null || Array.isArray(content)) return false
   const record = content as Record<string, unknown>
   return Array.isArray(record.geometries) && Array.isArray(record.layers)
-}
-
-const editParamRowStyle: CSSProperties = {
-  display: 'flex',
-  alignItems: 'center',
-  gap: 8,
-  fontSize: 11,
-  color: 'var(--ink2)',
-}
-
-const editParamInputStyle: CSSProperties = {
-  width: 72,
-  padding: '3px 6px',
-  border: '1px solid var(--line)',
-  borderRadius: 4,
-  background: 'var(--surface)',
-  color: 'var(--ink)',
-  fontSize: 11,
-  font: 'inherit',
-  textAlign: 'right',
-}
-
-function ParamInputControl({
-  label,
-  value,
-  onChange,
-}: {
-  readonly label: string
-  readonly value: number
-  readonly onChange: (v: number) => void
-}) {
-  return (
-    <div style={editParamRowStyle}>
-      <span style={{ whiteSpace: 'nowrap' }}>{label}</span>
-      <input
-        type="number"
-        value={value}
-        min={0.1}
-        step={1}
-        style={editParamInputStyle}
-        onChange={(e) => onChange(Number(e.target.value) || 0)}
-      />
-    </div>
-  )
 }
 
 export function CadEditorPage({

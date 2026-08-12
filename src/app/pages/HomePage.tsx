@@ -24,6 +24,8 @@ export interface HomePageProps {
     ReturnType<typeof createCivilDraftApiClient>,
     'listProjects' | 'createProject' | 'createDrawing'
   >
+  /** 編集権限（viewer ロールでは false。false 時は作成・編集ボタンを非表示）。 */
+  readonly canEdit?: boolean
   /** 本番モード（共有データを API から取得し、サンプルデータを表示しない）。App が MODE=production 時に true を渡す。 */
   readonly enableCloudData?: boolean
 }
@@ -136,6 +138,7 @@ export function HomePage({
   onOpenEditor,
   onOpenProject,
   cloudApiClient,
+  canEdit = true,
   enableCloudData = false,
 }: HomePageProps) {
   const storeApi = useEditorStoreApi()
@@ -353,7 +356,11 @@ export function HomePage({
           placeholder="案件名・図面番号で検索"
           style={{ ...fieldStyle, width: 220 }}
         />
-        <button onClick={() => setMode('new')} style={{ ...orangeButton, padding: '8px 14px', fontSize: 12.5 }}>＋ 新規案件・図面</button>
+        {canEdit && (
+          <button onClick={() => setMode('new')} style={{ ...orangeButton, padding: '8px 14px', fontSize: 12.5 }}>
+            ＋ 新規案件・図面
+          </button>
+        )}
       </header>
 
       <main style={{ flex: 1, overflow: 'auto', padding: 22 }}>
@@ -405,7 +412,7 @@ export function HomePage({
           <div style={{ ...panelStyle, marginBottom: 16 }}>
             <div style={{ padding: '15px 18px', borderBottom: '1px solid var(--line2)', display: 'flex', gap: 10, alignItems: 'center' }}>
               <div style={{ fontSize: 14, fontWeight: 600, flex: 1 }}>案件詳細: {selectedProject.name}</div>
-              <button style={orangeButton} onClick={onOpenEditor}>CAD編集で開く</button>
+              {canEdit && <button style={orangeButton} onClick={onOpenEditor}>CAD編集で開く</button>}
               <button style={ghostButton} onClick={() => setMode('dashboard')}>閉じる</button>
             </div>
             <div style={{ padding: 18, display: 'grid', gridTemplateColumns: 'repeat(4,minmax(0,1fr))', gap: 12, fontSize: 12.5 }}>
@@ -424,7 +431,7 @@ export function HomePage({
           <div style={{ ...panelStyle, marginBottom: 16 }}>
             <div style={{ padding: '15px 18px', borderBottom: '1px solid var(--line2)', display: 'flex', gap: 10, alignItems: 'center' }}>
               <div style={{ fontSize: 14, fontWeight: 600, flex: 1 }}>最近開いた図面: {selectedRecent.name}</div>
-              <button style={orangeButton} onClick={onOpenEditor}>CAD編集で開く</button>
+              {canEdit && <button style={orangeButton} onClick={onOpenEditor}>CAD編集で開く</button>}
               <button style={ghostButton} onClick={() => setMode('dashboard')}>閉じる</button>
             </div>
             <div style={{ padding: 18, display: 'grid', gridTemplateColumns: 'repeat(5,minmax(0,1fr))', gap: 12, fontSize: 12.5 }}>
@@ -498,12 +505,21 @@ export function HomePage({
                   <div>
                     <div style={{ fontSize: 12.5, fontWeight: 500, color: 'var(--ink)' }}>未確定の下書き</div>
                     <div style={{ fontSize: 11, color: 'var(--muted)', margin: '3px 0 8px' }}>保存: {snapshot.savedAt} ・ 図形{snapshot.geometries.length}件 ・ レイヤー{snapshot.layers.length}件</div>
-                    <div style={{ display: 'flex', gap: 8 }}><button style={orangeButton} onClick={restoreSnapshot}>復元</button><button style={ghostButton} onClick={discardSnapshot}>破棄</button></div>
+                    {canEdit ? (
+                      <div style={{ display: 'flex', gap: 8 }}>
+                        <button style={orangeButton} onClick={restoreSnapshot}>復元</button>
+                        <button style={ghostButton} onClick={discardSnapshot}>破棄</button>
+                      </div>
+                    ) : (
+                      <div style={{ fontSize: 12, color: 'var(--muted)' }}>
+                        保存済み下書きがあります。復元・破棄は権限のあるロールで行えます。
+                      </div>
+                    )}
                   </div>
                 ) : (
                   <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
                     <div style={{ fontSize: 12, color: 'var(--muted)' }}>{recoveryMessage ?? '復旧候補はありません'}</div>
-                    {useDemoData && (
+                    {useDemoData && canEdit && (
                       <button style={ghostButton} onClick={createRecoveryCandidate}>デモ下書きを作成</button>
                     )}
                   </div>

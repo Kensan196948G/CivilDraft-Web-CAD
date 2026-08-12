@@ -1,0 +1,70 @@
+/**
+ * CAD編集画面のラベル定数（Issue #179 で CadEditorPage から抽出）。
+ */
+import type { GeometryStyle, GeometryType } from '@/shared/types'
+
+export const GEOMETRY_TYPE_LABELS: Record<GeometryType, string> = {
+  line: '線分',
+  rectangle: '矩形',
+  circle: '円',
+  arc: '円弧',
+  ellipse: '楕円',
+  polyline: 'ポリライン',
+  spline: 'スプライン',
+  text: '文字',
+  dimension: '寸法',
+  leader: '引き出し線',
+  hatch: 'ハッチング',
+  symbol: '部材記号',
+  parametricObject: 'パラメトリック',
+  cloud: '改訂雲',
+  mline: '平行2線',
+}
+
+export const LINE_TYPE_LABELS: Record<GeometryStyle['lineType'], string> = {
+  continuous: '実線',
+  dashed: '破線',
+  dashDot: '一点鎖線',
+  double: '二重線',
+}
+
+export const FIELD_LABELS: Record<string, string> = {
+  start: '始点',
+  end: '終点',
+  center: '中心',
+  radius: '半径',
+  startAngleDeg: '開始角(°)',
+  endAngleDeg: '終了角(°)',
+  origin: '原点',
+  width: '幅',
+  height: '高さ',
+  rotationDeg: '回転角(°)',
+  radiusX: '半径X',
+  radiusY: '半径Y',
+  points: '頂点',
+  closed: '閉合',
+  tension: 'テンション',
+  orientation: '方向',
+  offset: 'オフセット',
+  textHeight: '文字高さ',
+  arrowSize: '矢印サイズ',
+  text: '内容',
+  boundaryPoints: '境界点',
+  pattern: 'パターン',
+  angleDeg: '角度(°)',
+  spacing: '間隔',
+  symbolId: '部材ID',
+  position: '位置',
+  scale: '倍率',
+  definitionId: '定義ID',
+  definitionVersion: 'バージョン',
+  parameters: 'パラメータ',
+  generatedGeometryIds: '生成図形',
+  anchor: '位置',
+  horizontalAlign: '配置',
+  x1: 'X1',
+  y1: 'Y1',
+  x2: 'X2',
+  y2: 'Y2',
+  arcSize: 'アークサイズ',
+}

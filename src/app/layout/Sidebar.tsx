@@ -5,6 +5,7 @@
  */
 import { useState } from 'react'
 import type { CSSProperties } from 'react'
+import type { CivilDraftRole } from '@/infrastructure/auth/roles'
 
 export type AppView =
   | 'home'
@@ -29,6 +30,12 @@ export interface SidebarProps {
   readonly theme: 'light' | 'dark'
   /** 現在のビルドでナビゲート可能なビュー。含まれない項目は disabled 表示。 */
   readonly implementedViews: readonly AppView[]
+  /** ログイン利用者のロール（viewer 時は編集系ナビを非表示。未指定時は全表示）。 */
+  readonly role?: CivilDraftRole
+  /** ログイン利用者名（未指定時は従来表示）。 */
+  readonly userName?: string
+  /** ログイン利用者の所属表示（未指定時は従来表示）。 */
+  readonly userGroup?: string
   readonly onNavigate: (view: AppView) => void
   readonly onToggleTheme: () => void
 }
@@ -83,6 +90,28 @@ const NAV_SECTIONS: readonly NavSection[] = [
   },
 ]
 
+/** viewer ロールで表示から除外する編集系ビュー（Issue #177）。 */
+const VIEWER_HIDDEN_VIEWS: readonly AppView[] = [
+  'editor',
+  'drawingSettings',
+  'parts',
+  'approval',
+  'audit',
+  'settings',
+]
+
+const ROLE_LABELS: Record<CivilDraftRole, string> = {
+  viewer: '閲覧者',
+  engineer: '技術者',
+  supervisor: '監督者',
+}
+
+const ROLE_BADGE_STYLE: Record<CivilDraftRole, { color: string; border: string }> = {
+  viewer: { color: '#8A97A8', border: '1px solid rgba(138,151,168,.45)' },
+  engineer: { color: '#E08A2B', border: '1px solid rgba(224,138,43,.4)' },
+  supervisor: { color: '#1F7A3D', border: '1px solid rgba(31,122,61,.4)' },
+}
+
 function sectionHeadingStyle(open: boolean): CSSProperties {
   return {
     display: 'flex',
@@ -134,6 +163,9 @@ export function Sidebar({
   activeView,
   theme,
   implementedViews,
+  role,
+  userName,
+  userGroup,
   onNavigate,
   onToggleTheme,
 }: SidebarProps) {
@@ -150,6 +182,23 @@ export function Sidebar({
       return next
     })
   }
+
+  const visibleSections: readonly {
+    readonly heading: string
+    readonly items: readonly NavEntry[]
+  }[] = NAV_SECTIONS.map((section) => ({
+    heading: section.heading,
+    items: section.items.filter(
+      (item) =>
+        item.view === undefined ||
+        role !== 'viewer' ||
+        !VIEWER_HIDDEN_VIEWS.includes(item.view),
+    ),
+  })).filter((section) => section.items.length > 0)
+  const badgeStyle =
+    role !== undefined
+      ? ROLE_BADGE_STYLE[role]
+      : { color: '#E08A2B', border: '1px solid rgba(224,138,43,.4)' }
 
   return (
     <aside
@@ -223,7 +272,7 @@ export function Sidebar({
           gap: 1,
         }}
       >
-        {NAV_SECTIONS.map((section) => {
+        {visibleSections.map((section) => {
           const open = openSections.has(section.heading)
           return (
             <div key={section.heading}>
@@ -311,21 +360,21 @@ export function Sidebar({
         </span>
         <div style={{ flex: 1, lineHeight: 1.25 }}>
           <div style={{ color: 'var(--side-heading)', fontSize: 13, fontWeight: 500 }}>
-            山田 太郎
+            {userName ?? '山田 太郎'}
           </div>
-          <div style={{ fontSize: 11, color: 'var(--side-muted)' }}>土木工事部</div>
+          <div style={{ fontSize: 11, color: 'var(--side-muted)' }}>{userGroup ?? '土木工事部'}</div>
         </div>
         <span
           style={{
             fontSize: 10,
             fontWeight: 600,
-            color: '#E08A2B',
-            border: '1px solid rgba(224,138,43,.4)',
+            color: badgeStyle.color,
+            border: badgeStyle.border,
             padding: '1px 6px',
             borderRadius: 5,
           }}
         >
-          作成者
+          {role !== undefined ? ROLE_LABELS[role] : '作成者'}
         </span>
       </div>
     </aside>

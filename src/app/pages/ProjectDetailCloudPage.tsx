@@ -147,6 +147,8 @@ export interface ProjectDetailCloudPageProps {
   readonly onOpenEditor?: (session: CloudDraftSession) => void
   readonly onNavigateHome?: () => void
   readonly cloudApiClient?: ProjectDetailCloudClient
+  /** 編集権限（viewer ロールでは false。false 時は編集・作成ボタンを非表示）。 */
+  readonly canEdit?: boolean
 }
 
 interface CloudDetailState {
@@ -172,6 +174,7 @@ export function ProjectDetailCloudPage({
   onOpenEditor,
   onNavigateHome,
   cloudApiClient,
+  canEdit = true,
 }: ProjectDetailCloudPageProps) {
   const apiClient = useMemo<ProjectDetailCloudClient>(
     () => cloudApiClient ?? createCivilDraftApiClient(),
@@ -418,20 +421,24 @@ export function ProjectDetailCloudPage({
         >
           {data.project.status === 'archived' ? 'アーカイブ' : '進行中'}
         </div>
-        <button
-          style={secondaryButtonStyle}
-          onClick={() => {
-            setDraftName(data.project.name)
-            setDraftClient(data.project.clientName ?? '')
-            setDraftStatus(data.project.status ?? 'active')
-            setMode('editProject')
-          }}
-        >
-          案件を編集
-        </button>
-        <button style={primaryButtonStyle} onClick={() => setMode('newDrawing')}>
-          ＋ 図面を作成
-        </button>
+        {canEdit && (
+          <button
+            style={secondaryButtonStyle}
+            onClick={() => {
+              setDraftName(data.project.name)
+              setDraftClient(data.project.clientName ?? '')
+              setDraftStatus(data.project.status ?? 'active')
+              setMode('editProject')
+            }}
+          >
+            案件を編集
+          </button>
+        )}
+        {canEdit && (
+          <button style={primaryButtonStyle} onClick={() => setMode('newDrawing')}>
+            ＋ 図面を作成
+          </button>
+        )}
       </header>
 
       <main style={pageMainStyle}>
@@ -510,14 +517,16 @@ export function ProjectDetailCloudPage({
               <div style={panelStyle}>
                 <div style={{ ...panelHeaderStyle, display: 'flex', alignItems: 'center', gap: 10 }}>
                   <div style={{ flex: 1 }}>図面詳細: {selectedDrawing.drawingNumber} {selectedDrawing.name}</div>
-                  <button
-                    style={primaryButtonStyle}
-                    disabled
-                    title="実図面のCAD編集は改訂更新APIの実装後に利用可能になります（Issue #62 後続）"
-                    onClick={() => onOpenEditor?.(toCloudSession(selectedDrawing))}
-                  >
-                    CAD編集で開く
-                  </button>
+                  {canEdit && (
+                    <button
+                      style={primaryButtonStyle}
+                      disabled
+                      title="実図面のCAD編集は改訂更新APIの実装後に利用可能になります（Issue #62 後続）"
+                      onClick={() => onOpenEditor?.(toCloudSession(selectedDrawing))}
+                    >
+                      CAD編集で開く
+                    </button>
+                  )}
                   <button style={secondaryButtonStyle} onClick={() => setMode('overview')}>閉じる</button>
                 </div>
                 <div style={{ padding: 18, display: 'grid', gridTemplateColumns: 'repeat(5,minmax(0,1fr))', gap: 12, fontSize: 12.5 }}>
