@@ -63,6 +63,9 @@ test('作成→作図→自動保存→復元→DXF/PDF出力の一連フロー'
 
   // 再読込 → 自動保存から復元 → 図形が保持されていることを DXF 再出力で確認
   await page.reload()
+  // ハッシュルーティング導入後は再読込で直前ビュー（印刷・出力等）が復元されるため、
+  // ホームへ移動して復旧候補を確認する
+  await page.getByRole('button', { name: 'ホーム・案件一覧' }).click()
   await expect(page.getByText('ホーム・案件一覧').first()).toBeVisible()
   await expect(page.getByRole('button', { name: '復元' })).toBeVisible({ timeout: 15_000 })
   await page.getByRole('button', { name: '復元' }).click()

@@ -102,6 +102,11 @@ body {
   box-shadow: var(--shadow);
 }
 
+/* モバイルサイドバーの背面オーバーレイ（デスクトップでは非表示） */
+.cd-mobile-backdrop {
+  display: none;
+}
+
 /* 幅 768px 以下: サイドバーをオーバーレイ開閉式にする */
 @media (max-width: 768px) {
   .cd-mobile-menu-button {
@@ -121,6 +126,14 @@ body {
 
   .cd-sidebar-mount:not(.cd-sidebar-open) {
     display: none;
+  }
+
+  .cd-mobile-backdrop {
+    display: block;
+    position: fixed;
+    inset: 0;
+    z-index: 39;
+    background: rgba(16, 24, 40, 0.35);
   }
 
   .cd-app {

@@ -78,6 +78,8 @@ test('10,000図形の自動保存復元・エディタ描画性能', async ({ pa
   }, SNAPSHOT_COUNT)
 
   await page.reload()
+  // ハッシュルーティング導入後は再読込で直前ビューが復元されるため、ホームへ移動する
+  await page.getByRole('button', { name: 'ホーム・案件一覧' }).click()
   await expect(page.getByText('ホーム・案件一覧').first()).toBeVisible()
   await expect(page.getByRole('button', { name: '復元' })).toBeVisible({ timeout: 15_000 })
 

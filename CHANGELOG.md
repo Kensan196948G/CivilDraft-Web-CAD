@@ -5,6 +5,13 @@
 ## [Unreleased]
 
 ### 改善
+- 2026-08-12: 総合評価・改善（詳細は `docs/assessment/comprehensive-evaluation-2026-08-12.md`）
+  - **重大修正: migration 0007 のFK列型を uuid→text へ修正**（0004適用後のスキーマと不一致で本番適用時に失敗する問題。適用前のため前方修正で対応）
+  - ハッシュベースURLルーティング（`#/<view>`・editorセッション/projectId保持）でブックマーク・戻る/進む・deep link対応
+  - モバイルサイドバーa11y（Escape閉じ・背面オーバーレイ・フォーカス復帰）
+  - react-refresh警告解消（`DEFAULT_CLOUD_DRAFT_SESSION`を`cloudDraftSession.ts`へ分離）
+  - README・architecture overview・operations manual の実態同期（Access本番適用・Neon接続済み等）
+  - アクティブナビ項目へ `aria-current="page"` を付与
 - 503 fail-closed 応答の本文を汎用文言化（binding名・環境変数名を非開示）
 - CI: GitHub Actions を commit SHA 固定（checkout/setup-node/upload-artifact v4 系）
 - CI: カバレッジ閾値ゲート導入（lines 85% / stmts 85% / funcs 80% / branches 75%）
@@ -124,4 +131,3 @@
 
 ### 初期リリース
 - Web CAD 基盤（作図・編集・Undo/Redo・空間索引・自動保存・PDF/DXF/CSV出力・Worker API・認証・監査ログ）
-
