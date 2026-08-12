@@ -1,7 +1,7 @@
 {
   "name": "civildraft-web-cad",
   "private": true,
-  "version": "0.1.0",
+  "version": "0.1.25",
   "description": "CivilDraft — 土木施工図向けWebベース2D CAD",
   "type": "module",
   "engines": {

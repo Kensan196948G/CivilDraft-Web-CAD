@@ -1,6 +1,6 @@
 # 📌 CivilDraft アーキテクチャ図解（非エンジニア向け概説）
 
-> **対象フェーズ: 技術プレビュー。実装済みのCADコア、Phase 2-6相当の試作部品、未配線/未製品化の範囲を明確に分けて記載します。**
+> **対象フェーズ: 本番稼働中（v0.1.25・2026-08-10デプロイ）。Cloudflare Access認証＋Neon永続化＋監査ハッシュチェーンが本番適用済み。実装済みのCADコア、試作部品、未配線/未製品化の範囲を明確に分けて記載します。**
 >
 > この文書は、CivilDraft が「いま何で動いているか」を、CAD やプログラミングに詳しくない方にも
 > 追えるように図で説明します。各図の下に「正本」（その図の根拠となる実装ファイル）を記載しています。
@@ -36,18 +36,18 @@ graph TB
     STORE -. "ページ終了で消える状態" .-> MEM
 ```
 
-> ⚠️ **現在の永続化境界**: 自動保存と復旧候補は IndexedDB に保持されます（`App.tsx` の `AutosaveManager` が起動時復元+デバウンス保存を実施）。
+> ⚠️ **現在の永続化境界**: 端末ローカルの自動保存と復旧候補は IndexedDB、共有正本（案件・図面・改訂・数量・断面・監査）は Neon PostgreSQL に保持されます（Workers API 経由・Cloudflare Access 保護、2026-08-09 以降本番稼働）。
 > 一方、選択状態、Undo/Redo履歴、表示位置などの作業中状態はブラウザ内メモリに残り、ページ終了で消えます。
 > Cloudflare Access 認証
-> （`infrastructure/auth`）は**部品としては実装済み**ですが、まだ画面本体（`src/app`）につながっていません。
-> ブラウザ内の保存・復旧は動きますが、複数ユーザー共有の正本保存は本番DB接続後です。
+> （`infrastructure/auth`）は本番適用済みで、カスタムドメインは Access ログイン保護（302）・不正JWTは401 fail-closed として動作します。
+> ブラウザ内の保存・復旧に加え、複数ユーザー共有の正本保存は Neon PostgreSQL で稼働中です。
 >
 > 正本: `src/app/App.tsx`, `src/app/canvas/CanvasStage.tsx`, `src/app/store/editorStore.ts`, `src/main.tsx`
 
 ### 1.2 共有版の構成（Phase 6・P0 API縦線）
 
-共有・改訂・照査・承認・監査が必要になった段階で、サーバー側を足します。標準スタックは
-Systemd + GitHub + Cloudflare + Neon（Docker は使いません）。**下図は目標構成です。現時点ではWorkersの18経路すべてが業務応答または入力/認可エラーを返し、Project/Drawing/Revision/Content/Quantities/Workflow/Exports/Audit のP0縦線、案件メンバー認可、メタデータ/内容/数量更新の楽観ロック、Neon migration 0001/0002、永続化モード安全ガード、ブラウザ側APIクライアント契約、CAD編集画面からの共有保存/再読込ボタン配線があります。案件詳細の図面行から案件/図面/改訂メタデータをCAD編集へ渡し、共有保存ペイロードへ反映する導線も追加済みです。本番Neon/R2接続、Cloudflare Accessテナント設定、監査ログ永続化、R2上の実ファイル生成は後続です。**
+共有・改訂・照査・承認・監査はサーバー側で稼働中です。標準スタックは
+GitHub + Cloudflare + Neon（Docker は使いません）。**現時点では Workers API の27ルートが業務応答または入力/認可エラーを返し、Project/Drawing/Revision/Content/Quantities/Sections/Workflow/Exports/Audit の縦線、案件メンバー認可、楽観ロック、Neon migration 0001〜0004、永続化モード安全ガード、ブラウザ側APIクライアント契約、CAD編集画面からの共有保存/再読込ボタン配線があります。案件詳細の図面行から案件/図面/改訂メタデータをCAD編集へ渡し、共有保存ペイロードへ反映する導線も追加済みです。本番Neon接続・Cloudflare Accessテナント設定・監査ログ永続化は適用済み。R2はADR-0014で任意化（Neon直接格納）。migration 0005〜0008の本番適用は人間判断待ちです。**
 
 ```mermaid
 graph TB

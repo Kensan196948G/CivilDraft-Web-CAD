@@ -1,7 +1,7 @@
 openapi: 3.0.3
 info:
   title: CivilDraft-Web-CAD API
-  version: 0.1.23
+  version: 0.1.25
   description: |
     土木施工向け Web 2D CAD・図面管理（作図・数量・照査承認・監査・電子納品支援）の
     Cloudflare Workers API 仕様（正本: `src/workers/index.ts`、詳細設計 §25）。

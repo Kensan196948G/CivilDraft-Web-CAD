@@ -1,10 +1,10 @@
 # 📌 運用手順書（Operations Manual）
 
-> **対象フェーズ: リリース前検証段階。公開・本番デプロイは人間決裁後に実行する。**
+> **対象フェーズ: 本番運用中（v0.1.25・2026-08-10デプロイ）。Cloudflare Access認証＋Neon永続化＋合成監視（30分毎）＋週次バックアップ/リストア検証が稼働しています。**
 >
-> MVP は Vite + React SPA と、リリース前検証用の Cloudflare Workers API で構成します。
-> 本書は開発・検証環境における日常運用（開発サーバー、品質ゲート、SBOM/NOTICES、GitHub Projects 運用）を対象とします。
-> 本番運用（監視・ログ・スケーリング）は本番DB/Storage接続と公開決裁後に追記します。
+> 構成は Vite + React SPA と Cloudflare Workers API（Neon PostgreSQL）です。
+> 本書は開発・検証・本番運用の日常運用（開発サーバー、品質ゲート、SBOM/NOTICES、GitHub Projects 運用）を対象とします。
+> 本番の監視・障害対応・ロールバックの詳細は `monitoring-readiness.md`・`incident-response.md`・`rollback-procedure.md`・`production-deployment.md` を参照してください。
 
 ---
 
@@ -26,8 +26,8 @@ npm ci       # ロックファイル準拠でクリーンインストール
 
 ## 🖥️ 2. 開発サーバーの起動・停止
 
-通常の画面確認は Vite 開発サーバーで行う。Workers API は `src/workers/index.ts` に検証実装があり、
-ユニットテストで契約確認する。本番経路へはまだ接続しない。
+通常の画面確認は Vite 開発サーバーで行う。Workers API は `src/workers/index.ts` に実装があり、
+ユニットテストで契約確認する。開発サーバーは本番APIへ接続しない（本番は Cloudflare Access 保護下）。
 
 ### 2.1 起動
 

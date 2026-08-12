@@ -69,11 +69,11 @@ CADやプログラミングに詳しくなくても、まず「何ができる�
 
 | 対象 | 現在の代替度 | 判断 |
 | --- | ---: | --- |
-| AutoCAD LT / BricsCAD Lite 的な2D作図 | 30〜40% | 作図・表示・DXF/PDFの核はあるが、編集コマンドのUI配線、レイヤー/寸法/印刷スタイル、DWG/JWW/SXF互換が不足 |
-| 土木数量・横断・簡易計画ツール | 50〜65% | 数量、測量、断面、土量、施工ステップのドメイン部品は強い。図面連動と成果物化が次の壁 |
+| AutoCAD LT / BricsCAD Lite 的な2D作図 | 55〜65% | 作図・表示・DXF/PDF・数量根拠・承認・監査の一気通貫が強み。高度な寸法/印刷スタイル、LISP、DWG/JWW/SXF完全互換は不足 |
+| 土木数量・横断・簡易計画ツール | 60〜70% | 数量⇔図形連動、図面健全性、断面データAPI、実案件の改訂更新は実装済み。測量/線形/土量の成果物化が次の壁 |
 | Civil 3D 的なBIM/CIM | 10〜20% | 線形・断面の基礎はあるが、サーフェス、縦断、コリドー、動的土木オブジェクト連携は未成熟 |
-| SaaS型CAD共有・承認・監査 | 35〜45% | P0縦線API、案件メンバー認可、メタデータ/内容/数量の楽観ロック、照査/承認、Exportジョブ、監査記録は動き始めたが、本番Neon接続、Accessテナント設定、監査永続化の運用検証が未完 |
-| プロダクト全体 | 35〜50% | 技術プレビューとして有望。80〜90%代替を名乗るには、実務ワークフローを縦に1本完成させる必要がある |
+| SaaS型CAD共有・承認・監査 | 65〜75% | 本番Neon永続化・Access認証・監査ハッシュチェーン・楽観ロック・レート制限は稼働中。migration 0005〜0008本番適用・通知/ログ集約・協力会社ポータルが残 |
+| プロダクト全体 | 60〜70% | 2026-08-10評価で総合76.1点・加重代替率約67%（2026-08-12再評価に更新予定）。80〜90%代替を名乗るには現場/協力会社導線・モバイル・電子納品完全適合が必須 |
 
 ---
 
@@ -91,7 +91,7 @@ CADやプログラミングに詳しくなくても、まず「何ができる�
 | DXF入出力 | ✅ 実装済み | `$INSUNITS`(mm/cm/m)を内部mmへ変換して取込、書出時は単位宣言と座標を整合。未対応要素は警告(issues)に集約。ツールバーの📥取込/📤出力ボタンから操作可能 | `src/domain/dxf/` |
 | PDF出力 | ✅ 実装済み | A3等の用紙・縮尺・図面枠・表題欄つきベクター出力（pdf-lib）。日本語フォント未設定時は警告つき代替描画（文字化け黙殺なし）。ツールバーの📄ボタンから操作可能 | `src/domain/pdf/` |
 | 土木記号・テンプレート | ✅ 実装済み | 土木記号30種（仮設・車両・測量・土工・構造物）、作図テンプレート6種 | `src/domain/catalog/` |
-| 土木ドメイン部品 | 🟡 **試作・一部配線** | 測量座標、中心線、線形、パラメトリック7種、数量、断面、土量、施工ステップ、改訂ワークフロー、図面差分のドメイン/画面を実装。ただし実案件保存・CADハイライト・権限・監査との統合は未完 | `src/domain/survey/`・`src/domain/alignment/`・`src/domain/quantities/`・`src/domain/sections/`・`src/app/pages/` |
+| 土木ドメイン部品 | 🟡 **試作・一部実案件連携** | 測量座標、中心線、線形、パラメトリック7種、数量、断面、土量、施工ステップ、改訂ワークフロー、図面差分のドメイン/画面を実装。数量⇔図形ハイライト・実案件の改訂更新・断面データAPI（migration 0008）は実装済み。ただし測量/線形/土量等の実案件一気通貫・権限粒度の完全統合は未達 | `src/domain/survey/`・`src/domain/alignment/`・`src/domain/quantities/`・`src/domain/sections/`・`src/app/pages/` |
 | 数量⇔図形連動 | 🟡 **双方向ハイライト実装（#42）** | ①数量明細「図面で確認」→ 根拠図形を CAD 編集でオレンジ破線ハイライト（第一弾）②CAD 編集で図形クリック → 数量集計画面で根拠図形を含む明細行をハイライト表示（第二弾）。分割画面モードは将来 | `src/app/store/editorStore.ts`（highlightedGeometryIds）・`src/app/canvas/CanvasStage.tsx`・`src/app/pages/QuantitySummaryPage.tsx` |
 | 図面健全性チェック | ✅ 実装済み（#59 第一弾＋第二弾＋#116 数量 state 化） | エディタの「図面健全性」ボタンで、存在しないレイヤー参照・用紙外図形・非表示レイヤー上の図形（第一弾）に加え、未接続数量／stale数量／未対応DXF要素／デフォルトレイヤー配置／未承認改訂（第二弾・`DrawingHealthContext`経由）を検出して一覧表示。検出結果から対象図形を選択してキャンバスへジャンプ可能。**数量明細は editor store の state として保持され（Issue #116 Phase 3）、図形削除で unlinked-quantity・幾何変更で stale-quantity が実検出される。「数量を再計算」で現在の図面から status=valid へ復元可能** | `src/domain/validation/drawingHealth.ts`・`src/domain/quantities/recalculation.ts`・`src/app/store/editorStore.ts`・`src/app/pages/CadEditorPage.tsx` |
 | キーボードショートカット | ✅ 実装済み（#47 の一部） | Ctrl/Cmd+Z=Undo・Ctrl/Cmd+Y / Ctrl/Cmd+Shift+Z=Redo・Esc=ドラフト取消/選択解除（入力欄フォーカス時は無効）。Delete/Backspace=選択図形削除（Undo可）、数字キー1-9でツール切替。作図/編集ツールバーに role/aria-label を付与し、アイコンボタンへアクセシブル名を追加 | `src/app/pages/CadEditorPage.tsx` |
@@ -101,10 +101,10 @@ CADやプログラミングに詳しくなくても、まず「何ができる�
 | チェックイン/アウト | ✅ サーバー横断実装（2026-08-09 続報） | 排他編集の所有権モデル＋migration 0007（`drawing_checkouts`）＋Worker API（`PUT/DELETE /drawings/:id/checkout`・rowcount 検査 409・監査ログ）＋クライアント/UI 配線。楽観ロック 409 と併用。本番適用は人間決裁 | `src/domain/revisions/checkout.ts`・`migrations/0007_drawing_checkouts.sql`・`src/workers/index.ts`・`src/app/pages/CadEditorPage.tsx` |
 | コマンドパレット | ✅ 実装済み（#47 の一部・v0.1.17） | Ctrl/Cmd+K で起動、ファジー検索、↑/↓/Enter/Esc操作、WAI-ARIA準拠のcombobox/listbox/optionロール。ツール切替・図面健全性チェック等をコマンド経由で実行可能。**Issue #47が提案するCADコマンドライン入力（`OFFSET 500`等のテキストコマンド）は未実装** | `src/app/pages/CadEditorPage.tsx` |
 | 自動保存（IndexedDB） | ✅ 実装・**配線済み** | 起動時に最新下書きを復元、図形/レイヤー変更をデバウンス保存、保存失敗は握り潰さず警告表示 | `src/infrastructure/autosave/`・`App.tsx`（`AutosaveManager`） |
-| 認証（Cloudflare Access） | 🟡 **部品＋JWT二次防御実装・本番テナント未設定** | Access配下のidentity取得層とロール定義に加え、Workers側にJWT二次防御層（RS256署名・iss/aud/exp/nbf検証、JWKS取得、fail-closed）を実装。v0.1.3から actorId は署名検証済みJWTの `email` を採用（`Cf-Access-Authenticated-User-Email` ヘッダー偽装対策）。`CIVILDRAFT_ACCESS_TEAM_DOMAIN`/`CIVILDRAFT_ACCESS_AUD`設定時に全経路でJWT検証、`neon-r2`本番モードでは検証設定を必須化（未設定なら503）。本番テナント設定・画面本体への配線は未完 | `src/infrastructure/auth/accessIdentity.ts`・`src/workers/accessJwt.ts`・`src/workers/index.ts`・`tests/unit/workers/accessJwt.test.ts`・`tests/unit/workers/auditHardening.test.ts` |
+| 認証（Cloudflare Access） | ✅ **実装・本番適用済み** | Access配下のidentity取得層とロール定義に加え、Workers側にJWT二次防御層（RS256署名・iss/aud/exp/nbf検証、JWKS取得、fail-closed）を実装。v0.1.3から actorId は署名検証済みJWTの `email` を採用（`Cf-Access-Authenticated-User-Email` ヘッダー偽装対策）。2026-08-09に Access Application 作成と `CIVILDRAFT_ACCESS_TEAM_DOMAIN`/`CIVILDRAFT_ACCESS_AUD` のシークレット登録を完了し、カスタムドメインは Access ログイン保護（302→cloudflareaccess.com）、不正JWTは401 fail-closed で本番稼働中 | `src/infrastructure/auth/accessIdentity.ts`・`src/workers/accessJwt.ts`・`src/workers/index.ts`・`tests/unit/workers/accessJwt.test.ts`・`tests/unit/workers/auditHardening.test.ts` |
 | セキュリティヘッダー | ✅ 実装・**本番適用済み** | `X-Content-Type-Options: nosniff` / `X-Frame-Options: SAMEORIGIN` / `Referrer-Policy: no-referrer` / `Permissions-Policy` / `Strict-Transport-Security` を API・SPA 全応答へ付与（`assets.run_worker_first` で SPA 配信にも適用）。v0.1.3（PR #79）で本番反映 | `src/workers/index.ts`・`wrangler.jsonc`・`tests/unit/workers/auditHardening.test.ts` |
-| 共有APIクライアント | 🟡 **画面配線済み・本番未接続** | ブラウザ側から Workers API のP0縦線を呼ぶ `CivilDraftApiClient` を実装し、CAD編集画面の「共有保存」「共有再読込」ボタンからProject作成→Drawing作成→Revision作成→Content保存→再読込→Export作成を実行できる経路を配線。案件詳細の図面行から案件番号・図面番号・改訂番号をエディタへ渡し、保存ペイロードへ反映する。実Workersハンドラ差し込みテストと画面/ナビゲーションテストで検証済み。Secretsは扱わず、Cloudflare Accessの同一オリジン認証を前提にする | `src/infrastructure/cloud/civilDraftApiClient.ts`・`src/app/pages/CadEditorPage.tsx`・`src/app/pages/ProjectDetailPage.tsx`・`tests/unit/infrastructure/cloud/civilDraftApiClient.test.ts`・`tests/unit/app/pages/CadEditorPage.test.tsx` |
-| Workers API / Neon | 🟡 **P0縦線実装・本番永続化有効** | 19経路（18仕様経路+監査チェーン検証）で業務応答または入力/認可エラーを返す。Access JWT検証、相関ID伝播、Project作成/更新、Drawing作成/更新、Revision作成、Content保存/再読込、数量スナップショット、照査/承認ワークフロー、Export作成/取得、Audit検索、案件メンバー認可、楽観ロックを実装。persistX全ハンドラをNeon永続化へ配線済み（トランザクション化・fail-visible監査）。監査ログhash chain（ADR-0009 / Issue #61）実装済み: `entry_hash=SHA-256(previous_hash|canonical payload)` を `persistAuditLog` で計算し、`GET /api/v1/audit-logs/verify` でチェーン検証（改ざん検知）。**監査ログ一覧は期間/イベント種別/actorフィルタ+カーソルページング対応（Issue #85）**。migration 0001〜0004本番適用済み、0005は未適用（人間判断待ち）。Accessテナント設定（人間）までは認証構成fail-closed（401/503） | `src/workers/index.ts`・`src/workers/apiStore.ts`・`src/workers/neonApiStore.ts`・`src/workers/auditChain.ts`・`src/workers/persistence.ts`・`migrations/` |
+| 共有APIクライアント | ✅ **画面配線済み・本番接続済み** | ブラウザ側から Workers API のP0縦線を呼ぶ `CivilDraftApiClient` を実装し、CAD編集画面の「共有保存」「共有再読込」ボタンからProject作成→Drawing作成→Revision作成→Content保存→再読込→Export作成を実行できる経路を配線。案件詳細の図面行から案件番号・図面番号・改訂番号をエディタへ渡し、保存ペイロードへ反映する。実Workersハンドラ差し込みテストと画面/ナビゲーションテストで検証済み。Secretsは扱わず、Cloudflare Accessの同一オリジン認証を前提にする | `src/infrastructure/cloud/civilDraftApiClient.ts`・`src/app/pages/CadEditorPage.tsx`・`src/app/pages/ProjectDetailPage.tsx`・`tests/unit/infrastructure/cloud/civilDraftApiClient.test.ts`・`tests/unit/app/pages/CadEditorPage.test.tsx` |
+| Workers API / Neon | ✅ **P0縦線実装・本番永続化・Access保護稼働中** | 27ルート（19仕様経路＋監査チェーン検証等）で業務応答または入力/認可エラーを返す。Access JWT検証、相関ID伝播、Project作成/更新、Drawing作成/更新、Revision作成、Content保存/再読込、数量スナップショット、断面データ、照査/承認ワークフロー、チェックイン/アウト、Export作成/取得、Audit検索、案件メンバー認可、楽観ロックを実装。persistX全ハンドラをNeon永続化へ配線済み（トランザクション化・fail-visible監査）。監査ログhash chain（ADR-0009 / Issue #61）実装済み: `entry_hash=SHA-256(previous_hash|canonical payload)` を `persistAuditLog` で計算し、`GET /api/v1/audit-logs/verify` でチェーン検証（改ざん検知）。**監査ログ一覧は期間/イベント種別/actorフィルタ+カーソルページング対応（Issue #85）**。migration 0001〜0004本番適用済み、0005〜0008は未適用（人間判断待ち・手順書 `docs/operations/migration-apply-handoff.md`） | `src/workers/index.ts`・`src/workers/apiStore.ts`・`src/workers/neonApiStore.ts`・`src/workers/auditChain.ts`・`src/workers/persistence.ts`・`migrations/` |
 | SBOM・ライセンス衛生 | ✅ 実装済み | CycloneDX SBOM生成、サードパーティ表記生成、依存衛生手順 | `npm run sbom` / `npm run notices`・`docs/operations/dependency-hygiene.md` |
 
 > 🟡 の「未配線」は、部品（モジュール）としては実装・テスト済みだが、まだアプリ本体から呼び出していない状態を指します。誇張せずそのまま記載しています。
@@ -134,7 +134,7 @@ graph TB
     end
 ```
 
-> ⚠️ ローカルのWeb CAD利用はサーバー・データベース不要です。一方で共有版のWorkers API契約とNeon migrationは追加済みです。認証（Cloudflare Access）は部品/APIヘッダー契約までで、画面本体と本番テナントには未配線です。
+> ⚠️ ローカルのWeb CAD利用はサーバー・データベース不要です。共有版は Cloudflare Access 認証＋Neon 永続化で本番稼働中です（v0.1.25・カスタムドメインは Access ログイン保護、migration 0001〜0004 本番適用済み）。
 
 ### レイヤー構造（依存の向き）
 
