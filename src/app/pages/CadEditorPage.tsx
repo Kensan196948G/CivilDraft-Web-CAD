@@ -44,6 +44,12 @@ import { measureArea, measureDistance } from '@/domain/geometry/measure'
 import type { AutosaveStore } from '@/infrastructure/autosave/autosaveStore'
 import { scheduleAutosave } from '@/infrastructure/autosave/autosaveScheduler'
 import {
+  DEFAULT_CLOUD_DRAFT_SESSION,
+  type CloudDraftSession,
+} from './cloudDraftSession'
+
+export type { CloudDraftSession } from './cloudDraftSession'
+import {
   createCivilDraftApiClient,
   type CloudContent,
   type CloudLoadRevisionResult,
@@ -95,30 +101,6 @@ export interface CloudSaveClient {
     action: 'checkout' | 'checkin',
     revisionId?: string,
   ): Promise<Result<{ readonly status: string; readonly checkedOutBy: string }, ValidationIssue>>
-}
-
-export interface CloudDraftSession {
-  readonly projectId?: string
-  readonly drawingId?: string
-  readonly revisionId?: string
-  readonly projectNumber: string
-  readonly projectName: string
-  readonly clientName?: string
-  readonly drawingNumber: string
-  readonly drawingName: string
-  readonly drawingType?: string
-  readonly revisionNumber: string
-  readonly changeSummary?: string
-}
-
-export const DEFAULT_CLOUD_DRAFT_SESSION: CloudDraftSession = {
-  projectNumber: 'LOCAL',
-  projectName: 'ローカル編集（案件未選択）',
-  drawingNumber: 'LOCAL',
-  drawingName: '無題の図面',
-  drawingType: 'general',
-  revisionNumber: 'LOCAL',
-  changeSummary: 'ローカル編集の保存',
 }
 
 const GEOMETRY_TYPE_LABELS: Record<GeometryType, string> = {
