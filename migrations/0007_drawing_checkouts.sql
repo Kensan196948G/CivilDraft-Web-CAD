@@ -7,6 +7,9 @@
 --
 -- 契約:
 --   - drawing_id ごとに最大 1 行（チェックアウト中 or チェックイン済み履歴）。
+--   - ID 列は 0004 の型整合（uuid → text・接頭辞付き ID・ADR-0015）に従い text で定義する。
+--     （0004 適用後の drawings.id / drawing_revisions.id は text のため、
+--      uuid で REFERENCES すると本番適用時に型不一致で失敗する。2026-08-12 修正）
 --   - checked_out_by は操作者（JWT email、ADR/PR #79）。
 --   - 再チェックアウトは同一 drawing_id の行を UPDATE し、所有者以外の
 --     上書きは UPDATE rowcount=0 で拒否（NeonApiStore.persistCheckout）。
@@ -20,8 +23,8 @@
 BEGIN;
 
 CREATE TABLE IF NOT EXISTS drawing_checkouts (
-  drawing_id uuid PRIMARY KEY REFERENCES drawings(id) ON DELETE CASCADE,
-  revision_id uuid NOT NULL REFERENCES drawing_revisions(id) ON DELETE CASCADE,
+  drawing_id text PRIMARY KEY REFERENCES drawings(id) ON DELETE CASCADE,
+  revision_id text NOT NULL REFERENCES drawing_revisions(id) ON DELETE CASCADE,
   checked_out_by text NOT NULL,
   checked_out_at timestamptz NOT NULL DEFAULT now(),
   checked_in_at timestamptz,

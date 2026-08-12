@@ -84,4 +84,19 @@ describe('Neon migrations', () => {
     expect(sql).not.toMatch(/\bTRUNCATE\b/i)
     expect(sql).not.toMatch(/\bDELETE\s+FROM\b/i)
   })
+
+  it('0007 は 0004 のID型整合（uuid→text・ADR-0015）に従い text でFKを定義する', () => {
+    const sql = readMigration('0007_drawing_checkouts.sql')
+    const conversion = readMigration('0004_id_type_alignment.sql')
+
+    // 0004 が drawings / drawing_revisions の id を text へ変換していること
+    expect(conversion).toMatch(/ALTER TABLE drawings[\s\S]*ALTER COLUMN id TYPE text/)
+    expect(conversion).toMatch(/ALTER TABLE drawing_revisions[\s\S]*ALTER COLUMN id TYPE text/)
+
+    // 0007 は uuid 型の参照列を持たない（本番適用時の型不一致を防ぐ）
+    expect(sql).toMatch(/drawing_id text PRIMARY KEY REFERENCES drawings\(id\)/)
+    expect(sql).toMatch(/revision_id text NOT NULL REFERENCES drawing_revisions\(id\)/)
+    expect(sql).not.toMatch(/drawing_id uuid/)
+    expect(sql).not.toMatch(/revision_id uuid/)
+  })
 })
