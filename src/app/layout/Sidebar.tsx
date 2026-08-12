@@ -243,6 +243,7 @@ export function Sidebar({
                 <button
                   key={item.label}
                   style={navItemStyle(active, implemented)}
+                  aria-current={active ? 'page' : undefined}
                   onClick={() => {
                     if (item.view !== undefined) onNavigate(item.view)
                   }}

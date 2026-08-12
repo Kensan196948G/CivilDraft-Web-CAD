@@ -12,20 +12,26 @@
  * HomePage/DrawingComparePage/CadEditorPageは同一のautosaveStoreインスタンスを共有する
  * （エディタで保存したスナップショットをホームの復旧候補から見えるようにするため）。
  */
-import { lazy, Suspense, useMemo, useState } from 'react'
+import { lazy, Suspense, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { ErrorBoundary } from './ErrorBoundary'
 import { Sidebar } from './layout/Sidebar'
 import type { AppView } from './layout/Sidebar'
-import { CadEditorPage, DEFAULT_CLOUD_DRAFT_SESSION } from './pages/CadEditorPage'
-import type { CloudDraftSession } from './pages/CadEditorPage'
+import {
+  DEFAULT_CLOUD_DRAFT_SESSION,
+  type CloudDraftSession,
+} from './pages/cloudDraftSession'
 import { HomePage } from './pages/HomePage'
 import { EditorStoreProvider } from './store/EditorStoreContext'
 import { createAutosaveStore } from '@/infrastructure/autosave/autosaveStore'
 import type { AutosaveStore } from '@/infrastructure/autosave/autosaveStore'
+import { formatRoute, parseRoute } from './hashRoute'
 import './home.css'
 
-// バンドル最適化（Issue #26）: 初期表示に不要な業務ページはコード分割し、
+// バンドル最適化（Issue #26）: 初期表示に不要なページ（CAD編集含む）はコード分割し、
 // 遷移時に遅延読み込みする（pdf-lib/dxf 等の vendor チャンクの初期ロードを回避）。
+const CadEditorPage = lazy(() =>
+  import('./pages/CadEditorPage').then((m) => ({ default: m.CadEditorPage })),
+)
 const ProjectDetailPage = lazy(() =>
   import('./pages/ProjectDetailPage').then((m) => ({ default: m.ProjectDetailPage })),
 )
@@ -80,41 +86,103 @@ function loadTheme(): 'light' | 'dark' {
 }
 
 function AppShell() {
-  const [view, setView] = useState<AppView>('home')
+  const initialRoute = useMemo(() => parseRoute(window.location.hash), [])
+  const [view, setView] = useState<AppView>(initialRoute?.view ?? 'home')
   const [theme, setTheme] = useState<'light' | 'dark'>(loadTheme)
   const [isSidebarOpen, setIsSidebarOpen] = useState(false)
   const [autosaveStore] = useState<AutosaveStore>(() => createAutosaveStore())
-  const [cloudDraftSession, setCloudDraftSession] = useState<CloudDraftSession>(DEFAULT_CLOUD_DRAFT_SESSION)
-  const [selectedProjectId, setSelectedProjectId] = useState<string | null>(null)
+  const [cloudDraftSession, setCloudDraftSession] = useState<CloudDraftSession>(
+    initialRoute?.session ?? DEFAULT_CLOUD_DRAFT_SESSION,
+  )
+  const [selectedProjectId, setSelectedProjectId] = useState<string | null>(
+    initialRoute?.projectId ?? null,
+  )
+  const menuButtonRef = useRef<HTMLButtonElement>(null)
+  const sidebarMountRef = useRef<HTMLDivElement>(null)
 
-  const openEditor = (session: CloudDraftSession = DEFAULT_CLOUD_DRAFT_SESSION) => {
+  // モバイル: サイドバーが開いたら最初のナビゲーション項目へフォーカスし、
+  // 閉じたらメニューボタンへ復帰させる（キーボード・スクリーンリーダー操作の要件）。
+  const wasSidebarOpenRef = useRef(false)
+  useEffect(() => {
+    if (isSidebarOpen) {
+      wasSidebarOpenRef.current = true
+      const firstNavItem = sidebarMountRef.current?.querySelector<HTMLButtonElement>('aside button')
+      firstNavItem?.focus()
+      return
+    }
+    if (wasSidebarOpenRef.current) {
+      wasSidebarOpenRef.current = false
+      menuButtonRef.current?.focus()
+    }
+  }, [isSidebarOpen])
+
+  // モバイル: Escape でサイドバーを閉じる。
+  useEffect(() => {
+    if (!isSidebarOpen) return
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') {
+        setIsSidebarOpen(false)
+      }
+    }
+    document.addEventListener('keydown', handleKeyDown)
+    return () => document.removeEventListener('keydown', handleKeyDown)
+  }, [isSidebarOpen])
+
+  const navigate = useCallback((next: AppView) => {
+    setView(next)
+    window.location.hash = formatRoute(next, {
+      projectId: next === 'project' ? (selectedProjectId ?? undefined) : undefined,
+      session: next === 'editor' ? cloudDraftSession : undefined,
+    })
+  }, [cloudDraftSession, selectedProjectId])
+
+  const openEditor = useCallback((session: CloudDraftSession = DEFAULT_CLOUD_DRAFT_SESSION) => {
     setCloudDraftSession(session)
     setView('editor')
-  }
+    window.location.hash = formatRoute('editor', { session })
+  }, [])
 
   /** ホームの実案件選択から共有の案件詳細画面へ遷移する（Issue #62）。 */
-  const openProjectDetail = (projectId: string) => {
+  const openProjectDetail = useCallback((projectId: string) => {
     setSelectedProjectId(projectId)
     setView('project')
-  }
+    window.location.hash = formatRoute('project', { projectId })
+  }, [])
+
+  // ブラウザの戻る/進む・URL直接入力との同期。
+  useEffect(() => {
+    const handleHashChange = () => {
+      const route = parseRoute(window.location.hash)
+      if (route === undefined) return
+      setView(route.view)
+      if (route.view === 'project') {
+        setSelectedProjectId(route.projectId ?? null)
+      }
+      if (route.view === 'editor' && route.session !== undefined) {
+        setCloudDraftSession(route.session)
+      }
+    }
+    window.addEventListener('hashchange', handleHashChange)
+    return () => window.removeEventListener('hashchange', handleHashChange)
+  }, [])
 
   // ビューレジストリ: サイドバー右側へ表示するページ群。
   // ここへ登録すると Sidebar の disabled が自動解除される。
   const sidebarPages = useMemo<Partial<Record<AppView, React.ReactElement>>>(
     () => ({
-      editor: <CadEditorPage autosaveStore={autosaveStore} onNavigate={setView} cloudDraftSession={cloudDraftSession} />,
+      editor: <CadEditorPage autosaveStore={autosaveStore} onNavigate={navigate} cloudDraftSession={cloudDraftSession} />,
       project: (
         <ProjectDetailPage
           projectId={selectedProjectId ?? undefined}
           onOpenEditor={openEditor}
-          onNavigateHome={() => setView('home')}
+          onNavigateHome={() => navigate('home')}
           enableCloudData={import.meta.env.MODE === 'production'}
         />
       ),
       drawingSettings: <DrawingSettingsPage />,
       survey: <SurveyPointsPage enableSampleData={import.meta.env.MODE !== 'production'} />,
       parts: <PartsPalettePage onOpenEditor={() => openEditor()} />,
-      quantity: <QuantitySummaryPage onNavigate={(view) => setView(view as AppView)} />,
+      quantity: <QuantitySummaryPage onNavigate={(view) => navigate(view as AppView)} />,
       section: (
         <CrossSectionPage
           enableSampleData={import.meta.env.MODE !== 'production'}
@@ -125,7 +193,7 @@ function AppShell() {
       field: (
         <FieldExplanationPage
           cloudDraftSession={cloudDraftSession}
-          onOpenEditor={() => setView('editor')}
+          onOpenEditor={() => openEditor(cloudDraftSession)}
         />
       ),
       compare: <DrawingComparePage autosaveStore={autosaveStore} />,
@@ -135,7 +203,7 @@ function AppShell() {
       audit: <AuditLogPage enableSampleFallback={import.meta.env.MODE !== 'production'} />,
       settings: <SystemSettingsPage enableSampleData={import.meta.env.MODE !== 'production'} />,
     }),
-    [autosaveStore, cloudDraftSession, selectedProjectId],
+    [autosaveStore, cloudDraftSession, selectedProjectId, navigate, openEditor],
   )
 
   const implementedViews: readonly AppView[] = [
@@ -169,21 +237,34 @@ function AppShell() {
       }}
     >
       <button
+        ref={menuButtonRef}
         type="button"
         className="cd-mobile-menu-button"
         aria-label="メニューを開く"
         aria-expanded={isSidebarOpen}
+        aria-controls="cd-sidebar"
         onClick={() => setIsSidebarOpen((current) => !current)}
       >
         ☰
       </button>
-      <div className={`cd-sidebar-mount${isSidebarOpen ? ' cd-sidebar-open' : ''}`}>
+      {isSidebarOpen && (
+        <div
+          className="cd-mobile-backdrop"
+          aria-hidden="true"
+          onClick={() => setIsSidebarOpen(false)}
+        />
+      )}
+      <div
+        ref={sidebarMountRef}
+        id="cd-sidebar"
+        className={`cd-sidebar-mount${isSidebarOpen ? ' cd-sidebar-open' : ''}`}
+      >
         <Sidebar
           activeView={view}
           theme={theme}
           implementedViews={implementedViews}
           onNavigate={(next) => {
-            setView(next)
+            navigate(next)
             setIsSidebarOpen(false)
           }}
           onToggleTheme={toggleTheme}

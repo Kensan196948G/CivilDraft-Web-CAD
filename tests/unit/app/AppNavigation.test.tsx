@@ -74,7 +74,7 @@ describe('App ナビゲーション統合', () => {
     render(<App />)
     await userEvent.click(screen.getByRole('button', { name: /^作図›?$/ }))
     await userEvent.click(screen.getByRole('button', { name: /CAD編集/ }))
-    expect(screen.getByTestId('canvas-stage')).toBeInTheDocument()
+    expect(await screen.findByTestId('canvas-stage', {}, { timeout: 5000 })).toBeInTheDocument()
     await userEvent.click(screen.getByRole('button', { name: /ホーム・案件一覧/ }))
     expect(screen.getByPlaceholderText('案件名・図面番号で検索')).toBeInTheDocument()
   })
@@ -86,9 +86,62 @@ describe('App ナビゲーション統合', () => {
     expect(screen.getByText(/図面詳細: DWG-011/)).toBeInTheDocument()
 
     await userEvent.click(screen.getByRole('button', { name: 'CAD編集で開く' }))
-    expect(screen.getByTestId('canvas-stage')).toBeInTheDocument()
+    expect(await screen.findByTestId('canvas-stage', {}, { timeout: 5000 })).toBeInTheDocument()
     expect(screen.getByText('国道245号 道路拡幅工事')).toBeInTheDocument()
     expect(screen.getByText('仮設計画図（矢板・切梁）')).toBeInTheDocument()
     expect(screen.getByText('Rev.2')).toBeInTheDocument()
+    // URL ハッシュにセッション（案件番号・図面番号・改訂番号）が記録され、共有・ブックマーク可能になる
+    expect(window.location.hash).toContain('#/editor')
+    expect(window.location.hash).toContain('projectNumber=')
+    expect(window.location.hash).toContain('drawingNumber=')
+    expect(window.location.hash).toContain('revisionNumber=')
+    expect(window.location.hash).toContain('DWG-011')
+  })
+
+  it('URL ハッシュの初期値（deep link）で直接該当ビューを表示する', async () => {
+    window.location.hash = '#/audit'
+    render(<App />)
+    expect(
+      await screen.findByText(/保存、承認、出力、認証イベントの記録/, {}, { timeout: 5000 }),
+    ).toBeInTheDocument()
+    window.location.hash = ''
+  })
+
+  it('ハッシュ変更（戻る/進む相当）でビューが同期する', async () => {
+    render(<App />)
+    window.location.hash = '#/settings'
+    window.dispatchEvent(new Event('hashchange'))
+    expect(
+      await screen.findByText(/監査ログ設定/, {}, { timeout: 5000 }),
+    ).toBeInTheDocument()
+    window.location.hash = '#/home'
+    window.dispatchEvent(new Event('hashchange'))
+    expect(
+      await screen.findByPlaceholderText('案件名・図面番号で検索', {}, { timeout: 5000 }),
+    ).toBeInTheDocument()
+    window.location.hash = ''
+  })
+
+  it('モバイル: メニューを開くと最初の項目へフォーカスし、Escape で閉じてメニューへ復帰する', async () => {
+    render(<App />)
+    const menuButton = screen.getByRole('button', { name: 'メニューを開く' })
+    await userEvent.click(menuButton)
+    const firstNav = screen.getByRole('button', { name: /^案件(›|⌄)?$/ })
+    expect(firstNav).toHaveFocus()
+
+    await userEvent.keyboard('{Escape}')
+    expect(menuButton).toHaveFocus()
+    expect(menuButton).toHaveAttribute('aria-expanded', 'false')
+  })
+
+  it('モバイル: 背面オーバーレイのクリックでサイドバーを閉じる', async () => {
+    render(<App />)
+    const menuButton = screen.getByRole('button', { name: 'メニューを開く' })
+    await userEvent.click(menuButton)
+    const backdrop = document.querySelector('.cd-mobile-backdrop')
+    expect(backdrop).not.toBeNull()
+    await userEvent.click(backdrop as HTMLElement)
+    expect(menuButton).toHaveAttribute('aria-expanded', 'false')
+    expect(document.querySelector('.cd-mobile-backdrop')).toBeNull()
   })
 })
