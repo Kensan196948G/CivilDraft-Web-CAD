@@ -16,10 +16,18 @@ import { lazy, Suspense, useCallback, useEffect, useMemo, useRef, useState } fro
 import { ErrorBoundary } from './ErrorBoundary'
 import { Sidebar } from './layout/Sidebar'
 import type { AppView } from './layout/Sidebar'
+import { fetchAccessIdentity } from '@/infrastructure/auth/accessIdentity'
+import type { AccessIdentity } from '@/infrastructure/auth/accessIdentity'
+import {
+  permissionsFor,
+  roleFromIdentity,
+  type CivilDraftRole,
+} from '@/infrastructure/auth/roles'
 import {
   DEFAULT_CLOUD_DRAFT_SESSION,
   type CloudDraftSession,
 } from './pages/cloudDraftSession'
+import { fetchFieldRevisionStatus, type FieldRevisionStatus } from './pages/fieldRevisionStatus'
 import { HomePage } from './pages/HomePage'
 import { EditorStoreProvider } from './store/EditorStoreContext'
 import { createAutosaveStore } from '@/infrastructure/autosave/autosaveStore'
@@ -77,6 +85,16 @@ const SystemSettingsPage = lazy(() =>
 
 const THEME_STORAGE_KEY = 'civildraft-theme'
 
+/** viewer ロールでサイドバーから除外する編集系ビュー（Issue #177）。 */
+const VIEWER_HIDDEN_VIEWS: readonly AppView[] = [
+  'editor',
+  'drawingSettings',
+  'parts',
+  'approval',
+  'audit',
+  'settings',
+]
+
 function loadTheme(): 'light' | 'dark' {
   try {
     return localStorage.getItem(THEME_STORAGE_KEY) === 'dark' ? 'dark' : 'light'
@@ -91,6 +109,8 @@ function AppShell() {
   const [theme, setTheme] = useState<'light' | 'dark'>(loadTheme)
   const [isSidebarOpen, setIsSidebarOpen] = useState(false)
   const [autosaveStore] = useState<AutosaveStore>(() => createAutosaveStore())
+  const [identity, setIdentity] = useState<AccessIdentity | null>(null)
+  const [fieldRevisionStatus, setFieldRevisionStatus] = useState<FieldRevisionStatus>('unknown')
   const [cloudDraftSession, setCloudDraftSession] = useState<CloudDraftSession>(
     initialRoute?.session ?? DEFAULT_CLOUD_DRAFT_SESSION,
   )
@@ -99,6 +119,43 @@ function AppShell() {
   )
   const menuButtonRef = useRef<HTMLButtonElement>(null)
   const sidebarMountRef = useRef<HTMLDivElement>(null)
+
+  // ロール解決（Issue #177）: Cloudflare Access identity からロールを判定する。
+  // 取得不可時は開発・テストでは engineer、本番では最小権限の viewer にフォールバックする。
+  useEffect(() => {
+    let cancelled = false
+    void fetchAccessIdentity().then((result) => {
+      if (cancelled) return
+      setIdentity(
+        result.ok && result.value.kind === 'authenticated' ? result.value.identity : null,
+      )
+    })
+    return () => {
+      cancelled = true
+    }
+  }, [])
+
+  const isProduction = import.meta.env.MODE === 'production'
+  const role: CivilDraftRole = useMemo(() => {
+    if (identity !== null) return roleFromIdentity(identity)
+    return isProduction ? 'viewer' : 'engineer'
+  }, [identity, isProduction])
+  const canEdit = permissionsFor(role).canEdit
+
+  // 現場説明モードの承認状態（Issue #178）: revisionId がある実案件のみ API から取得する。
+  useEffect(() => {
+    const revisionId = cloudDraftSession.revisionId
+    if (view !== 'field' || revisionId === undefined) {
+      return
+    }
+    let cancelled = false
+    void fetchFieldRevisionStatus(revisionId).then((status) => {
+      if (!cancelled) setFieldRevisionStatus(status)
+    })
+    return () => {
+      cancelled = true
+    }
+  }, [view, cloudDraftSession.revisionId])
 
   // モバイル: サイドバーが開いたら最初のナビゲーション項目へフォーカスし、
   // 閉じたらメニューボタンへ復帰させる（キーボード・スクリーンリーダー操作の要件）。
@@ -130,6 +187,10 @@ function AppShell() {
 
   const navigate = useCallback((next: AppView) => {
     setView(next)
+    if (next === 'field') {
+      // 表示開始時は常に「未取得」から始め、API 結果で上書きする（#178）。
+      setFieldRevisionStatus('unknown')
+    }
     window.location.hash = formatRoute(next, {
       projectId: next === 'project' ? (selectedProjectId ?? undefined) : undefined,
       session: next === 'editor' ? cloudDraftSession : undefined,
@@ -176,6 +237,7 @@ function AppShell() {
           projectId={selectedProjectId ?? undefined}
           onOpenEditor={openEditor}
           onNavigateHome={() => navigate('home')}
+          canEdit={canEdit}
           enableCloudData={import.meta.env.MODE === 'production'}
         />
       ),
@@ -193,6 +255,7 @@ function AppShell() {
       field: (
         <FieldExplanationPage
           cloudDraftSession={cloudDraftSession}
+          revisionStatus={fieldRevisionStatus}
           onOpenEditor={() => openEditor(cloudDraftSession)}
         />
       ),
@@ -203,7 +266,7 @@ function AppShell() {
       audit: <AuditLogPage enableSampleFallback={import.meta.env.MODE !== 'production'} />,
       settings: <SystemSettingsPage enableSampleData={import.meta.env.MODE !== 'production'} />,
     }),
-    [autosaveStore, cloudDraftSession, selectedProjectId, navigate, openEditor],
+    [autosaveStore, canEdit, cloudDraftSession, fieldRevisionStatus, selectedProjectId, navigate, openEditor],
   )
 
   const implementedViews: readonly AppView[] = [
@@ -221,7 +284,10 @@ function AppShell() {
     setTheme(next)
   }
 
-  const registeredPage = view !== 'home' ? sidebarPages[view] : undefined
+  // viewer は編集系画面を表示しない（deep link 直行もホームへフォールバック）。
+  const effectiveView: AppView =
+    !canEdit && (VIEWER_HIDDEN_VIEWS as readonly string[]).includes(view) ? 'home' : view
+  const registeredPage = effectiveView !== 'home' ? sidebarPages[effectiveView] : undefined
 
   return (
     <div
@@ -260,9 +326,11 @@ function AppShell() {
         className={`cd-sidebar-mount${isSidebarOpen ? ' cd-sidebar-open' : ''}`}
       >
         <Sidebar
-          activeView={view}
+          activeView={effectiveView}
           theme={theme}
           implementedViews={implementedViews}
+          role={role}
+          userName={identity?.name}
           onNavigate={(next) => {
             navigate(next)
             setIsSidebarOpen(false)
@@ -282,6 +350,7 @@ function AppShell() {
             autosaveStore={autosaveStore}
             onOpenEditor={() => openEditor()}
             onOpenProject={openProjectDetail}
+            canEdit={canEdit}
             enableCloudData={import.meta.env.MODE === 'production'}
           />
         )}

@@ -294,4 +294,31 @@ describe('HomePage', () => {
     expect(await screen.findByText('復旧候補はありません')).toBeInTheDocument()
     expect(screen.queryByRole('button', { name: 'デモ下書きを作成' })).not.toBeInTheDocument()
   })
+
+  it('canEdit=false（viewer）では新規案件・図面ボタンが非表示になる', () => {
+    render(
+      <EditorStoreProvider store={createEditorStore()}>
+        <HomePage autosaveStore={new MemoryAutosaveStore()} onOpenEditor={() => {}} canEdit={false} />
+      </EditorStoreProvider>,
+    )
+    expect(screen.queryByRole('button', { name: '＋ 新規案件・図面' })).not.toBeInTheDocument()
+  })
+
+  it('canEdit=false（viewer）では復旧候補の復元・破棄とデモ下書き作成が非表示になる', async () => {
+    const autosave = new MemoryAutosaveStore()
+    await autosave.save({
+      savedAt: '2026-07-15T12:00:00.000Z',
+      geometries: [circle('a', 0, 0, 5)],
+      layers: [createDefaultLayer()],
+    })
+    render(
+      <EditorStoreProvider store={createEditorStore()}>
+        <HomePage autosaveStore={autosave} onOpenEditor={() => {}} canEdit={false} />
+      </EditorStoreProvider>,
+    )
+    expect(await screen.findByText(/保存済み下書きがあります/)).toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: '復元' })).not.toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: '破棄' })).not.toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'デモ下書きを作成' })).not.toBeInTheDocument()
+  })
 })
