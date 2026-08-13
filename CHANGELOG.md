@@ -4,6 +4,13 @@
 
 ## [Unreleased]
 
+### 🚀 本番デプロイ（2026-08-13・Worker Version `ec55b342`・main `ef88ada`）
+
+- ユーザー承認済みの `npx wrangler deploy` で、MVP 用ダミーデータ 10 件（#186）と MVP/Preview URL での既定デモ表示（#187）を本番反映
+- 同時に #183-#186（照査・承認の実 API 結線 / 案件活動履歴 / ホーム KPI チャート）も反映
+- 実測: MVP/workers.dev は SPA 200（10 件のデモデータを含む新バンドル）・`/api/health` 401 fail-closed、本番ドメインは 302 → Cloudflare Access（保護維持）
+- 直前バージョン `2fa2cd25`（v0.1.25）へ rollback 可能
+
 ### 改善
 - 2026-08-13: MVP/Preview URL でダミーデータ10件を既定表示（`src/app/mode.ts`）
   - MVP サブドメイン `civildraft-web-cad-mvp.mirai-dx-platform.com` と workers.dev ではクエリ無しでデモ表示
