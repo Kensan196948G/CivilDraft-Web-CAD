@@ -4,6 +4,12 @@
 
 ## [Unreleased]
 
+### 🚀 本番デプロイ（2026-08-14 JST・Worker Version `07840345`・main `13f946e`）
+
+- CAD作図ナビ・デモ図面切替・デモ時の編集権限修正（#191）を `npx wrangler deploy` で本番反映
+- 実測: MVP/workers.dev は SPA 200（新バンドルに CAD作図 / 新規図面 / デモ図面を開く セレクト）・`/api/health` 401 fail-closed、本番ドメインは 302 → Cloudflare Access（保護維持）
+- 直前バージョン `9fd0bc87` へ rollback 可能
+
 ### 追加
 - 2026-08-14: サイドバー「作図」に「CAD作図」を追加し、新規作図・既存図面編集を実装
   - 「CAD作図」→ 新規図面（空白）のCAD編集画面を開く。CAD編集画面ヘッダーの「図面」セレクトでデモ10案件・59図面の切替が可能
