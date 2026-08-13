@@ -7,6 +7,7 @@
  */
 import { useMemo, useState } from 'react'
 import type { CSSProperties } from 'react'
+import { isDemoMode } from '@/app/mode'
 import {
   pageHeaderStyle,
   pageMainStyle,
@@ -554,8 +555,7 @@ export function ProjectDetailPage({
   cloudApiClient,
   enableCloudData = false,
 }: ProjectDetailPageProps) {
-  const demoMode =
-    typeof window !== 'undefined' && new URLSearchParams(window.location.search).has('demo')
+  const demoMode = isDemoMode()
   const useCloudData = enableCloudData && !demoMode
   if (!useCloudData) {
     return (

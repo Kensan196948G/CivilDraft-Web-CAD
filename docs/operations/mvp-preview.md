@@ -7,8 +7,8 @@
 | 用途 | URL | 状態 |
 | --- | --- | --- |
 | 本番 | `https://civildraft-web-cad.mirai-dx-platform.com` | 稼働中。Cloudflare Access で保護（未認証は 302 → Access ログイン）。実案件データのみ表示（サンプル非表示） |
-| プレビュー（暫定） | `https://civildraft-web-cad.kensan1969.workers.dev` | SPA 表示可（HTTP 200）。API は認証 fail-closed（401 `CD-AUTH-001`）のため、ブラウザ内デモ・ローカル保存の確認に限定 |
-| MVP/Prototype | `https://civildraft-web-cad-mvp.mirai-dx-platform.com` | 稼働中（2026-08-13 ユーザー承認で attach 済み）。SPA 200・`?demo=1` デモ可・未認証 API 401 fail-closed。Cloudflare Access は未適用（適用は人間承認待ち）のため現状はデモ表示中心。手順・実測は §2 |
+| プレビュー（暫定） | `https://civildraft-web-cad.kensan1969.workers.dev` | SPA 表示可（HTTP 200）。架空ダミーデータ10件を既定表示。API は認証 fail-closed（401 `CD-AUTH-001`）のため、ブラウザ内デモ・ローカル保存の確認に限定 |
+| MVP/Prototype | `https://civildraft-web-cad-mvp.mirai-dx-platform.com` | 稼働中（2026-08-13 ユーザー承認で attach 済み）。SPA 200・架空ダミーデータ10件を既定表示・未認証 API 401 fail-closed。Cloudflare Access は未適用（適用は人間承認待ち）のため現状はデモ表示中心。手順・実測は §2 |
 
 > 本番 URL は既存サブドメイン＋規定ドメイン、MVP 用は `civildraft-web-cad-mvp` サブドメイン＋同一ドメインとして分離する方針。MVP 用サブドメインは 2026-08-13 にユーザー承認を得て追加済み。
 
@@ -62,6 +62,9 @@ npm run dev
 ```
 
 本番ビルド（`dist/` 配信・workers.dev）でも `?demo=1` を付与するとデモ表示になる（画面上部に「⚠️ デモ表示」バナーが出る）。
+
+MVP/Prototype・workers.dev のプレビュー URL では `?demo=1` なしでもダミーデータ10件が既定表示される
+（`src/app/mode.ts` の `isDemoMode()`。本番ドメイン `civildraft-web-cad.mirai-dx-platform.com` は実案件データのみを維持）。
 
 ### 主なデモ導線（正常系）
 

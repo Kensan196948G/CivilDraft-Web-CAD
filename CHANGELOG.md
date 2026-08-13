@@ -5,6 +5,10 @@
 ## [Unreleased]
 
 ### 改善
+- 2026-08-13: MVP/Preview URL でダミーデータ10件を既定表示（`src/app/mode.ts`）
+  - MVP サブドメイン `civildraft-web-cad-mvp.mirai-dx-platform.com` と workers.dev ではクエリ無しでデモ表示
+  - 本番ドメイン `civildraft-web-cad.mirai-dx-platform.com` は実案件データのみを維持（挙動変更なし）
+  - HomePage / ProjectDetailPage のデモ判定を共有ヘルパー `isDemoMode()` へ統一、判定テスト追加
 - 2026-08-13: MVP 用の詳細ダミーデータ 10 件を実装（`src/app/demoProjects.ts`）
   - 架空案件 10 件（進行中 3 / 照査待ち 2 / 承認待ち 2 / 承認済み 2 / 差戻し 1）に、図面・メンバー・アクティビティ・住所/電話/契約金額等を詳細定義
   - ホーム（一覧・検索・KPI・ステータス分布・最近開いた図面）と案件詳細が同一データを参照し、案件行クリックで各案件の詳細へ遷移

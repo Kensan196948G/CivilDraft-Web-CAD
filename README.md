@@ -19,12 +19,13 @@
 | 用途 | URL | 状態 |
 | --- | --- | --- |
 | 本番 | `https://civildraft-web-cad.mirai-dx-platform.com` | Cloudflare Access 保護（未認証 302 → ログイン）。実案件データのみ表示 |
-| プレビュー（暫定） | `https://civildraft-web-cad.kensan1969.workers.dev` | SPA 表示可。API は認証 fail-closed（401）のためブラウザ内デモ・ローカル保存の確認に限定 |
-| MVP/Prototype | `https://civildraft-web-cad-mvp.mirai-dx-platform.com` | 稼働中（2026-08-13 attach・ユーザー承認）。SPA 200・`?demo=1` デモ可。API は認証 fail-closed（401）。Cloudflare Access 適用は人間承認待ちのため実データ導線は本番 URL を使用 |
+| プレビュー（暫定） | `https://civildraft-web-cad.kensan1969.workers.dev` | SPA 表示可。架空ダミーデータ10件を既定表示。API は認証 fail-closed（401）のためブラウザ内デモ・ローカル保存の確認に限定 |
+| MVP/Prototype | `https://civildraft-web-cad-mvp.mirai-dx-platform.com` | 稼働中（2026-08-13 attach・ユーザー承認）。SPA 200・架空ダミーデータ10件を既定表示。API は認証 fail-closed（401）。Cloudflare Access 適用は人間承認待ちのため実データ導線は本番 URL を使用 |
 
 デモ確認（架空ダミーデータ・実在情報不使用・再生成可能）:
 
 - 本番ビルドでも `?demo=1`（例 `/#/home?demo=1`）でデモ表示。画面上部に「⚠️ デモ表示」バナーが出る
+- MVP/Prototype・workers.dev のプレビュー URL では `?demo=1` なしでもダミーデータ10件を既定表示（本番ドメインは実案件データのみ）
 - ローカル: `npm ci && npm run dev` → `http://localhost:5173/#/home?demo=1`
 - ダミーデータ出所: `src/app/demoProjects.ts`（架空案件 10 件・図面・メンバー・アクティビティ） / `src/app/demoData.ts`（デモ作図図形） / `CrossSectionPage.tsx`（サンプル断面） / `ReviewApprovalPage.tsx`（デモ改訂）
 
