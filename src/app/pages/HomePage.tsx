@@ -6,6 +6,7 @@
 import { useEffect, useMemo, useState } from 'react'
 import type { CSSProperties } from 'react'
 import { createDemoDrawingGeometries } from '@/app/demoData'
+import { isDemoMode } from '@/app/mode'
 import {
   DEMO_PROJECTS,
   demoStaleReviewCount,
@@ -194,7 +195,7 @@ export function HomePage({
     }
   }, [autosaveStore])
 
-  const demoMode = typeof window !== 'undefined' && new URLSearchParams(window.location.search).has('demo')
+  const demoMode = isDemoMode()
   const useCloudData = enableCloudData && !demoMode
   const [cloudProjects, setCloudProjects] = useState<readonly CloudProject[] | null>(null)
   const [cloudError, setCloudError] = useState<string | null>(null)
