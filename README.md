@@ -20,7 +20,7 @@
 | --- | --- | --- |
 | 本番 | `https://civildraft-web-cad.mirai-dx-platform.com` | Cloudflare Access 保護（未認証 302 → ログイン）。実案件データのみ表示 |
 | プレビュー（暫定） | `https://civildraft-web-cad.kensan1969.workers.dev` | SPA 表示可。API は認証 fail-closed（401）のためブラウザ内デモ・ローカル保存の確認に限定 |
-| MVP/Prototype（計画） | `https://civildraft-web-cad-mvp.mirai-dx-platform.com` | カスタムドメイン追加は公開 DNS 変更のため人間承認待ち（手順は [mvp-preview.md](docs/operations/mvp-preview.md)） |
+| MVP/Prototype | `https://civildraft-web-cad-mvp.mirai-dx-platform.com` | 稼働中（2026-08-13 attach・ユーザー承認）。SPA 200・`?demo=1` デモ可。API は認証 fail-closed（401）。Cloudflare Access 適用は人間承認待ちのため実データ導線は本番 URL を使用 |
 
 デモ確認（架空ダミーデータ・実在情報不使用・再生成可能）:
 
