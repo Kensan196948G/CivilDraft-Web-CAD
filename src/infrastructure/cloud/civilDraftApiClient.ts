@@ -90,6 +90,44 @@ export interface CloudRevision {
   readonly contentChecksum: string
 }
 
+/** 改訂ワークフロー操作（POST /api/v1/revisions/:id/workflow-actions の action 値）。 */
+export type CloudWorkflowActionName =
+  | 'submitReview'
+  | 'resumeEditing'
+  | 'return'
+  | 'completeReview'
+  | 'approve'
+  | 'obsolete'
+
+/** ワークフロー操作のリクエストボディ。必須項目は action ごとにサーバー側で検証される。 */
+export interface CloudWorkflowActionBody {
+  readonly action: CloudWorkflowActionName
+  readonly comment?: string
+  readonly returnReason?: string
+  readonly obsoleteReason?: string
+  readonly mandatoryChecksPassed?: boolean
+  readonly reviewResultRecorded?: boolean
+  readonly contentChecksum?: string
+}
+
+/** ワークフロー操作の実行記録（サーバー応答の workflowAction）。 */
+export interface CloudWorkflowAction {
+  readonly id: string
+  readonly revisionId: string
+  readonly action: CloudWorkflowActionName
+  readonly fromStatus: string
+  readonly toStatus: string
+  readonly actorId: string
+  readonly comment?: string
+  readonly occurredAt: string
+}
+
+/** ワークフロー操作の応答（遷移後の改訂と操作記録）。 */
+export interface CloudWorkflowActionResult {
+  readonly revision: CloudRevision
+  readonly workflowAction: CloudWorkflowAction
+}
+
 /** 図面チェックイン/アウト状態（migration 0007）。 */
 export interface CloudDrawingCheckout {
   readonly drawingId: string
@@ -397,6 +435,28 @@ export class CivilDraftApiClient {
     const body = asRecord(response.value, 'response')
     if (!body.ok) return body
     return asRecord(body.value.revision, 'revision') as Result<CloudRevision, ValidationIssue>
+  }
+
+  /** 改訂のワークフロー操作を実行する（POST /api/v1/revisions/:id/workflow-actions）。 */
+  async submitWorkflowAction(
+    revisionId: string,
+    input: CloudWorkflowActionBody,
+  ): Promise<Result<CloudWorkflowActionResult, ValidationIssue>> {
+    const response = await this.request(
+      `/api/v1/revisions/${encodeURIComponent(revisionId)}/workflow-actions`,
+      { method: 'POST', body: input },
+    )
+    if (!response.ok) return response
+    const responseBody = asRecord(response.value, 'response')
+    if (!responseBody.ok) return responseBody
+    const revision = asRecord(responseBody.value.revision, 'revision')
+    if (!revision.ok) return revision
+    const workflowAction = asRecord(responseBody.value.workflowAction, 'workflowAction')
+    if (!workflowAction.ok) return workflowAction
+    return ok({
+      revision: revision.value as unknown as CloudRevision,
+      workflowAction: workflowAction.value as unknown as CloudWorkflowAction,
+    })
   }
 
   async putRevisionContent(

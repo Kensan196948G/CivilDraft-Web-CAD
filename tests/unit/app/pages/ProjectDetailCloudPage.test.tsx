@@ -48,6 +48,7 @@ function makeClient(overrides: Partial<ProjectDetailCloudClient> = {}): ProjectD
     getProject: vi.fn(async () => ({ ok: true, value: PROJECT })),
     listProjectDrawings: vi.fn(async () => ({ ok: true, value: [DRAWING] })),
     listProjectMembers: vi.fn(async () => ({ ok: true, value: [MEMBER] })),
+    listAuditLogs: vi.fn(async () => ({ ok: true, value: { auditLogs: [], total: 0 } })),
     updateProject: vi.fn(async () => ({
       ok: true,
       value: { ...PROJECT, name: '本番実案件（更新）', version: 3 },
@@ -99,6 +100,60 @@ describe('ProjectDetailCloudPage', () => {
     expect(await screen.findByText(/案件データを取得できませんでした/)).toBeInTheDocument()
     expect(screen.getByText('認証情報がありません')).toBeInTheDocument()
     expect(screen.queryByText('国道245号 道路拡幅工事')).not.toBeInTheDocument()
+  })
+
+  it('最近のアクティビティを監査ログ API から表示する', async () => {
+    const client = makeClient({
+      listAuditLogs: vi.fn(async () => ({
+        ok: true,
+        value: {
+          auditLogs: [
+            {
+              id: 'a-1',
+              occurredAt: '2026-08-13T01:00:00.000Z',
+              eventName: 'project.created',
+              actorId: 'engineer@example.test',
+              projectId: 'p-1',
+              result: 'success' as const,
+              correlationId: 'c-1',
+            },
+            {
+              id: 'a-2',
+              occurredAt: '2026-08-13T02:00:00.000Z',
+              eventName: 'workflow.approve',
+              actorId: 'approver@example.test',
+              projectId: 'p-1',
+              result: 'success' as const,
+              correlationId: 'c-2',
+            },
+          ],
+          total: 2,
+        },
+      })),
+    })
+    render(<ProjectDetailCloudPage projectId="p-1" cloudApiClient={client} />)
+
+    expect(await screen.findByText('案件作成')).toBeInTheDocument()
+    expect(screen.getByText('承認')).toBeInTheDocument()
+    expect(screen.getByText('approver@example.test')).toBeInTheDocument()
+    expect(client.listAuditLogs).toHaveBeenCalledWith({ projectId: 'p-1', limit: 10 })
+  })
+
+  it('活動履歴が無い場合は空状態を表示する', async () => {
+    render(<ProjectDetailCloudPage projectId="p-1" cloudApiClient={makeClient()} />)
+    expect(await screen.findByText('この案件の活動履歴はまだありません。')).toBeInTheDocument()
+  })
+
+  it('活動履歴の取得失敗時はエラーを表示する', async () => {
+    const client = makeClient({
+      listAuditLogs: vi.fn(async () => ({
+        ok: false,
+        error: { code: 'CD-AUTH-001', severity: 'error' as const, message: '監査ログを取得できません' },
+      })),
+    })
+    render(<ProjectDetailCloudPage projectId="p-1" cloudApiClient={client} />)
+    expect(await screen.findByText(/活動履歴を取得できませんでした/)).toBeInTheDocument()
+    expect(screen.getByText(/監査ログを取得できません/)).toBeInTheDocument()
   })
 
   it('図面作成 API を呼び、再取得した一覧を表示する', async () => {

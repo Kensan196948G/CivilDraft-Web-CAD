@@ -1,20 +1,104 @@
-import { describe, expect, it } from 'vitest'
-import { render, screen } from '@testing-library/react'
+import { describe, expect, it, vi } from 'vitest'
+import { render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { ReviewApprovalPage } from '@/app/pages/ReviewApprovalPage'
+import type {
+  CivilDraftApiClient,
+  CloudRevision,
+} from '@/infrastructure/cloud/civilDraftApiClient'
 
 /** 監督員（supervisor）ロールへ切り替える。 */
 async function switchToSupervisor() {
   await userEvent.click(screen.getByRole('button', { name: '監督員（supervisor）' }))
 }
 
+const CLOUD_REVISION: CloudRevision = {
+  id: 'rev-real-1',
+  drawingId: 'dwg-real-1',
+  revisionNumber: '2',
+  status: 'inReview',
+  contentVersion: 3,
+  contentChecksum: 'sha256:real-checksum',
+}
+
+/** クラウド連携テスト用の最小 API クライアント。 */
+function makeCloudClient(
+  overrides: Partial<CivilDraftApiClient> = {},
+): CivilDraftApiClient {
+  return {
+    getRevision: vi.fn(async () => ({ ok: true, value: CLOUD_REVISION })),
+    submitWorkflowAction: vi.fn(async (_revisionId, body) => ({
+      ok: true,
+      value: {
+        revision: {
+          ...CLOUD_REVISION,
+          status: body.action === 'completeReview' ? 'pendingApproval' : CLOUD_REVISION.status,
+        },
+        workflowAction: {
+          id: 'wf-1',
+          revisionId: CLOUD_REVISION.id,
+          action: body.action,
+          fromStatus: CLOUD_REVISION.status,
+          toStatus: body.action === 'completeReview' ? 'pendingApproval' : CLOUD_REVISION.status,
+          actorId: 'supervisor@example.test',
+          occurredAt: '2026-08-13T01:00:00.000Z',
+        },
+      },
+    })),
+    ...overrides,
+  } as unknown as CivilDraftApiClient
+}
+
 describe('ReviewApprovalPage', () => {
   it('本番モード（enableCloudData）ではデモロール切替とサンプル改訂を表示しない', () => {
     render(<ReviewApprovalPage enableCloudData />)
-    expect(screen.getByText('改訂データがありません')).toBeInTheDocument()
+    expect(screen.getByText('照査・承認する改訂が選択されていません')).toBeInTheDocument()
     expect(screen.queryByRole('button', { name: '照査依頼' })).not.toBeInTheDocument()
     expect(screen.queryByText('Rev.1')).not.toBeInTheDocument()
     expect(screen.queryByRole('button', { name: '監督員（supervisor）' })).not.toBeInTheDocument()
+  })
+
+  it('クラウド連携ビューは実改訂を読み込み、API 経由で照査操作を実行する', async () => {
+    const client = makeCloudClient()
+    render(
+      <ReviewApprovalPage
+        enableCloudData
+        revisionId={CLOUD_REVISION.id}
+        initialRole="supervisor"
+        apiClient={client}
+      />,
+    )
+
+    expect(await screen.findByText('Rev.2')).toBeInTheDocument()
+    expect(screen.getByText('照査中（inReview）')).toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: '監督員（supervisor）' })).not.toBeInTheDocument()
+
+    await userEvent.click(screen.getByRole('button', { name: '照査' }))
+    await waitFor(() => expect(screen.getByText('承認待ち（pendingApproval）')).toBeInTheDocument())
+    expect(client.submitWorkflowAction).toHaveBeenCalledWith(
+      CLOUD_REVISION.id,
+      expect.objectContaining({ action: 'completeReview', reviewResultRecorded: true }),
+    )
+    expect(screen.getByText('supervisor@example.test')).toBeInTheDocument()
+  })
+
+  it('クラウド連携ビューは API エラーを理由付きで表示する', async () => {
+    const client = makeCloudClient({
+      getRevision: async () => ({
+        ok: false,
+        error: { code: 'CD-AUTH-001', severity: 'error' as const, message: '認証情報がありません' },
+      }),
+    })
+    render(
+      <ReviewApprovalPage
+        enableCloudData
+        revisionId={CLOUD_REVISION.id}
+        apiClient={client}
+      />,
+    )
+
+    expect(await screen.findByText('⚠️ 改訂データを取得できませんでした')).toBeInTheDocument()
+    expect(screen.getByText('認証情報がありません')).toBeInTheDocument()
   })
 
   it('初期状態は draft・Rev.1 で、照査依頼ボタンと空履歴を表示する', () => {
