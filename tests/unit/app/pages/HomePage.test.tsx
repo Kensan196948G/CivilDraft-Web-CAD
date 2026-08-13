@@ -130,8 +130,8 @@ describe('HomePage', () => {
 
     const search = screen.getByPlaceholderText('案件名・図面番号で検索')
     await userEvent.type(search, 'DWG-018')
-    expect(screen.getByRole('button', { name: '青葉橋 橋台補強工事' })).toBeInTheDocument()
-    expect(screen.queryByRole('button', { name: '国道245号 道路拡幅工事' })).not.toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'みらい台地区 市道拡幅工事' })).toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: '第二湾岸 雨水ポンプ場整備工事' })).not.toBeInTheDocument()
   })
 
   it('案件一覧、すべて表示、最近開いた図面、お知らせ、統計カードが詳細表示に切り替わる', async () => {
@@ -142,12 +142,12 @@ describe('HomePage', () => {
       </EditorStoreProvider>,
     )
 
-    await userEvent.click(screen.getAllByText('大和川 河川護岸補修工事')[0]!)
-    expect(screen.getByText('案件詳細: 大和川 河川護岸補修工事')).toBeInTheDocument()
+    await userEvent.click(screen.getAllByText('第二湾岸 雨水ポンプ場整備工事')[0]!)
+    expect(screen.getByText('案件詳細: 第二湾岸 雨水ポンプ場整備工事')).toBeInTheDocument()
 
     await userEvent.click(screen.getByRole('button', { name: 'すべて表示 →' }))
     expect(screen.getByText('すべての案件')).toBeInTheDocument()
-    expect(screen.getByText('高台地区 法面補強工事')).toBeInTheDocument()
+    expect(screen.getByText('てんとう虫トンネル 坑口安全対策工事')).toBeInTheDocument()
 
     await userEvent.click(screen.getByRole('button', { name: /施工ヤード計画図 Rev\.3/ }))
     expect(screen.getByText('最近開いた図面: 施工ヤード計画図')).toBeInTheDocument()
@@ -160,7 +160,7 @@ describe('HomePage', () => {
 
     await userEvent.click(screen.getByRole('button', { name: /照査待ち図面/ }))
     expect(screen.getByText('統計カード対象の案件')).toBeInTheDocument()
-    expect(screen.getByText('港湾第3岸壁 排水改良')).toBeInTheDocument()
+    expect(screen.getByText('ひまわり川 護岸補強工事（第3期）')).toBeInTheDocument()
   })
 
   it('デザイン正本のサンプル案件・統計・お知らせが表示される（Home.dc.html 100%適用）', () => {
@@ -169,7 +169,7 @@ describe('HomePage', () => {
         <HomePage autosaveStore={new MemoryAutosaveStore()} onOpenEditor={() => {}} />
       </EditorStoreProvider>,
     )
-    expect(screen.getAllByText('国道245号 道路拡幅工事').length).toBeGreaterThanOrEqual(1)
+    expect(screen.getAllByText('みらい台地区 市道拡幅工事').length).toBeGreaterThanOrEqual(1)
     expect(screen.getByText('進行中案件')).toBeInTheDocument()
     expect(screen.getByText('照査待ち図面')).toBeInTheDocument()
     expect(screen.getByText(/定期メンテナンス/)).toBeInTheDocument()
@@ -194,7 +194,7 @@ describe('HomePage', () => {
       </EditorStoreProvider>,
     )
     expect(await screen.findByText(/共有データに接続できません/)).toBeInTheDocument()
-    expect(screen.queryByText('国道245号 道路拡幅工事')).not.toBeInTheDocument()
+    expect(screen.queryByText('みらい台地区 市道拡幅工事')).not.toBeInTheDocument()
   })
 
   it('本番モードで API から取得した実案件を表示する', async () => {
@@ -221,7 +221,7 @@ describe('HomePage', () => {
     )
     expect(await screen.findByText(/共有データ接続済み/)).toBeInTheDocument()
     expect(screen.getByText('本番実案件')).toBeInTheDocument()
-    expect(screen.queryByText('国道245号 道路拡幅工事')).not.toBeInTheDocument()
+    expect(screen.queryByText('みらい台地区 市道拡幅工事')).not.toBeInTheDocument()
   })
 
   it('本番モードで案件クリック時に onOpenProject(id) を呼び、ローカル詳細へ遷移しない', async () => {

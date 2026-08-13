@@ -26,7 +26,7 @@
 
 - 本番ビルドでも `?demo=1`（例 `/#/home?demo=1`）でデモ表示。画面上部に「⚠️ デモ表示」バナーが出る
 - ローカル: `npm ci && npm run dev` → `http://localhost:5173/#/home?demo=1`
-- ダミーデータ出所: `src/app/demoData.ts` / `HomePage.tsx`（架空案件一覧） / `CrossSectionPage.tsx`（サンプル断面） / `ReviewApprovalPage.tsx`（デモ改訂）
+- ダミーデータ出所: `src/app/demoProjects.ts`（架空案件 10 件・図面・メンバー・アクティビティ） / `src/app/demoData.ts`（デモ作図図形） / `CrossSectionPage.tsx`（サンプル断面） / `ReviewApprovalPage.tsx`（デモ改訂）
 
 詳細: [docs/operations/mvp-preview.md](docs/operations/mvp-preview.md)
 

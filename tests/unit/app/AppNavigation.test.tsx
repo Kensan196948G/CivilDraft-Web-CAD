@@ -87,7 +87,7 @@ describe('App ナビゲーション統合', () => {
 
     await userEvent.click(screen.getByRole('button', { name: 'CAD編集で開く' }))
     expect(await screen.findByTestId('canvas-stage', {}, { timeout: 5000 })).toBeInTheDocument()
-    expect(screen.getByText('国道245号 道路拡幅工事')).toBeInTheDocument()
+    expect(screen.getByText('みらい台地区 市道拡幅工事')).toBeInTheDocument()
     expect(screen.getByText('仮設計画図（矢板・切梁）')).toBeInTheDocument()
     expect(screen.getByText('Rev.2')).toBeInTheDocument()
     // URL ハッシュにセッション（案件番号・図面番号・改訂番号）が記録され、共有・ブックマーク可能になる

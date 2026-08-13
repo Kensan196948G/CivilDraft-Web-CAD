@@ -22,6 +22,14 @@ import {
 } from './pageStyles'
 import type { CloudDraftSession } from './CadEditorPage'
 import {
+  DEMO_PROJECTS,
+  findDemoProject,
+  type DemoDrawing,
+  type DemoDrawingStatus,
+  type DemoMemberRole,
+  type DemoProject,
+} from '@/app/demoProjects'
+import {
   ProjectDetailCloudPage,
   type ProjectDetailCloudClient,
 } from './ProjectDetailCloudPage'
@@ -110,13 +118,9 @@ interface ProjectInfoState {
   readonly unitSystem: string
   readonly contractAmount: string
   readonly supervisor: string
+  readonly address: string
+  readonly tel: string
 }
-
-const PROJECT_CLOUD_CONTEXT = {
-  projectNumber: 'P-245-ROAD-WIDENING',
-  projectName: '国道245号 道路拡幅工事',
-  clientName: '○○県土木部',
-} as const
 
 /** CloudDraftSession.drawingType へ渡す種別コード（Workers API契約と対応）。 */
 const DRAWING_TYPE_CODES: Record<DrawingType, string> = {
@@ -126,53 +130,57 @@ const DRAWING_TYPE_CODES: Record<DrawingType, string> = {
   数量根拠図: 'quantity-basis',
 }
 
-const DRAWINGS: readonly DrawingRow[] = [
-  { no: 'DWG-014', name: '施工ヤード計画図', type: '施工ヤード図', rev: 'Rev.3', status: '作成中', c: '#6B45B0', bg: '#EDE7F6', by: '山田 太郎' },
-  { no: 'DWG-011', name: '仮設計画図（矢板・切梁）', type: '仮設計画図', rev: 'Rev.2', status: '照査待ち', c: '#B5701A', bg: '#FDEFE0', by: '山田 太郎' },
-  { no: 'DWG-009', name: '土工平面図・法面計画', type: '土工・断面図', rev: 'Rev.5', status: '承認済み', c: '#1F8255', bg: '#E4F3EC', by: '鈴木 花子' },
-  { no: 'DWG-002', name: '数量根拠図（土工数量）', type: '数量根拠図', rev: 'Rev.1', status: '差戻し', c: '#C5392F', bg: '#FCE9E7', by: '山田 太郎' },
-  { no: 'DWG-018', name: '重機作業半径図', type: '仮設計画図', rev: 'Rev.1', status: '作成中', c: '#6B45B0', bg: '#EDE7F6', by: '佐藤 次郎' },
-  { no: 'DWG-020', name: '施工ヤード資材配置図', type: '施工ヤード図', rev: 'Rev.1', status: '作成中', c: '#6B45B0', bg: '#EDE7F6', by: '中村 美咲' },
-  { no: 'DWG-021', name: '施工ヤード排水計画図', type: '施工ヤード図', rev: 'Rev.1', status: '照査待ち', c: '#B5701A', bg: '#FDEFE0', by: '山田 太郎' },
-  { no: 'DWG-022', name: '標準横断図 No.20', type: '土工・断面図', rev: 'Rev.2', status: '承認済み', c: '#1F8255', bg: '#E4F3EC', by: '鈴木 花子' },
-  { no: 'DWG-023', name: '法面断面図 No.40', type: '土工・断面図', rev: 'Rev.2', status: '作成中', c: '#6B45B0', bg: '#EDE7F6', by: '山田 太郎' },
-  { no: 'DWG-024', name: '掘削断面図 No.60', type: '土工・断面図', rev: 'Rev.1', status: '照査待ち', c: '#B5701A', bg: '#FDEFE0', by: '佐藤 次郎' },
-  { no: 'DWG-025', name: '数量根拠図（舗装数量）', type: '数量根拠図', rev: 'Rev.1', status: '承認済み', c: '#1F8255', bg: '#E4F3EC', by: '中村 美咲' },
-  { no: 'DWG-026', name: '数量根拠図（仮設材数量）', type: '数量根拠図', rev: 'Rev.1', status: '作成中', c: '#6B45B0', bg: '#EDE7F6', by: '山田 太郎' },
-] as const
+const DRAWING_STATUS_STYLE: Readonly<Record<DemoDrawingStatus, { readonly c: string; readonly bg: string }>> = {
+  作成中: { c: '#6B45B0', bg: '#EDE7F6' },
+  照査待ち: { c: '#B5701A', bg: '#FDEFE0' },
+  承認済み: { c: '#1F8255', bg: '#E4F3EC' },
+  差戻し: { c: '#C5392F', bg: '#FCE9E7' },
+}
+
+const MEMBER_ROLE_STYLE: Readonly<Record<DemoMemberRole, { readonly c: string; readonly border: string }>> = {
+  作成者: { c: '#E08A2B', border: '1px solid rgba(224,138,43,.4)' },
+  照査者: { c: '#2E5AAC', border: '1px solid #C9D7EC' },
+  承認者: { c: '#1F8255', border: '1px solid #9BCFB2' },
+  閲覧者: { c: 'var(--muted)', border: '1px solid var(--line)' },
+  数量担当: { c: '#6B45B0', border: '1px solid #D8C7F1' },
+}
+
+function toDrawingRow(demoDrawing: DemoDrawing): DrawingRow {
+  const style = DRAWING_STATUS_STYLE[demoDrawing.status]
+  return {
+    no: demoDrawing.no,
+    name: demoDrawing.name,
+    type: demoDrawing.type,
+    rev: demoDrawing.rev,
+    status: demoDrawing.status,
+    c: style.c,
+    bg: style.bg,
+    by: demoDrawing.by,
+  }
+}
+
+function toProjectInfo(demoProject: DemoProject): ProjectInfoState {
+  return {
+    name: demoProject.name,
+    status: demoProject.status,
+    area: demoProject.area,
+    clientSummary: demoProject.clientSummary,
+    periodSummary: demoProject.period.replace(' 〜 ', '〜'),
+    districtCount: demoProject.districtCount,
+    client: demoProject.client,
+    period: demoProject.period,
+    coordinateSystem: demoProject.coordinateSystem,
+    unitSystem: demoProject.unitSystem,
+    contractAmount: demoProject.contractAmount,
+    supervisor: demoProject.supervisor,
+    address: demoProject.address,
+    tel: demoProject.tel,
+  }
+}
 
 const FILTERS: readonly FilterType[] = ['すべて', '施工ヤード図', '仮設計画図', '土工・断面図', '数量根拠図']
 
-const INITIAL_PROJECT: ProjectInfoState = {
-  name: '国道245号 道路拡幅工事',
-  status: '進行中',
-  area: '2工区',
-  clientSummary: '○○県土木部',
-  periodSummary: '2026-04-01〜2027-03-31',
-  districtCount: '2工区（第1・第2工区）',
-  client: '○○県土木部 道路課',
-  period: '2026-04-01 〜 2027-03-31',
-  coordinateSystem: '平面直角座標系 第Ⅵ系',
-  unitSystem: 'm（メートル）',
-  contractAmount: '非公開（権限者のみ閲覧可）',
-  supervisor: '○○県土木部 第2土木事務所',
-}
-
-const MEMBERS = [
-  { initial: '山', name: '山田 太郎', role: '作成者', c: '#E08A2B', border: '1px solid rgba(224,138,43,.4)' },
-  { initial: '鈴', name: '鈴木 花子', role: '照査者', c: '#2E5AAC', border: '1px solid #C9D7EC' },
-  { initial: '高', name: '高橋 一郎', role: '承認者', c: '#1F8255', border: '1px solid #9BCFB2' },
-  { initial: '佐', name: '佐藤 次郎', role: '閲覧者', c: 'var(--muted)', border: '1px solid var(--line)' },
-  { initial: '中', name: '中村 美咲', role: '数量担当', c: '#6B45B0', border: '1px solid #D8C7F1' },
-] as const
-
-const ACTIVITIES = [
-  { color: '#2E9E6B', text: '山田 太郎が DWG-014 Rev.3 を保存', when: '2026-07-14 18:42', line: true },
-  { color: '#B5701A', text: '鈴木 花子が DWG-011 Rev.2 を照査依頼', when: '2026-07-13 11:20', line: true },
-  { color: '#C5392F', text: '高橋 一郎が DWG-002 Rev.1 を差戻し', when: '2026-07-12 16:05', line: true },
-  { color: '#6B45B0', text: '中村 美咲が数量CSVを出力', when: '2026-07-12 10:25', line: true },
-  { color: '#2E5AAC', text: '佐藤 次郎が DWG-018 を新規作成', when: '2026-07-11 09:30', line: false },
-] as const
+const ACTIVITY_COLORS = ['#2E9E6B', '#B5701A', '#C5392F', '#6B45B0', '#2E5AAC'] as const
 
 export interface ProjectDetailPageProps {
   readonly onOpenEditor?: (session: CloudDraftSession) => void
@@ -191,16 +199,19 @@ export interface ProjectDetailPageProps {
 function DemoProjectDetail({
   onOpenEditor,
   canEdit = true,
+  demoProjectId,
 }: {
   readonly onOpenEditor?: (session: CloudDraftSession) => void
   readonly canEdit?: boolean
+  readonly demoProjectId?: string
 }) {
-  const [project, setProject] = useState<ProjectInfoState>(INITIAL_PROJECT)
-  const [draftProject, setDraftProject] = useState<ProjectInfoState>(INITIAL_PROJECT)
-  const [drawings, setDrawings] = useState<readonly DrawingRow[]>(DRAWINGS)
+  const initialProject = findDemoProject(demoProjectId) ?? DEMO_PROJECTS[0]!
+  const [project, setProject] = useState<ProjectInfoState>(() => toProjectInfo(initialProject))
+  const [draftProject, setDraftProject] = useState<ProjectInfoState>(() => toProjectInfo(initialProject))
+  const [drawings, setDrawings] = useState<readonly DrawingRow[]>(() => initialProject.drawings.map(toDrawingRow))
   const [filter, setFilter] = useState<FilterType>('すべて')
   const [mode, setMode] = useState<'overview' | 'editProject' | 'newDrawing' | 'drawingDetail'>('overview')
-  const [selectedDrawing, setSelectedDrawing] = useState<DrawingRow>(DRAWINGS[0]!)
+  const [selectedDrawing, setSelectedDrawing] = useState<DrawingRow | null>(initialProject.drawings[0] ? toDrawingRow(initialProject.drawings[0]!) : null)
   const [newDrawingName, setNewDrawingName] = useState('新規施工ヤード計画図')
   const [newDrawingType, setNewDrawingType] = useState<DrawingType>('施工ヤード図')
 
@@ -225,7 +236,15 @@ function DemoProjectDetail({
     ['単位系', project.unitSystem],
     ['契約金額', project.contractAmount],
     ['監督員', project.supervisor],
+    ['住所', project.address],
+    ['電話', project.tel],
   ] as const
+
+  const activities = initialProject.activities.map((item, index) => ({
+    ...item,
+    color: ACTIVITY_COLORS[index % ACTIVITY_COLORS.length],
+    line: index < initialProject.activities.length - 1,
+  }))
 
   const saveProject = () => {
     setProject(draftProject)
@@ -243,7 +262,7 @@ function DemoProjectDetail({
       status: '作成中',
       c: '#6B45B0',
       bg: '#EDE7F6',
-      by: '山田 太郎',
+      by: initialProject.members.find((member) => member.role === '作成者')?.name ?? '担当者',
     }
     setDrawings((current) => [drawing, ...current])
     setSelectedDrawing(drawing)
@@ -258,7 +277,9 @@ function DemoProjectDetail({
 
   /** 選択図面から共有保存用のCloudDraftSessionを構築する（Workers API契約と対応）。 */
   const toCloudSession = (drawing: DrawingRow): CloudDraftSession => ({
-    ...PROJECT_CLOUD_CONTEXT,
+    projectNumber: initialProject.projectNumber,
+    projectName: project.name,
+    clientName: project.client,
     drawingNumber: drawing.no,
     drawingName: drawing.name,
     drawingType: DRAWING_TYPE_CODES[drawing.type],
@@ -342,7 +363,7 @@ function DemoProjectDetail({
             </div>
           )}
 
-          {mode === 'drawingDetail' && (
+          {mode === 'drawingDetail' && selectedDrawing !== null && (
             <div style={panelStyle}>
               <div style={{ ...panelHeaderStyle, display: 'flex', alignItems: 'center', gap: 10 }}>
                 <div style={{ flex: 1 }}>図面詳細: {selectedDrawing.no} {selectedDrawing.name}</div>
@@ -424,6 +445,15 @@ function DemoProjectDetail({
                   )
                 })}
               </tbody>
+              {filteredDrawings.length === 0 && (
+                <tfoot>
+                  <tr>
+                    <td colSpan={6} style={{ padding: '18px 16px', fontSize: 12, color: 'var(--muted)' }}>
+                      図面がまだありません。「＋ 図面を作成」から追加できます。
+                    </td>
+                  </tr>
+                </tfoot>
+              )}
             </table>
           </div>
           </div>
@@ -446,7 +476,9 @@ function DemoProjectDetail({
             <div style={panelStyle}>
               <div style={panelHeaderStyle}>メンバー</div>
               <div style={{ padding: '16px 18px', display: 'flex', flexDirection: 'column', gap: 12 }}>
-                {MEMBERS.map((m) => (
+                {initialProject.members.map((m) => {
+                  const roleStyle = MEMBER_ROLE_STYLE[m.role]
+                  return (
                   <div key={m.name} style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
                     <span
                       style={{
@@ -463,30 +495,35 @@ function DemoProjectDetail({
                         flexShrink: 0,
                       }}
                     >
-                      {m.initial}
+                      {m.name.charAt(0)}
                     </span>
-                    <div style={{ flex: 1, fontSize: 12.5 }}>{m.name}</div>
+                    <div style={{ flex: 1, minWidth: 0 }}>
+                      <div style={{ fontSize: 12.5 }}>{m.name}</div>
+                      <div style={{ fontSize: 10.5, color: 'var(--muted)' }}>{m.email}</div>
+                    </div>
                     <span
                       style={{
                         fontSize: 10,
                         fontWeight: 600,
-                        color: m.c,
-                        border: m.border,
+                        color: roleStyle.c,
+                        border: roleStyle.border,
                         padding: '1px 6px',
                         borderRadius: 5,
+                        flexShrink: 0,
                       }}
                     >
                       {m.role}
                     </span>
                   </div>
-                ))}
+                  )
+                })}
               </div>
             </div>
 
             <div style={panelStyle}>
               <div style={panelHeaderStyle}>最近のアクティビティ</div>
               <div style={{ padding: '16px 18px' }}>
-                {ACTIVITIES.map((a) => (
+                {activities.map((a) => (
                   <div key={a.text} style={{ display: 'flex', gap: 11 }}>
                     <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', flexShrink: 0 }}>
                       <span style={{ width: 10, height: 10, borderRadius: '50%', marginTop: 3, background: a.color }} />
@@ -521,7 +558,14 @@ export function ProjectDetailPage({
     typeof window !== 'undefined' && new URLSearchParams(window.location.search).has('demo')
   const useCloudData = enableCloudData && !demoMode
   if (!useCloudData) {
-    return <DemoProjectDetail onOpenEditor={onOpenEditor} canEdit={canEdit} />
+    return (
+      <DemoProjectDetail
+        key={projectId ?? 'demo-default'}
+        demoProjectId={projectId}
+        onOpenEditor={onOpenEditor}
+        canEdit={canEdit}
+      />
+    )
   }
   return (
     <ProjectDetailCloudPage
