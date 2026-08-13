@@ -4,6 +4,12 @@
 
 ## [Unreleased]
 
+### 🚀 本番デプロイ（2026-08-14 JST・Worker Version `c17f6d1c`・main `9dd7756`）
+
+- 案件テーマ別サンプル2DデータとSVGプレビュー（#193）を `npx wrangler deploy` で本番反映
+- 実測: MVP/workers.dev は SPA 200（共有チャンク `demoDrawingContents-*.js` に10テーマの図形生成、図面詳細にプレビュー）・`/api/health` 401 fail-closed、本番ドメインは 302 → Cloudflare Access（保護維持）
+- 直前バージョン `07840345` へ rollback 可能
+
 ### 追加
 - 2026-08-14: 案件の内容に応じたサンプル2Dデータの投入・表示
   - `DemoProject.theme`（10テーマ: 道路拡幅/ポンプ場/植栽・舗装/調整池/雨水幹線/橋脚/歩道/護岸/法面/トンネル坑口）を追加し、`createDemoDrawingContent` が案件番号・テーマ・図面名に応じた図形を生成
