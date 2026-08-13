@@ -4,6 +4,12 @@
 
 ## [Unreleased]
 
+### 🚀 本番デプロイ（2026-08-13・Worker Version `9fd0bc87`・main `434e1e5`）
+
+- 図面ごとのダミー図形（#189）を `npx wrangler deploy` で本番反映
+- 実測: MVP/workers.dev は SPA 200（CadEditorPage チャンクに種別5系統の図形生成を含む）・`/api/health` 401 fail-closed、本番ドメインは 302 → Cloudflare Access（保護維持）
+- 直前バージョン `ec55b342` へ rollback 可能
+
 ### 追加
 - 2026-08-13: 図面ごとのダミー図形を追加（`src/app/demoDrawingContents.ts`）
   - デモ案件の図面を CAD エディタで開くと、種別ごとのサンプル図形（線/矩形/円/円弧/ポリライン/寸法/文字/引出線/ハッチ/シンボル・種別コード5種）を初期表示
