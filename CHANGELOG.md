@@ -12,6 +12,10 @@
   - ホームに案件ステータス分布チャート（KPI 可視化・`role="img"` + `aria-label`）
   - テスト 8 件追加（計 1555 pass / 2 skip）
   - `docs/operations/mvp-preview.md`（公開 URL・デモ手順・MVP サブドメイン追加手順）新設、README の CI 実態・公開 URL を実態同期
+- 2026-08-13: MVP/Prototype サブドメイン `civildraft-web-cad-mvp.mirai-dx-platform.com` を追加（ユーザー承認）
+  - Cloudflare Workers custom domain attach（`PUT /accounts/{account_id}/workers/domains`・Worker `civildraft-web-cad`・DNS プロキシレコード自動生成）
+  - 実測: SPA 200 / `?demo=1` 200 / `/api/health` 401 `CD-AUTH-001`（fail-closed）
+  - Cloudflare Access 適用は「Access policy 変更」のため人間承認待ち（`state.json` pending item・`docs/operations/mvp-preview.md` 実測記録）
 - 2026-08-12: 総合評価・改善（詳細は `docs/assessment/comprehensive-evaluation-2026-08-12.md`）
   - **重大修正: migration 0007 のFK列型を uuid→text へ修正**（0004適用後のスキーマと不一致で本番適用時に失敗する問題。適用前のため前方修正で対応）
   - ハッシュベースURLルーティング（`#/<view>`・editorセッション/projectId保持）でブックマーク・戻る/進む・deep link対応

@@ -8,15 +8,30 @@
 | --- | --- | --- |
 | 本番 | `https://civildraft-web-cad.mirai-dx-platform.com` | 稼働中。Cloudflare Access で保護（未認証は 302 → Access ログイン）。実案件データのみ表示（サンプル非表示） |
 | プレビュー（暫定） | `https://civildraft-web-cad.kensan1969.workers.dev` | SPA 表示可（HTTP 200）。API は認証 fail-closed（401 `CD-AUTH-001`）のため、ブラウザ内デモ・ローカル保存の確認に限定 |
-| MVP/Prototype（計画） | `https://civildraft-web-cad-mvp.mirai-dx-platform.com` | カスタムドメイン追加（公開 DNS 変更）は人間承認待ち。手順は §2 |
+| MVP/Prototype | `https://civildraft-web-cad-mvp.mirai-dx-platform.com` | 稼働中（2026-08-13 ユーザー承認で attach 済み）。SPA 200・`?demo=1` デモ可・未認証 API 401 fail-closed。Cloudflare Access は未適用（適用は人間承認待ち）のため現状はデモ表示中心。手順・実測は §2 |
 
-> 本番 URL は既存サブドメイン＋規定ドメイン、MVP 用は `civildraft-web-cad-mvp` サブドメイン＋同一ドメインとして分離する方針。
+> 本番 URL は既存サブドメイン＋規定ドメイン、MVP 用は `civildraft-web-cad-mvp` サブドメイン＋同一ドメインとして分離する方針。MVP 用サブドメインは 2026-08-13 にユーザー承認を得て追加済み。
 
 ## 2. MVP 用サブドメイン追加手順（人間承認後に実施）
 
 目的: `civildraft-web-cad-mvp.mirai-dx-platform.com` を本番とは識別できるレビュー導線として公開する。
 
 前提: zone `mirai-dx-platform.com` が本番 Worker と同一の Cloudflare アカウント（Account ID `4f1e888469df7e0b896bb4e211b12633`）に存在すること。
+
+### 実施記録（2026-08-13・完了）
+
+1. ユーザー承認に基づき、Cloudflare REST API `PUT /accounts/{account_id}/workers/domains` で
+   `civildraft-web-cad-mvp.mirai-dx-platform.com` を Worker `civildraft-web-cad` へ attach。
+   - 結果: domain id `c3ebe451aef66e3b21a0c6f0e002b65b125c5a39`、cert id 発行済み、`enabled: true`
+   - DNS レコード（`AAAA 100::`・プロキシ有効）は attach 時に自動生成
+2. 実測検証（2026-08-13T12:32Z）:
+   - `https://civildraft-web-cad-mvp.mirai-dx-platform.com/` → HTTP 200（SPA 配信）
+   - `https://civildraft-web-cad-mvp.mirai-dx-platform.com/?demo=1` → HTTP 200
+   - `https://civildraft-web-cad-mvp.mirai-dx-platform.com/api/health` → HTTP 401 `CD-AUTH-001`（fail-closed。秘密情報非開示）
+   - 対照: 本番ドメインは未認証時に 302 → Cloudflare Access ログイン（保護有効）
+3. Cloudflare Access の適用は **未実施**。CLAUDE.md §17 により Access policy 変更は別途人間承認を要するため、
+   state.json の pending item として記録済み。適用までの間、MVP ドメインは workers.dev プレビューと同等の
+   露出（SPA 公開・実データ API は 401 fail-closed）となり、実データ照査・承認は本番 URL 経由で行う。
 
 ### 案A（同一 Worker へのカスタムドメイン追加・推奨）
 
@@ -83,5 +98,8 @@ npm run dev
 ## 5. 既知制約
 
 - workers.dev は Cloudflare Access の保護外（SPA は公開・API は 401 fail-closed）。レビュー用途に限定し、公開 URL として周知しない。
+- MVP 用ドメイン `civildraft-web-cad-mvp.mirai-dx-platform.com` も現時点では Cloudflare Access 未適用（SPA 公開・API 401 fail-closed）。
+  適用は「Cloudflare Access policy 変更」のため人間承認待ち（state.json pending item）。適用まではデモ表示（`?demo=1`）中心に利用し、
+  実データの照査・承認は Access 保護済みの本番 URL で行う。
 - Neon 実接続の結合テスト 2 件は CI で接続文字列未登録のため skip（`CIVILDRAFT_TEST_NEON_CONNECTION` 登録は人間）。
 - ローカル環境では Chromium 起動が制限される場合があるため、ブラウザ E2E は GitHub Actions CI（Browser E2E ジョブ・必須チェック）で確認する。
