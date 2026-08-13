@@ -24,6 +24,7 @@ import {
 import type { CloudDraftSession } from './CadEditorPage'
 import {
   DEMO_PROJECTS,
+  DEMO_DRAWING_TYPE_CODES,
   findDemoProject,
   type DemoDrawing,
   type DemoDrawingStatus,
@@ -121,14 +122,6 @@ interface ProjectInfoState {
   readonly supervisor: string
   readonly address: string
   readonly tel: string
-}
-
-/** CloudDraftSession.drawingType へ渡す種別コード（Workers API契約と対応）。 */
-const DRAWING_TYPE_CODES: Record<DrawingType, string> = {
-  施工ヤード図: 'temporary-yard-plan',
-  仮設計画図: 'temporary-plan',
-  '土工・断面図': 'earthwork-plan',
-  数量根拠図: 'quantity-basis',
 }
 
 const DRAWING_STATUS_STYLE: Readonly<Record<DemoDrawingStatus, { readonly c: string; readonly bg: string }>> = {
@@ -283,7 +276,7 @@ function DemoProjectDetail({
     clientName: project.client,
     drawingNumber: drawing.no,
     drawingName: drawing.name,
-    drawingType: DRAWING_TYPE_CODES[drawing.type],
+    drawingType: DEMO_DRAWING_TYPE_CODES[drawing.type],
     revisionNumber: drawing.rev,
     changeSummary: `${drawing.no} ${drawing.rev} をCAD編集画面から共有保存`,
   })

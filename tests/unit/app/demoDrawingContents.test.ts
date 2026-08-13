@@ -26,6 +26,13 @@ describe('demoDrawingContents（図面ごとのダミー図形）', () => {
     expect(content.geometries.some((item) => item.type === 'circle')).toBe(true)
   })
 
+  it('blank 種別は新規図面用の空コンテンツを返す', () => {
+    const content = createDemoDrawingContent('blank', 'NEW-1')
+    expect(content.geometries).toHaveLength(0)
+    expect(content.layers).toHaveLength(1)
+    expect(content.layers[0]?.name).toBe('レイヤー0')
+  })
+
   it('種別ごとの代表図形を含む（2D CAD機能のデモ用）', () => {
     const yard = createDemoDrawingContent('temporary-yard-plan', 'DWG-014')
     expect(yard.geometries.some((item) => item.type === 'circle')).toBe(true)

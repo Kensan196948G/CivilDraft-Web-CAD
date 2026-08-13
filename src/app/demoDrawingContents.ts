@@ -529,6 +529,8 @@ export function createDemoDrawingContent(
       return earthworkPlan(drawingNumber)
     case 'quantity-basis':
       return quantityBasis(drawingNumber)
+    case 'blank':
+      return { geometries: [], layers: [LAYERS[0]!] }
     default:
       return generalSample(drawingNumber)
   }
