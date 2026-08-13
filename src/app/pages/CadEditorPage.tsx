@@ -15,6 +15,8 @@
  */
 import { useEffect, useMemo, useRef, useState } from 'react'
 import type { CSSProperties } from 'react'
+import { createDemoDrawingContent } from '@/app/demoDrawingContents'
+import { isDemoMode } from '@/app/mode'
 import { CanvasStage } from '../canvas/CanvasStage'
 import { CommandPalette, type CommandPaletteItem } from '../components/CommandPalette'
 import type { AppView } from '../layout/Sidebar'
@@ -422,11 +424,16 @@ export function CadEditorPage({
   const [loadedContentVersion, setLoadedContentVersion] = useState<number | undefined>(undefined)
   const [loadedQuantityVersion, setLoadedQuantityVersion] = useState<number | undefined>(undefined)
   const loadedRevisionRef = useRef<string | null>(null)
+  const seededDemoSessionRef = useRef<string | null>(null)
   const checkoutKey = `cd:checkout:${cloudDraftSession.drawingNumber}`
   /** 実案件未選択のローカル編集セッション（共有保存は無効化して誤作成を防ぐ）。 */
   const isLocalCloudSession = cloudDraftSession.projectNumber === 'LOCAL'
   /** 既存改訂を開いている（改訂更新モード）。 */
   const isExistingRevision = cloudDraftSession.revisionId !== undefined
+  /** デモ案件の図面セッション（空キャンバスではなく種別ごとのサンプル図形を投入する）。 */
+  const isDemoDrawingSession =
+    cloudDraftSession.projectNumber.startsWith('P-DEMO') ||
+    (isDemoMode() && isLocalCloudSession)
 
   // 実図面（既存改訂）を開いた場合は、内容と数量をサーバから読み込む（改訂更新の前提）。
   useEffect(() => {
@@ -470,6 +477,27 @@ export function CadEditorPage({
       cancelled = true
     }
   }, [apiClient, cloudDraftSession.revisionId, storeApi])
+
+  // デモ図面セッションでは、図面種別に応じたサンプル図形を初期表示する。
+  // 同じセッションの再レンダーでは再投入しない（利用者が作図した内容を保持する）。
+  useEffect(() => {
+    if (!isDemoDrawingSession || cloudDraftSession.revisionId !== undefined) return
+    const sessionKey = `${cloudDraftSession.drawingNumber}:${cloudDraftSession.drawingType ?? ''}`
+    if (seededDemoSessionRef.current === sessionKey) return
+    seededDemoSessionRef.current = sessionKey
+    const content = createDemoDrawingContent(cloudDraftSession.drawingType, cloudDraftSession.drawingNumber)
+    storeApi.getState().replaceDocument(content.geometries, content.layers)
+    setCloudSaveStatus({
+      ok: true,
+      text: `デモ図面を読み込みました（図形${content.geometries.length}件）`,
+    })
+  }, [
+    cloudDraftSession.drawingNumber,
+    cloudDraftSession.drawingType,
+    cloudDraftSession.revisionId,
+    isDemoDrawingSession,
+    storeApi,
+  ])
   const [checkout, setCheckout] = useState<DrawingCheckout | null>(() => {
     try {
       const raw = localStorage.getItem(checkoutKey)
