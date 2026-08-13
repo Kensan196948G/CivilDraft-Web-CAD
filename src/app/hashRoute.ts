@@ -16,6 +16,7 @@ export const HASH_PREFIX = '#/'
 export const ROUTEABLE_VIEWS: readonly AppView[] = [
   'home',
   'editor',
+  'newDrawing',
   'project',
   'drawingSettings',
   'survey',

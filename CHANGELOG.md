@@ -4,6 +4,12 @@
 
 ## [Unreleased]
 
+### 追加
+- 2026-08-14: サイドバー「作図」に「CAD作図」を追加し、新規作図・既存図面編集を実装
+  - 「CAD作図」→ 新規図面（空白）のCAD編集画面を開く。CAD編集画面ヘッダーの「図面」セレクトでデモ10案件・59図面の切替が可能
+  - 図面切替は `CloudDraftSession` を再構築して図面種別ごとのサンプル図形を再読込（`src/app/pages/cloudDraftSession.ts` の `createNewDraftSession` / `src/app/demoDrawingContents.ts` の `blank` 種別）
+  - **修正**: デモ表示（MVP/Preview URL・`?demo=1`）では Access 未ログインでもロールを engineer に解決し、「CAD編集で開く」等の編集導線・編集系サイドナビを表示（本番ドメインは従来どおり viewer フォールバック）
+
 ### 🚀 本番デプロイ（2026-08-13・Worker Version `9fd0bc87`・main `434e1e5`）
 
 - 図面ごとのダミー図形（#189）を `npx wrangler deploy` で本番反映

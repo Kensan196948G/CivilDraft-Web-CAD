@@ -113,6 +113,56 @@ describe('CadEditorPage cloud save', () => {
     expect(store.getState().layers.length).toBeGreaterThan(1)
   })
 
+  it('デモ表示ではヘッダーの図面切替から既存図面を開き、新規図面も選択できる', async () => {
+    window.history.replaceState({}, '', '/?demo=1')
+    try {
+      const store = createEditorStore()
+      const onOpenDrawing = vi.fn()
+      render(
+        <EditorStoreProvider store={store}>
+          <CadEditorPage
+            autosaveStore={new MemoryAutosaveStore()}
+            onNavigate={() => {}}
+            onOpenDrawing={onOpenDrawing}
+            cloudDraftSession={{
+              projectNumber: 'P-DEMO-2026-001',
+              projectName: 'みらい台地区 市道拡幅工事',
+              drawingNumber: 'DWG-014',
+              drawingName: '施工ヤード計画図',
+              drawingType: 'temporary-yard-plan',
+              revisionNumber: 'Rev.3',
+            }}
+          />
+        </EditorStoreProvider>,
+      )
+
+      const select = screen.getByLabelText('デモ図面を開く')
+      await userEvent.selectOptions(select, 'demo-p02:DWG-006')
+      expect(onOpenDrawing).toHaveBeenCalledWith(
+        expect.objectContaining({
+          projectNumber: 'P-DEMO-2026-002',
+          projectName: '第二湾岸 雨水ポンプ場整備工事',
+          drawingNumber: 'DWG-006',
+          drawingName: 'ポンプ場平面配置図',
+          drawingType: 'temporary-plan',
+          revisionNumber: 'Rev.2',
+        }),
+      )
+
+      await userEvent.selectOptions(select, '__new__')
+      expect(onOpenDrawing).toHaveBeenCalledWith(
+        expect.objectContaining({
+          projectNumber: 'LOCAL',
+          drawingName: '新規図面',
+          drawingType: 'blank',
+          revisionNumber: 'Rev.1',
+        }),
+      )
+    } finally {
+      window.history.replaceState({}, '', '/')
+    }
+  })
+
   it('選択状態をスクリーンリーダー向けライブリージョンで通知する（Issue #120）', async () => {
     const store = createEditorStore()
     store.getState().addGeometries([line('g-1'), line('g-2')])

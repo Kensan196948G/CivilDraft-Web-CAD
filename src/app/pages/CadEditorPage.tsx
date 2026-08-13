@@ -17,6 +17,11 @@ import { useEffect, useMemo, useRef, useState } from 'react'
 import type { CSSProperties } from 'react'
 import { createDemoDrawingContent } from '@/app/demoDrawingContents'
 import { isDemoMode } from '@/app/mode'
+import {
+  DEMO_PROJECTS,
+  DEMO_DRAWING_TYPE_CODES,
+  findDemoProject,
+} from '@/app/demoProjects'
 import { CanvasStage } from '../canvas/CanvasStage'
 import { CommandPalette, type CommandPaletteItem } from '../components/CommandPalette'
 import type { AppView } from '../layout/Sidebar'
@@ -46,6 +51,7 @@ import { measureArea, measureDistance } from '@/domain/geometry/measure'
 import type { AutosaveStore } from '@/infrastructure/autosave/autosaveStore'
 import { scheduleAutosave } from '@/infrastructure/autosave/autosaveScheduler'
 import {
+  createNewDraftSession,
   DEFAULT_CLOUD_DRAFT_SESSION,
   type CloudDraftSession,
 } from './cloudDraftSession'
@@ -88,6 +94,8 @@ export interface CadEditorPageProps {
   readonly cloudApiClient?: CloudSaveClient
   /** 共有保存へ渡す案件・図面コンテキスト。ProjectDetailPage等の実画面導線から注入する。 */
   readonly cloudDraftSession?: CloudDraftSession
+  /** デモ図面切替（新規作成・既存図面を開く）のコールバック。 */
+  readonly onOpenDrawing?: (session: CloudDraftSession) => void
 }
 
 export interface CloudSaveClient {
@@ -370,10 +378,45 @@ function isDocumentContent(content: unknown): content is {
   return Array.isArray(record.geometries) && Array.isArray(record.layers)
 }
 
+const DEMO_NEW_DRAWING_VALUE = '__new__'
+
+/** 現在のセッションに対応するデモ図面選択値を返す（新規・不明は新規作成）。 */
+function demoDrawingSelectionValue(session: CloudDraftSession): string {
+  if (!session.projectNumber.startsWith('P-DEMO')) return DEMO_NEW_DRAWING_VALUE
+  const project = DEMO_PROJECTS.find((item) => item.projectNumber === session.projectNumber)
+  if (project === undefined) return DEMO_NEW_DRAWING_VALUE
+  return project.drawings.some((item) => item.no === session.drawingNumber)
+    ? `${project.id}:${session.drawingNumber}`
+    : DEMO_NEW_DRAWING_VALUE
+}
+
+/** 図面選択値（"<projectId>:<drawingNo>" または新規）からセッションを組み立てる。 */
+function demoDrawingSessionFromSelection(value: string): CloudDraftSession | null {
+  if (value === DEMO_NEW_DRAWING_VALUE) return createNewDraftSession()
+  const separator = value.indexOf(':')
+  if (separator <= 0) return null
+  const projectId = value.slice(0, separator)
+  const drawingNo = value.slice(separator + 1)
+  const project = findDemoProject(projectId)
+  const drawing = project?.drawings.find((item) => item.no === drawingNo)
+  if (project === undefined || drawing === undefined) return null
+  return {
+    projectNumber: project.projectNumber,
+    projectName: project.name,
+    clientName: project.client,
+    drawingNumber: drawing.no,
+    drawingName: drawing.name,
+    drawingType: DEMO_DRAWING_TYPE_CODES[drawing.type],
+    revisionNumber: drawing.rev,
+    changeSummary: `${drawing.no} ${drawing.rev} をデモ図面から開く`,
+  }
+}
+
 export function CadEditorPage({
   autosaveStore,
   onNavigate,
   cloudApiClient,
+  onOpenDrawing,
   cloudDraftSession = DEFAULT_CLOUD_DRAFT_SESSION,
 }: CadEditorPageProps) {
   const storeApi = useEditorStoreApi()
@@ -430,6 +473,8 @@ export function CadEditorPage({
   const isLocalCloudSession = cloudDraftSession.projectNumber === 'LOCAL'
   /** 既存改訂を開いている（改訂更新モード）。 */
   const isExistingRevision = cloudDraftSession.revisionId !== undefined
+  /** デモ表示中のみ、ヘッダーに図面切替（新規作成・既存図面を開く）を表示する。 */
+  const demoUi = isDemoMode()
   /** デモ案件の図面セッション（空キャンバスではなく種別ごとのサンプル図形を投入する）。 */
   const isDemoDrawingSession =
     cloudDraftSession.projectNumber.startsWith('P-DEMO') ||
@@ -1239,6 +1284,31 @@ export function CadEditorPage({
           <span style={{ fontSize: 14.5, fontWeight: 600, color: 'var(--ink)' }}>{cloudDraftSession.drawingName}</span>
         </div>
         <span style={{ ...monoStyle, fontSize: 12, color: 'var(--muted)' }}>{cloudDraftSession.revisionNumber}</span>
+        {demoUi && (
+          <label style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 12, color: 'var(--muted)' }}>
+            図面
+            <select
+              aria-label="デモ図面を開く"
+              value={demoDrawingSelectionValue(cloudDraftSession)}
+              onChange={(event) => {
+                const session = demoDrawingSessionFromSelection(event.target.value)
+                if (session !== null) onOpenDrawing?.(session)
+              }}
+              style={stepSelectStyle}
+            >
+              <option value={DEMO_NEW_DRAWING_VALUE}>＋ 新規図面（空白）</option>
+              {DEMO_PROJECTS.map((project) => (
+                <optgroup key={project.id} label={project.name}>
+                  {project.drawings.map((drawing) => (
+                    <option key={`${project.id}:${drawing.no}`} value={`${project.id}:${drawing.no}`}>
+                      {drawing.no} {drawing.name} {drawing.rev}
+                    </option>
+                  ))}
+                </optgroup>
+              ))}
+            </select>
+          </label>
+        )}
         {checkout?.status === 'checkedOut' && (
           <span
             style={statusBadgeStyle(

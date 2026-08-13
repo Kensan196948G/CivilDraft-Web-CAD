@@ -79,6 +79,15 @@ describe('App ナビゲーション統合', () => {
     expect(screen.getByPlaceholderText('案件名・図面番号で検索')).toBeInTheDocument()
   })
 
+  it('サイドバーの「CAD作図」で新規図面のCAD編集画面を開く', async () => {
+    render(<App />)
+    await userEvent.click(screen.getByRole('button', { name: /^作図›?$/ }))
+    await userEvent.click(screen.getByRole('button', { name: /CAD作図/ }))
+    expect(await screen.findByTestId('canvas-stage', {}, { timeout: 5000 })).toBeInTheDocument()
+    expect(screen.getByText('新規図面')).toBeInTheDocument()
+    expect(window.location.hash).toBe('#/newDrawing')
+  })
+
   it('案件詳細の図面行クリックで図面詳細を開き、「CAD編集で開く」で図面コンテキストをCAD編集へ渡す', async () => {
     render(<App />)
     await userEvent.click(screen.getByRole('button', { name: /案件詳細/ }))

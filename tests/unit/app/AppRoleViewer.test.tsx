@@ -84,6 +84,7 @@ describe('App ロール連動', () => {
     expect(screen.getByText('閲覧 太郎')).toBeInTheDocument()
 
     await userEvent.click(screen.getByRole('button', { name: /^作図›?$/ }))
+    expect(screen.queryByText('CAD作図')).not.toBeInTheDocument()
     expect(screen.queryByText('CAD編集')).not.toBeInTheDocument()
     expect(screen.queryByText('図面設定')).not.toBeInTheDocument()
     expect(screen.queryByText('土木部材パレット')).not.toBeInTheDocument()

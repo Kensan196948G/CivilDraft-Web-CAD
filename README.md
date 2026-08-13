@@ -26,6 +26,7 @@
 
 - 本番ビルドでも `?demo=1`（例 `/#/home?demo=1`）でデモ表示。画面上部に「⚠️ デモ表示」バナーが出る
 - MVP/Prototype・workers.dev のプレビュー URL では `?demo=1` なしでもダミーデータ10件を既定表示（本番ドメインは実案件データのみ）
+- サイドバー「作図」→「CAD作図」で新規図面を作成でき、CAD編集画面のヘッダー「図面」セレクトで既存のデモ図面（10案件・59図面）を開ける
 - ローカル: `npm ci && npm run dev` → `http://localhost:5173/#/home?demo=1`
 - ダミーデータ出所: `src/app/demoProjects.ts`（架空案件 10 件・図面・メンバー・アクティビティ） / `src/app/demoDrawingContents.ts`（図面種別ごとのサンプル図形・寸法・ハッチ） / `src/app/demoData.ts`（デモ作図図形） / `CrossSectionPage.tsx`（サンプル断面） / `ReviewApprovalPage.tsx`（デモ改訂）
 

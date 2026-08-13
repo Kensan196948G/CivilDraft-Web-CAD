@@ -16,6 +16,7 @@ import { lazy, Suspense, useCallback, useEffect, useMemo, useRef, useState } fro
 import { ErrorBoundary } from './ErrorBoundary'
 import { Sidebar } from './layout/Sidebar'
 import type { AppView } from './layout/Sidebar'
+import { isDemoMode } from './mode'
 import { fetchAccessIdentity } from '@/infrastructure/auth/accessIdentity'
 import type { AccessIdentity } from '@/infrastructure/auth/accessIdentity'
 import {
@@ -24,6 +25,7 @@ import {
   type CivilDraftRole,
 } from '@/infrastructure/auth/roles'
 import {
+  createNewDraftSession,
   DEFAULT_CLOUD_DRAFT_SESSION,
   type CloudDraftSession,
 } from './pages/cloudDraftSession'
@@ -88,6 +90,7 @@ const THEME_STORAGE_KEY = 'civildraft-theme'
 /** viewer ロールでサイドバーから除外する編集系ビュー（Issue #177）。 */
 const VIEWER_HIDDEN_VIEWS: readonly AppView[] = [
   'editor',
+  'newDrawing',
   'drawingSettings',
   'parts',
   'approval',
@@ -105,14 +108,17 @@ function loadTheme(): 'light' | 'dark' {
 
 function AppShell() {
   const initialRoute = useMemo(() => parseRoute(window.location.hash), [])
-  const [view, setView] = useState<AppView>(initialRoute?.view ?? 'home')
+  const initialIsNewDrawing = initialRoute?.view === 'newDrawing'
+  const [view, setView] = useState<AppView>(
+    initialIsNewDrawing ? 'newDrawing' : initialRoute?.view ?? 'home',
+  )
   const [theme, setTheme] = useState<'light' | 'dark'>(loadTheme)
   const [isSidebarOpen, setIsSidebarOpen] = useState(false)
   const [autosaveStore] = useState<AutosaveStore>(() => createAutosaveStore())
   const [identity, setIdentity] = useState<AccessIdentity | null>(null)
   const [fieldRevisionStatus, setFieldRevisionStatus] = useState<FieldRevisionStatus>('unknown')
   const [cloudDraftSession, setCloudDraftSession] = useState<CloudDraftSession>(
-    initialRoute?.session ?? DEFAULT_CLOUD_DRAFT_SESSION,
+    initialIsNewDrawing ? createNewDraftSession() : initialRoute?.session ?? DEFAULT_CLOUD_DRAFT_SESSION,
   )
   const [selectedProjectId, setSelectedProjectId] = useState<string | null>(
     initialRoute?.projectId ?? null,
@@ -136,10 +142,14 @@ function AppShell() {
   }, [])
 
   const isProduction = import.meta.env.MODE === 'production'
+  const demoMode = isDemoMode()
   const role: CivilDraftRole = useMemo(() => {
+    // デモ表示（MVP/Preview URL・?demo=1）では編集系導線をすべて有効にする。
+    // Access 未ログイン時に viewer へフォールバックすると「CAD編集で開く」等が消えるため。
+    if (demoMode) return 'engineer'
     if (identity !== null) return roleFromIdentity(identity)
     return isProduction ? 'viewer' : 'engineer'
-  }, [identity, isProduction])
+  }, [identity, isProduction, demoMode])
   const canEdit = permissionsFor(role).canEdit
 
   // 現場説明モードの承認状態（Issue #178）: revisionId がある実案件のみ API から取得する。
@@ -186,6 +196,12 @@ function AppShell() {
   }, [isSidebarOpen])
 
   const navigate = useCallback((next: AppView) => {
+    if (next === 'newDrawing') {
+      setCloudDraftSession(createNewDraftSession())
+      setView('newDrawing')
+      window.location.hash = formatRoute('newDrawing')
+      return
+    }
     setView(next)
     if (next === 'field') {
       // 表示開始時は常に「未取得」から始め、API 結果で上書きする（#178）。
@@ -215,6 +231,9 @@ function AppShell() {
     const handleHashChange = () => {
       const route = parseRoute(window.location.hash)
       if (route === undefined) return
+      if (route.view === 'newDrawing') {
+        setCloudDraftSession(createNewDraftSession())
+      }
       setView(route.view)
       if (route.view === 'project') {
         setSelectedProjectId(route.projectId ?? null)
@@ -231,7 +250,22 @@ function AppShell() {
   // ここへ登録すると Sidebar の disabled が自動解除される。
   const sidebarPages = useMemo<Partial<Record<AppView, React.ReactElement>>>(
     () => ({
-      editor: <CadEditorPage autosaveStore={autosaveStore} onNavigate={navigate} cloudDraftSession={cloudDraftSession} />,
+      editor: (
+        <CadEditorPage
+          autosaveStore={autosaveStore}
+          onNavigate={navigate}
+          cloudDraftSession={cloudDraftSession}
+          onOpenDrawing={openEditor}
+        />
+      ),
+      newDrawing: (
+        <CadEditorPage
+          autosaveStore={autosaveStore}
+          onNavigate={navigate}
+          cloudDraftSession={cloudDraftSession}
+          onOpenDrawing={openEditor}
+        />
+      ),
       project: (
         <ProjectDetailPage
           projectId={selectedProjectId ?? undefined}

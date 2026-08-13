@@ -28,3 +28,15 @@ export const DEFAULT_CLOUD_DRAFT_SESSION: CloudDraftSession = {
   revisionNumber: 'LOCAL',
   changeSummary: 'ローカル編集の保存',
 }
+
+/** 新規図面（空白・案件未選択）のローカル編集セッションを作成する。 */
+export function createNewDraftSession(): CloudDraftSession {
+  return {
+    ...DEFAULT_CLOUD_DRAFT_SESSION,
+    drawingNumber: `NEW-${Date.now()}`,
+    drawingName: '新規図面',
+    drawingType: 'blank',
+    revisionNumber: 'Rev.1',
+    changeSummary: '新規図面の作成',
+  }
+}

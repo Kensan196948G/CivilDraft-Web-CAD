@@ -14,6 +14,14 @@ export type DemoDrawingType = '施工ヤード図' | '仮設計画図' | '土工
 export type DemoDrawingStatus = '作成中' | '照査待ち' | '承認済み' | '差戻し'
 export type DemoMemberRole = '作成者' | '照査者' | '承認者' | '閲覧者' | '数量担当'
 
+/** 図面種別の日本語表示と Workers API 契約の種別コードの対応（単一の真実）。 */
+export const DEMO_DRAWING_TYPE_CODES: Readonly<Record<DemoDrawingType, string>> = {
+  施工ヤード図: 'temporary-yard-plan',
+  仮設計画図: 'temporary-plan',
+  '土工・断面図': 'earthwork-plan',
+  数量根拠図: 'quantity-basis',
+}
+
 export interface DemoMember {
   readonly name: string
   readonly role: DemoMemberRole
