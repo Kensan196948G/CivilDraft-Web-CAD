@@ -56,6 +56,8 @@ describe('ProjectDetailPage', () => {
 
     await userEvent.click(within(table).getByText('DWG-011'))
     expect(screen.getByText('図面詳細: DWG-011 仮設計画図（矢板・切梁）')).toBeInTheDocument()
+    expect(screen.getByText('図面プレビュー（サンプル2Dデータ）')).toBeInTheDocument()
+    expect(screen.getByRole('img', { name: /DWG-011.*サンプル2Dプレビュー/ })).toBeInTheDocument()
   })
 
   it('デモ案件IDで対象案件を表示し、空図面案件は空状態を表示する', () => {

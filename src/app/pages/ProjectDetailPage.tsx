@@ -7,6 +7,8 @@
  */
 import { useMemo, useState } from 'react'
 import type { CSSProperties } from 'react'
+import { createDemoDrawingContent, type DemoDrawingContent } from '@/app/demoDrawingContents'
+import { DemoDrawingPreview } from '@/app/demoDrawingPreview'
 import { isDemoMode } from '@/app/mode'
 import {
   pageHeaderStyle,
@@ -220,6 +222,20 @@ function DemoProjectDetail({
     } satisfies Record<FilterType, number>
   }, [drawings])
 
+  /** 選択中の図面について、案件内容（テーマ・図面名）に合わせたサンプル2Dデータ。 */
+  const previewContent = useMemo<DemoDrawingContent>(() => {
+    if (selectedDrawing === null) return { geometries: [], layers: [] }
+    return createDemoDrawingContent(
+      DEMO_DRAWING_TYPE_CODES[selectedDrawing.type],
+      selectedDrawing.no,
+      {
+        projectNumber: initialProject.projectNumber,
+        theme: initialProject.theme,
+        drawingName: selectedDrawing.name,
+      },
+    )
+  }, [initialProject, selectedDrawing])
+
   const filteredDrawings = filter === 'すべて' ? drawings : drawings.filter((drawing) => drawing.type === filter)
 
   const projectInfo = [
@@ -374,6 +390,15 @@ function DemoProjectDetail({
                 <div><b>改訂</b><br />{selectedDrawing.rev}</div>
                 <div><b>状態</b><br /><span style={statusBadgeStyle(selectedDrawing.c, selectedDrawing.bg)}>{selectedDrawing.status}</span></div>
                 <div><b>更新者</b><br />{selectedDrawing.by}</div>
+              </div>
+              <div style={{ padding: '0 18px 18px' }}>
+                <div style={{ fontSize: 12, fontWeight: 600, marginBottom: 8, color: 'var(--ink)' }}>
+                  図面プレビュー（サンプル2Dデータ）
+                </div>
+                <DemoDrawingPreview
+                  content={previewContent}
+                  ariaLabel={`${selectedDrawing.no} ${selectedDrawing.name} のサンプル2Dプレビュー`}
+                />
               </div>
             </div>
           )}

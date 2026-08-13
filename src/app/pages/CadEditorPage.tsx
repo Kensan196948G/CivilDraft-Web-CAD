@@ -530,7 +530,18 @@ export function CadEditorPage({
     const sessionKey = `${cloudDraftSession.drawingNumber}:${cloudDraftSession.drawingType ?? ''}`
     if (seededDemoSessionRef.current === sessionKey) return
     seededDemoSessionRef.current = sessionKey
-    const content = createDemoDrawingContent(cloudDraftSession.drawingType, cloudDraftSession.drawingNumber)
+    const demoProject = DEMO_PROJECTS.find(
+      (project) => project.projectNumber === cloudDraftSession.projectNumber,
+    )
+    const content = createDemoDrawingContent(
+      cloudDraftSession.drawingType,
+      cloudDraftSession.drawingNumber,
+      {
+        projectNumber: cloudDraftSession.projectNumber,
+        theme: demoProject?.theme,
+        drawingName: cloudDraftSession.drawingName,
+      },
+    )
     storeApi.getState().replaceDocument(content.geometries, content.layers)
     setCloudSaveStatus({
       ok: true,
@@ -539,6 +550,8 @@ export function CadEditorPage({
   }, [
     cloudDraftSession.drawingNumber,
     cloudDraftSession.drawingType,
+    cloudDraftSession.drawingName,
+    cloudDraftSession.projectNumber,
     cloudDraftSession.revisionId,
     isDemoDrawingSession,
     storeApi,

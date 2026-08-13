@@ -33,6 +33,32 @@ describe('demoDrawingContents（図面ごとのダミー図形）', () => {
     expect(content.layers[0]?.name).toBe('レイヤー0')
   })
 
+  it('案件テーマに応じて案件固有の図形を追記する', () => {
+    const road = createDemoDrawingContent('temporary-yard-plan', 'DWG-014', {
+      projectNumber: 'P-DEMO-2026-001',
+      theme: 'road-widening',
+      drawingName: '施工ヤード計画図',
+    })
+    const pond = createDemoDrawingContent('temporary-yard-plan', 'DWG-014', {
+      projectNumber: 'P-DEMO-2026-004',
+      theme: 'retention-pond',
+      drawingName: '施工ヤード計画図',
+    })
+    expect(road.geometries).not.toEqual(pond.geometries)
+    expect(road.geometries.length).not.toBe(pond.geometries.length)
+    expect(road.geometries.some((item) => item.type === 'text' && item.text.includes('No.10'))).toBe(true)
+    expect(pond.geometries.some((item) => item.type === 'ellipse')).toBe(true)
+  })
+
+  it('図面名をタイトル注記に反映し、同じ入力なら同じ内容になる', () => {
+    const content = createDemoDrawingContent('quantity-basis', 'DWG-025', {
+      theme: 'sewer-main',
+      drawingName: '数量根拠図（管材数量）',
+    })
+    expect(content.geometries.some((item) => item.type === 'text' && item.text === '数量根拠図（管材数量）')).toBe(true)
+    expect(createDemoDrawingContent('quantity-basis', 'DWG-025', { theme: 'sewer-main', drawingName: '数量根拠図（管材数量）' })).toEqual(content)
+  })
+
   it('種別ごとの代表図形を含む（2D CAD機能のデモ用）', () => {
     const yard = createDemoDrawingContent('temporary-yard-plan', 'DWG-014')
     expect(yard.geometries.some((item) => item.type === 'circle')).toBe(true)
