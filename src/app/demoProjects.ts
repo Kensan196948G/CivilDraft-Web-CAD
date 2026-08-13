@@ -14,6 +14,19 @@ export type DemoDrawingType = '施工ヤード図' | '仮設計画図' | '土工
 export type DemoDrawingStatus = '作成中' | '照査待ち' | '承認済み' | '差戻し'
 export type DemoMemberRole = '作成者' | '照査者' | '承認者' | '閲覧者' | '数量担当'
 
+/** 案件ごとの図面テーマ（案件の業務内容に応じたサンプル図形を生成する）。 */
+export type DemoProjectTheme =
+  | 'road-widening'
+  | 'pump-station'
+  | 'planting-paving'
+  | 'retention-pond'
+  | 'sewer-main'
+  | 'bridge-pier'
+  | 'sidewalk'
+  | 'revetment'
+  | 'slope-protection'
+  | 'tunnel-portal'
+
 /** 図面種別の日本語表示と Workers API 契約の種別コードの対応（単一の真実）。 */
 export const DEMO_DRAWING_TYPE_CODES: Readonly<Record<DemoDrawingType, string>> = {
   施工ヤード図: 'temporary-yard-plan',
@@ -48,6 +61,8 @@ export interface DemoActivity {
 export interface DemoProject {
   readonly id: string
   readonly projectNumber: string
+  /** 図面サンプルデータのテーマ（案件内容と一致させる）。 */
+  readonly theme: DemoProjectTheme
   readonly name: string
   readonly area: string
   readonly status: DemoProjectStatus
@@ -110,6 +125,7 @@ export const DEMO_PROJECTS: readonly DemoProject[] = [
   {
     id: 'demo-p01',
     projectNumber: 'P-DEMO-2026-001',
+    theme: 'road-widening',
     name: 'みらい台地区 市道拡幅工事',
     area: '第2工区',
     status: '進行中',
@@ -158,6 +174,7 @@ export const DEMO_PROJECTS: readonly DemoProject[] = [
   {
     id: 'demo-p02',
     projectNumber: 'P-DEMO-2026-002',
+    theme: 'pump-station',
     name: '第二湾岸 雨水ポンプ場整備工事',
     area: 'ポンプ棟工区',
     status: '照査待ち',
@@ -201,6 +218,7 @@ export const DEMO_PROJECTS: readonly DemoProject[] = [
   {
     id: 'demo-p03',
     projectNumber: 'P-DEMO-2026-003',
+    theme: 'planting-paving',
     name: 'ひかり鉄道高架下 植栽・舗装整備',
     area: '高架下A工区',
     status: '承認待ち',
@@ -241,6 +259,7 @@ export const DEMO_PROJECTS: readonly DemoProject[] = [
   {
     id: 'demo-p04',
     projectNumber: 'P-DEMO-2026-004',
+    theme: 'retention-pond',
     name: '中央公園 調整池築造工事',
     area: '池体工区',
     status: '承認済み',
@@ -285,6 +304,7 @@ export const DEMO_PROJECTS: readonly DemoProject[] = [
   {
     id: 'demo-p05',
     projectNumber: 'P-DEMO-2026-005',
+    theme: 'sewer-main',
     name: '北ヶ丘団地 雨水幹線更新工事',
     area: '北ヶ丘2丁目',
     status: '差戻し',
@@ -323,6 +343,7 @@ export const DEMO_PROJECTS: readonly DemoProject[] = [
   {
     id: 'demo-p06',
     projectNumber: 'P-DEMO-2026-006',
+    theme: 'bridge-pier',
     name: 'たんぽぽ橋 下部工補修工事',
     area: 'P2橋脚',
     status: '進行中',
@@ -355,6 +376,7 @@ export const DEMO_PROJECTS: readonly DemoProject[] = [
   {
     id: 'demo-p07',
     projectNumber: 'P-DEMO-2026-007',
+    theme: 'sidewalk',
     name: 'ふれあい通り 歩道バリアフリー化工事',
     area: '歩道区間1',
     status: '承認済み',
@@ -392,6 +414,7 @@ export const DEMO_PROJECTS: readonly DemoProject[] = [
   {
     id: 'demo-p08',
     projectNumber: 'P-DEMO-2026-008',
+    theme: 'revetment',
     name: 'ひまわり川 護岸補強工事（第3期）',
     area: '左岸3工区',
     status: '照査待ち',
@@ -435,6 +458,7 @@ export const DEMO_PROJECTS: readonly DemoProject[] = [
   {
     id: 'demo-p09',
     projectNumber: 'P-DEMO-2026-009',
+    theme: 'slope-protection',
     name: '東の原造成地 法面保護工事',
     area: '法面B工区',
     status: '承認待ち',
@@ -474,6 +498,7 @@ export const DEMO_PROJECTS: readonly DemoProject[] = [
   {
     id: 'demo-p10',
     projectNumber: 'P-DEMO-2026-010',
+    theme: 'tunnel-portal',
     name: 'てんとう虫トンネル 坑口安全対策工事',
     area: '東坑口',
     status: '進行中',
