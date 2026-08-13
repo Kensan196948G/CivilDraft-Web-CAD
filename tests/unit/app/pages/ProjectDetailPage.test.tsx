@@ -8,8 +8,8 @@ describe('ProjectDetailPage', () => {
   it('指定された案件情報、図面一覧、メンバー、アクティビティを表示する', () => {
     render(<ProjectDetailPage onOpenEditor={() => {}} />)
 
-    expect(screen.getByText('国道245号 道路拡幅工事')).toBeInTheDocument()
-    expect(screen.getByText('2工区 ・ 発注者: ○○県土木部 ・ 工期 2026-04-01〜2027-03-31')).toBeInTheDocument()
+    expect(screen.getByText('みらい台地区 市道拡幅工事')).toBeInTheDocument()
+    expect(screen.getByText('第2工区 ・ 発注者: デモ県 みらい土木事務所 ・ 工期 2026-04-01〜2027-01-31')).toBeInTheDocument()
     expect(screen.getByText('進行中')).toBeInTheDocument()
     expect(screen.getByRole('button', { name: 'すべて12' })).toBeInTheDocument()
     expect(screen.getByRole('button', { name: '施工ヤード図3' })).toBeInTheDocument()
@@ -19,7 +19,10 @@ describe('ProjectDetailPage', () => {
     expect(screen.getByText('DWG-014')).toBeInTheDocument()
     expect(screen.getByText('施工ヤード計画図')).toBeInTheDocument()
     expect(screen.getByText('平面直角座標系 第Ⅵ系')).toBeInTheDocument()
-    expect(screen.getByText('山田 太郎が DWG-014 Rev.3 を保存')).toBeInTheDocument()
+    expect(screen.getByText('出雲 拓海が DWG-014 Rev.3 を保存')).toBeInTheDocument()
+    expect(screen.getByText('¥486,000,000')).toBeInTheDocument()
+    expect(screen.getByText('デモ県みらい市みらい台3-12-1（架空・デモ用）')).toBeInTheDocument()
+    expect(screen.getByText('izumo.taku@example.jp')).toBeInTheDocument()
   })
 
   it('案件編集、図面作成、図面種別フィルター、図面詳細が機能する', async () => {
@@ -27,11 +30,11 @@ describe('ProjectDetailPage', () => {
     render(<ProjectDetailPage onOpenEditor={onOpenEditor} />)
 
     await userEvent.click(screen.getByRole('button', { name: '案件を編集' }))
-    fireEvent.change(screen.getByDisplayValue('国道245号 道路拡幅工事'), {
-      target: { value: '国道245号 道路拡幅工事（変更）' },
+    fireEvent.change(screen.getByDisplayValue('みらい台地区 市道拡幅工事'), {
+      target: { value: 'みらい台地区 市道拡幅工事（変更）' },
     })
     await userEvent.click(screen.getByRole('button', { name: '保存' }))
-    expect(screen.getByText('国道245号 道路拡幅工事（変更）')).toBeInTheDocument()
+    expect(screen.getByText('みらい台地区 市道拡幅工事（変更）')).toBeInTheDocument()
 
     await userEvent.click(screen.getByRole('button', { name: '＋ 図面を作成' }))
     fireEvent.change(screen.getByDisplayValue('新規施工ヤード計画図'), {
@@ -53,6 +56,16 @@ describe('ProjectDetailPage', () => {
 
     await userEvent.click(within(table).getByText('DWG-011'))
     expect(screen.getByText('図面詳細: DWG-011 仮設計画図（矢板・切梁）')).toBeInTheDocument()
+  })
+
+  it('デモ案件IDで対象案件を表示し、空図面案件は空状態を表示する', () => {
+    const { rerender } = render(<ProjectDetailPage onOpenEditor={() => {}} projectId="demo-p02" />)
+    expect(screen.getByText('第二湾岸 雨水ポンプ場整備工事')).toBeInTheDocument()
+    expect(screen.getByText('DWG-006')).toBeInTheDocument()
+
+    rerender(<ProjectDetailPage onOpenEditor={() => {}} projectId="demo-p06" />)
+    expect(screen.getByText('たんぽぽ橋 下部工補修工事')).toBeInTheDocument()
+    expect(screen.getByText('図面がまだありません。「＋ 図面を作成」から追加できます。')).toBeInTheDocument()
   })
 })
 

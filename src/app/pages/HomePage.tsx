@@ -6,6 +6,13 @@
 import { useEffect, useMemo, useState } from 'react'
 import type { CSSProperties } from 'react'
 import { createDemoDrawingGeometries } from '@/app/demoData'
+import {
+  DEMO_PROJECTS,
+  demoStaleReviewCount,
+  recentDrawingsFromProjects,
+  type DemoProject,
+  type DemoProjectStatus,
+} from '@/app/demoProjects'
 import { createDefaultLayer } from '@/app/store/editorStore'
 import { useEditorStoreApi } from '@/app/store/useEditorStore'
 import type { AutosaveSnapshot, AutosaveStore } from '@/infrastructure/autosave/autosaveStore'
@@ -64,30 +71,40 @@ interface Notice {
   readonly severity: 'info' | 'maintenance'
 }
 
-const PROJECTS: readonly ProjectRow[] = [
-  { name: '国道245号 道路拡幅工事', area: '2工区', status: '進行中', color: '#2E5AAC', bg: '#E9F0FB', drawings: 12, updated: '2026-07-14', manager: '山田 太郎', client: '○○県土木部', note: '施工ヤード計画図 Rev.3 を編集中' },
-  { name: '大和川 河川護岸補修工事', area: '1工区', status: '照査待ち', color: '#B5701A', bg: '#FDEFE0', drawings: 7, updated: '2026-07-13', manager: '佐藤 花子', client: '○○市河川課', note: '測点配置図の照査が3日以上滞留' },
-  { name: '中央幹線 下水道更新工事', area: '3工区', status: '承認済み', color: '#1F8255', bg: '#E4F3EC', drawings: 20, updated: '2026-07-10', manager: '高橋 一郎', client: '○○市上下水道局', note: '数量根拠図まで承認済み' },
-  { name: '桜田地区 仮設ヤード計画', area: '仮設工区', status: '差戻し', color: '#C5392F', bg: '#FCE9E7', drawings: 4, updated: '2026-07-12', manager: '中村 美咲', client: '民間JV', note: '搬入経路の再検討が必要' },
-  { name: '青葉橋 橋台補強工事', area: 'A1橋台', status: '進行中', color: '#2E5AAC', bg: '#E9F0FB', drawings: 9, updated: '2026-07-16', manager: '佐藤 次郎', client: '○○県道路公社', note: '重機作業半径図を新規作成中' },
-  { name: '西部IC ランプ舗装補修', area: '舗装A工区', status: '進行中', color: '#2E5AAC', bg: '#E9F0FB', drawings: 6, updated: '2026-07-15', manager: '伊藤 翼', client: '高速道路事務所', note: '夜間施工ステップを整理中' },
-  { name: '港湾第3岸壁 排水改良', area: '排水工区', status: '照査待ち', color: '#B5701A', bg: '#FDEFE0', drawings: 8, updated: '2026-07-09', manager: '木村 葵', client: '港湾局', note: '集水桝数量の照査待ち' },
-  { name: '北山トンネル 坑口仮設', area: '坑口部', status: '承認待ち', color: '#6B45B0', bg: '#EDE7F6', drawings: 5, updated: '2026-07-08', manager: '渡辺 健', client: '○○県道路課', note: '承認者確認待ち' },
-  { name: '東町雨水幹線 開削工事', area: '第2立坑', status: '進行中', color: '#2E5AAC', bg: '#E9F0FB', drawings: 11, updated: '2026-07-07', manager: '小林 玲', client: '○○市', note: '土留め部材表を更新予定' },
-  { name: '南部調整池 越流堤改修', area: '堤体部', status: '承認待ち', color: '#6B45B0', bg: '#EDE7F6', drawings: 3, updated: '2026-07-06', manager: '加藤 亮', client: '河川管理者', note: '施工ステップ図の承認待ち' },
-  { name: '駅前広場 歩道再整備', area: '駅前工区', status: '進行中', color: '#2E5AAC', bg: '#E9F0FB', drawings: 10, updated: '2026-07-05', manager: '森 優子', client: '○○市道路課', note: '規制帯図を調整中' },
-  { name: '臨海部 仮設道路築造', area: '臨海道路', status: '照査待ち', color: '#B5701A', bg: '#FDEFE0', drawings: 6, updated: '2026-07-04', manager: '藤井 誠', client: '港湾JV', note: '仮設道路断面の照査待ち' },
-  { name: '城西排水路 ボックス更新', area: 'B工区', status: '承認待ち', color: '#6B45B0', bg: '#EDE7F6', drawings: 4, updated: '2026-07-03', manager: '岡田 結', client: '土地改良区', note: '承認者確認待ち' },
-  { name: '高台地区 法面補強工事', area: '法面1工区', status: '進行中', color: '#2E5AAC', bg: '#E9F0FB', drawings: 7, updated: '2026-07-02', manager: '長谷川 蓮', client: '砂防事務所', note: '法面ハッチと数量根拠を作成中' },
-]
+const STATUS_COLOR: Record<DemoProjectStatus, string> = {
+  進行中: '#2E5AAC',
+  照査待ち: '#B5701A',
+  承認待ち: '#6B45B0',
+  承認済み: '#1F8255',
+  差戻し: '#C5392F',
+}
 
-const RECENT_DRAWINGS: readonly RecentDrawing[] = [
-  { icon: '📐', name: '施工ヤード計画図', project: '国道245号 道路拡幅工事', no: 'DWG-014', rev: 'Rev.3', when: '10分前', status: '作成中' },
-  { icon: '📍', name: '測点配置図', project: '大和川 河川護岸補修工事', no: 'DWG-006', rev: 'Rev.1', when: '2時間前', status: '照査待ち' },
-  { icon: '🧮', name: '数量根拠図（土工数量）', project: '国道245号 道路拡幅工事', no: 'DWG-021', rev: 'Rev.2', when: '昨日', status: '作成中' },
-  { icon: '🚧', name: '仮設切回し計画図', project: '青葉橋 橋台補強工事', no: 'DWG-018', rev: 'Rev.2', when: '2日前', status: '承認待ち' },
-  { icon: '🖨️', name: '出力確認図', project: '中央幹線 下水道更新工事', no: 'DWG-030', rev: 'Rev.1', when: '3日前', status: '承認済み' },
-]
+const STATUS_BG: Record<DemoProjectStatus, string> = {
+  進行中: '#E9F0FB',
+  照査待ち: '#FDEFE0',
+  承認待ち: '#EDE7F6',
+  承認済み: '#E4F3EC',
+  差戻し: '#FCE9E7',
+}
+
+function toProjectRow(project: DemoProject): ProjectRow {
+  return {
+    id: project.id,
+    name: project.name,
+    area: project.area,
+    status: project.status,
+    color: STATUS_COLOR[project.status],
+    bg: STATUS_BG[project.status],
+    drawings: project.drawings.length,
+    updated: project.updated,
+    manager: project.manager,
+    client: project.clientSummary,
+    note: project.note,
+  }
+}
+
+const DEMO_PROJECT_ROWS: readonly ProjectRow[] = DEMO_PROJECTS.map(toProjectRow)
+const RECENT_DRAWINGS: readonly RecentDrawing[] = recentDrawingsFromProjects(DEMO_PROJECTS)
 
 const NOTICES: readonly Notice[] = [
   { title: 'DXF入出力の対応要素一覧を更新しました', date: '2026-07-11', body: 'line / circle / arc / ellipse / polyline / text の往復確認を追加しました。未対応要素は警告として表示されます。', severity: 'info' },
@@ -135,7 +152,7 @@ const STATUS_DISTRIBUTION: readonly { readonly label: string; readonly color: st
 ]
 
 function metricProjects(metric: MetricKey, projects: readonly ProjectRow[]): readonly ProjectRow[] {
-  const source = projects.length > 0 ? projects : PROJECTS
+  const source = projects.length > 0 ? projects : DEMO_PROJECT_ROWS
   if (metric === 'active') return source.filter((p) => p.status === '進行中')
   if (metric === 'review') return source.filter((p) => p.status === '照査待ち')
   if (metric === 'approval') return source.filter((p) => p.status === '承認待ち')
@@ -154,7 +171,7 @@ export function HomePage({
   const [snapshot, setSnapshot] = useState<AutosaveSnapshot | null>(null)
   const [recoveryMessage, setRecoveryMessage] = useState<string | null>(null)
   const [mode, setMode] = useState<HomeMode>('dashboard')
-  const [selectedProject, setSelectedProject] = useState<ProjectRow>(PROJECTS[0]!)
+  const [selectedProject, setSelectedProject] = useState<ProjectRow>(DEMO_PROJECT_ROWS[0]!)
   const [selectedRecent, setSelectedRecent] = useState<RecentDrawing>(RECENT_DRAWINGS[0]!)
   const [selectedNotice, setSelectedNotice] = useState<Notice>(NOTICES[0]!)
   const [metric, setMetric] = useState<MetricKey>('active')
@@ -202,7 +219,7 @@ export function HomePage({
 
   const useDemoData = !useCloudData
   const projects = useMemo(() => {
-    if (useDemoData) return [...createdProjects, ...PROJECTS]
+    if (useDemoData) return [...createdProjects, ...DEMO_PROJECT_ROWS]
     return (cloudProjects ?? []).map((project) => ({
       id: project.id,
       name: project.name,
@@ -397,7 +414,7 @@ export function HomePage({
           </button>
           <button style={cardStyle} onClick={() => openMetric('review')}>
             <div style={cardTitleRow}><div style={cardTitleStyle}>照査待ち図面</div><span style={{ width: 8, height: 8, borderRadius: 3, background: '#B5701A' }} /></div>
-            <div style={cardValueStyle}>{reviewCount}</div><div style={{ fontSize: 11, fontWeight: 500, color: '#B5701A' }}>{useDemoData ? '2件が3日以上滞留' : '照査ステータス集計は未連携'}</div>
+            <div style={cardValueStyle}>{reviewCount}</div><div style={{ fontSize: 11, fontWeight: 500, color: '#B5701A' }}>{useDemoData ? `${demoStaleReviewCount(DEMO_PROJECTS)}件が3日以上滞留` : '照査ステータス集計は未連携'}</div>
           </button>
           <button style={cardStyle} onClick={() => openMetric('approval')}>
             <div style={cardTitleRow}><div style={cardTitleStyle}>承認待ち図面</div><span style={{ width: 8, height: 8, borderRadius: 3, background: '#6B45B0' }} /></div>
