@@ -92,6 +92,27 @@ describe('CadEditorPage cloud save', () => {
     expect(screen.getByRole('button', { name: '共有保存' })).toBeDisabled()
   })
 
+  it('デモ案件の図面セッションでは種別に応じたサンプル図形を初期表示する', () => {
+    const store = createEditorStore()
+    const cloudApiClient: CloudSaveClient = { saveDraft: vi.fn(), getRevisionContent: vi.fn() }
+    renderPage(store, cloudApiClient, {
+      projectNumber: 'P-DEMO-2026-001',
+      projectName: 'みらい台地区 市道拡幅工事',
+      drawingNumber: 'DWG-014',
+      drawingName: '施工ヤード計画図',
+      drawingType: 'temporary-yard-plan',
+      revisionNumber: 'Rev.3',
+    })
+
+    const geometries = store.getState().geometries
+    expect(geometries.length).toBeGreaterThan(10)
+    expect(geometries.some((item) => item.type === 'circle')).toBe(true)
+    expect(geometries.some((item) => item.type === 'rectangle')).toBe(true)
+    expect(geometries.some((item) => item.type === 'text')).toBe(true)
+    expect(geometries.some((item) => item.type === 'dimension')).toBe(true)
+    expect(store.getState().layers.length).toBeGreaterThan(1)
+  })
+
   it('選択状態をスクリーンリーダー向けライブリージョンで通知する（Issue #120）', async () => {
     const store = createEditorStore()
     store.getState().addGeometries([line('g-1'), line('g-2')])
