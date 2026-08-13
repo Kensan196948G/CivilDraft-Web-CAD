@@ -413,4 +413,87 @@ describe('CivilDraftApiClient', () => {
     expect(revision.value.revisionNumber).toBe('1')
     expect(revision.value.status).toBe('draft')
   })
+
+  it('submitWorkflowAction で照査依頼→照査→承認を実行できる', async () => {
+    const env: WorkerEnv = { CIVILDRAFT_API_MODE: 'memory', CIVILDRAFT_DEV_STORE: createMemoryStore() }
+    const client = makeClient(env)
+    const document = makeDocument()
+
+    const saved = await client.saveDraft({
+      project: { projectNumber: 'P-WF-001', name: '承認フロー検証工事' },
+      drawing: { drawingNumber: 'DWG-WF-001', name: '承認フロー図面' },
+      revision: { revisionNumber: '1', changeSummary: '初版' },
+      document,
+    })
+    expect(saved.ok).toBe(true)
+    if (!saved.ok) return
+    const revisionId = saved.value.revision.id
+    const checksum = saved.value.content.contentChecksum
+
+    const submitted = await client.submitWorkflowAction(revisionId, {
+      action: 'submitReview',
+      mandatoryChecksPassed: true,
+      comment: '照査依頼します',
+    })
+    expect(submitted.ok).toBe(true)
+    if (!submitted.ok) return
+    expect(submitted.value.revision.status).toBe('inReview')
+    expect(submitted.value.workflowAction.action).toBe('submitReview')
+    expect(submitted.value.workflowAction.actorId).toBe('engineer@example.test')
+
+    const reviewed = await client.submitWorkflowAction(revisionId, {
+      action: 'completeReview',
+      reviewResultRecorded: true,
+      comment: '照査完了です',
+    })
+    expect(reviewed.ok).toBe(true)
+    if (!reviewed.ok) return
+    expect(reviewed.value.revision.status).toBe('pendingApproval')
+
+    const approved = await client.submitWorkflowAction(revisionId, {
+      action: 'approve',
+      contentChecksum: checksum,
+      comment: '承認します',
+    })
+    expect(approved.ok).toBe(true)
+    if (!approved.ok) return
+    expect(approved.value.revision.status).toBe('approved')
+  })
+
+  it('submitWorkflowAction は checksum 不一致の承認を拒否する', async () => {
+    const env: WorkerEnv = { CIVILDRAFT_API_MODE: 'memory', CIVILDRAFT_DEV_STORE: createMemoryStore() }
+    const client = makeClient(env)
+    const document = makeDocument()
+
+    const saved = await client.saveDraft({
+      project: { projectNumber: 'P-WF-002', name: '承認拒否検証工事' },
+      drawing: { drawingNumber: 'DWG-WF-002', name: '承認拒否図面' },
+      revision: { revisionNumber: '1', changeSummary: '初版' },
+      document,
+    })
+    expect(saved.ok).toBe(true)
+    if (!saved.ok) return
+
+    const submitted = await client.submitWorkflowAction(saved.value.revision.id, {
+      action: 'submitReview',
+      mandatoryChecksPassed: true,
+    })
+    expect(submitted.ok).toBe(true)
+    if (!submitted.ok) return
+
+    const reviewed = await client.submitWorkflowAction(saved.value.revision.id, {
+      action: 'completeReview',
+      reviewResultRecorded: true,
+    })
+    expect(reviewed.ok).toBe(true)
+    if (!reviewed.ok) return
+
+    const approved = await client.submitWorkflowAction(saved.value.revision.id, {
+      action: 'approve',
+      contentChecksum: 'sha256:wrong-checksum',
+    })
+    expect(approved.ok).toBe(false)
+    if (approved.ok) return
+    expect(approved.error.message).toContain('Checksum')
+  })
 })

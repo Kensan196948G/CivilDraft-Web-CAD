@@ -5,6 +5,13 @@
 ## [Unreleased]
 
 ### 改善
+- 2026-08-13: MVP完成セッション（詳細は `docs/assessment/session-worklog-20260813.md`）
+  - 照査・承認画面の実改訂データ連携（`GET /api/v1/revisions/{id}` → `POST workflow-actions`。最終認可はサーバー側・Access JWT）
+  - クライアント `submitWorkflowAction` メソッド追加（`CloudWorkflowAction*` 型・往復テスト）
+  - 案件詳細（実データ版）の「最近のアクティビティ」を監査ログ API（`GET /api/v1/audit-logs?projectId=`）へ接続
+  - ホームに案件ステータス分布チャート（KPI 可視化・`role="img"` + `aria-label`）
+  - テスト 8 件追加（計 1555 pass / 2 skip）
+  - `docs/operations/mvp-preview.md`（公開 URL・デモ手順・MVP サブドメイン追加手順）新設、README の CI 実態・公開 URL を実態同期
 - 2026-08-12: 総合評価・改善（詳細は `docs/assessment/comprehensive-evaluation-2026-08-12.md`）
   - **重大修正: migration 0007 のFK列型を uuid→text へ修正**（0004適用後のスキーマと不一致で本番適用時に失敗する問題。適用前のため前方修正で対応）
   - ハッシュベースURLルーティング（`#/<view>`・editorセッション/projectId保持）でブックマーク・戻る/進む・deep link対応

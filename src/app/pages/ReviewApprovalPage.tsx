@@ -15,7 +15,7 @@
  * - 実運用では role はここで切替せず、Cloudflare Access の identity（accessIdentity /
  *   roleFromIdentity）から解決する。切替 UI は開発・デモ用の足場である。
  */
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import type { CSSProperties } from 'react'
 import {
   applyRevisionAction,
@@ -35,6 +35,13 @@ import type {
 } from '@/domain/revisions'
 import { permissionsFor } from '@/infrastructure/auth/roles'
 import type { CivilDraftRole } from '@/infrastructure/auth/roles'
+import {
+  createCivilDraftApiClient,
+  type CivilDraftApiClient,
+  type CloudRevision,
+  type CloudWorkflowAction,
+  type CloudWorkflowActionBody,
+} from '@/infrastructure/cloud/civilDraftApiClient'
 import type { DrawingId, RevisionId } from '@/shared/types'
 import {
   ghostButtonStyle,
@@ -198,9 +205,18 @@ export interface ReviewApprovalPageProps {
   readonly initialRole?: CivilDraftRole
   /** 本番モードでは true を渡すとデモのロール切替・サンプル改訂を表示しない（?demo=1 時は表示）。 */
   readonly enableCloudData?: boolean
+  /** 実改訂の ID。設定時はクラウド連携ビューで GET/POST により実データを操作する。 */
+  readonly revisionId?: string
+  /** テスト用の API クライアント注入（省略時は既定クライアント）。 */
+  readonly apiClient?: CivilDraftApiClient
 }
 
-export function ReviewApprovalPage({ initialRole = 'engineer', enableCloudData = false }: ReviewApprovalPageProps = {}) {
+export function ReviewApprovalPage({
+  initialRole = 'engineer',
+  enableCloudData = false,
+  revisionId,
+  apiClient: apiClientProp,
+}: ReviewApprovalPageProps = {}) {
   const [role, setRole] = useState<CivilDraftRole>(initialRole)
   const [revision, setRevision] = useState<DrawingRevision>(createInitialRevision)
   const [history, setHistory] = useState<readonly RevisionHistoryEntry[]>([])
@@ -216,26 +232,11 @@ export function ReviewApprovalPage({ initialRole = 'engineer', enableCloudData =
 
   if (useCloudOnly) {
     return (
-      <div style={pageRootStyle}>
-        <header style={pageHeaderStyle}>
-          <div>
-            <div style={pageTitleStyle}>照査・承認</div>
-            <div style={pageSubtitleStyle}>改訂の照査依頼・照査・承認・差戻し・廃止（詳細設計仕様書 §19）</div>
-          </div>
-        </header>
-        <main style={pageMainStyle}>
-          <div style={panelStyle}>
-            <div style={{ padding: 42, textAlign: 'center' }}>
-              <div style={{ fontSize: 13.5, fontWeight: 600, marginBottom: 8 }}>改訂データがありません</div>
-              <div style={{ fontSize: 12.5, color: 'var(--muted)', lineHeight: 1.7 }}>
-                照査・承認の実データ連携（改訂一覧・ワークフローAPI）は未実装です。
-                <br />
-                サンプルデータは表示しません。
-              </div>
-            </div>
-          </div>
-        </main>
-      </div>
+      <CloudReviewApproval
+        revisionId={revisionId}
+        apiClient={apiClientProp ?? createCivilDraftApiClient()}
+        role={initialRole}
+      />
     )
   }
 
@@ -454,6 +455,341 @@ export function ReviewApprovalPage({ initialRole = 'engineer', enableCloudData =
                       </td>
                       <td style={tdStyle}>{ACTION_LABEL[entry.action]}</td>
                       <td style={tdStyle}>{WORKFLOW_ROLE_LABEL[entry.actorRole]}</td>
+                      <td style={{ ...tdStyle, color: 'var(--ink2)' }}>{entry.comment ?? '—'}</td>
+                    </tr>
+                  ))
+                )}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </main>
+    </div>
+  )
+}
+
+/** サーバー側 status をドメインの RevisionStatus へ安全に変換する（未知値は null）。 */
+function asRevisionStatus(status: string): RevisionStatus | null {
+  return Object.prototype.hasOwnProperty.call(STATUS_META, status) ? (status as RevisionStatus) : null
+}
+
+/** クラウド連携ビューの共通パネル（改訂未選択・読込中・エラー表示）。 */
+function CloudMessagePanel({
+  title,
+  body,
+}: {
+  readonly title: string
+  readonly body: string
+}) {
+  return (
+    <div style={pageRootStyle}>
+      <header style={pageHeaderStyle}>
+        <div>
+          <div style={pageTitleStyle}>照査・承認</div>
+          <div style={pageSubtitleStyle}>改訂の照査依頼・照査・承認・差戻し・廃止（詳細設計仕様書 §19）</div>
+        </div>
+      </header>
+      <main style={pageMainStyle}>
+        <div style={panelStyle}>
+          <div style={{ padding: 42, textAlign: 'center' }}>
+            <div style={{ fontSize: 13.5, fontWeight: 600, marginBottom: 8 }}>{title}</div>
+            <div style={{ fontSize: 12.5, color: 'var(--muted)', lineHeight: 1.7 }}>{body}</div>
+          </div>
+        </div>
+      </main>
+    </div>
+  )
+}
+
+/**
+ * クラウド連携ビュー（本番モード・?demo=1 以外）。
+ * GET /api/v1/revisions/:id で実改訂を読み込み、POST /api/v1/revisions/:id/workflow-actions で
+ * 照査依頼・照査・承認・差戻し・廃止・編集再開を実行する（新規改訂の作成は対象外）。
+ *
+ * 実行ロールは AppShell が Cloudflare Access identity から解決した値を受け取り、ボタン活性判定と
+ * 表示にのみ使う。最終的な認可はサーバー側（Access JWT の actorId）で行われる。
+ */
+function CloudReviewApproval({
+  revisionId,
+  apiClient,
+  role,
+}: {
+  readonly revisionId?: string
+  readonly apiClient: CivilDraftApiClient
+  readonly role: CivilDraftRole
+}) {
+  const [revision, setRevision] = useState<CloudRevision | null>(null)
+  const [loadError, setLoadError] = useState<string | null>(null)
+  const [history, setHistory] = useState<readonly CloudWorkflowAction[]>([])
+  const [comment, setComment] = useState('')
+  const [actionError, setActionError] = useState<string | null>(null)
+  const [busy, setBusy] = useState(false)
+  // 親が render 毎に新しい既定クライアントを渡しても再取得が走らないよう、インスタンスを固定する。
+  const [stableClient] = useState(() => apiClient)
+  // 改訂 ID が変わったら render 中に状態をリセットする（effect 内の同期 setState を避ける）。
+  const [loadedRevisionId, setLoadedRevisionId] = useState<string | undefined>(revisionId)
+  if (loadedRevisionId !== revisionId) {
+    setLoadedRevisionId(revisionId)
+    setRevision(null)
+    setLoadError(null)
+    setHistory([])
+    setActionError(null)
+  }
+
+  useEffect(() => {
+    if (revisionId === undefined) return
+    let cancelled = false
+    void stableClient.getRevision(revisionId).then((result) => {
+      if (cancelled) return
+      if (!result.ok) {
+        setLoadError(result.error.message)
+        return
+      }
+      setRevision(result.value)
+    })
+    return () => {
+      cancelled = true
+    }
+  }, [revisionId, stableClient])
+
+  if (revisionId === undefined) {
+    return (
+      <CloudMessagePanel
+        title="照査・承認する改訂が選択されていません"
+        body="案件の図面を CAD 編集などで開いた状態で、サイドバーから照査・承認へ移動してください。実改訂の状態が読み込まれます。"
+      />
+    )
+  }
+  if (loadError !== null) {
+    return <CloudMessagePanel title="⚠️ 改訂データを取得できませんでした" body={loadError} />
+  }
+  if (revision === null) {
+    return <CloudMessagePanel title="改訂データを読み込み中…" body="共有データ（Workers API）から改訂メタデータを取得しています。" />
+  }
+  const status = asRevisionStatus(revision.status)
+  if (status === null) {
+    return (
+      <CloudMessagePanel
+        title="⚠️ 未知の改訂状態です"
+        body={`サーバーが返した状態（${revision.status}）は本画面の対応範囲外です。`}
+      />
+    )
+  }
+
+  const statusMeta = STATUS_META[status]
+  const actor: WorkflowActor = permissionsFor(role)
+  const actions = availableActions(status).filter((action) => action !== 'createRevision')
+
+  const runAction = async (action: RevisionAction) => {
+    const currentStatus = asRevisionStatus(revision.status)
+    if (currentStatus === null) return
+    if (action === 'createRevision') {
+      setActionError('新規改訂の作成はクラウド連携ビューの対象外です')
+      return
+    }
+    // コメント必須などの前提はドメイン層で事前チェックし、API は最終認可とサーバー前提を担う。
+    const dryRun = transition(
+      currentStatus,
+      action,
+      actor,
+      buildContext(action, comment, revision.revisionNumber),
+    )
+    if (!dryRun.ok) {
+      setActionError(`⚠️ ${dryRun.error.message}`)
+      return
+    }
+    const trimmed = comment.trim() === '' ? undefined : comment.trim()
+    const withComment = trimmed === undefined ? {} : { comment: trimmed }
+    const body: CloudWorkflowActionBody = (() => {
+      switch (action) {
+        case 'submitReview':
+          return { action, mandatoryChecksPassed: true, ...withComment }
+        case 'completeReview':
+          return { action, reviewResultRecorded: true, ...withComment }
+        case 'approve':
+          return { action, contentChecksum: revision.contentChecksum, ...withComment }
+        case 'return':
+          return { action, comment: trimmed }
+        case 'resumeEditing':
+          return { action, returnReason: trimmed }
+        case 'obsolete':
+          return { action, obsoleteReason: trimmed }
+      }
+    })()
+    setBusy(true)
+    setActionError(null)
+    try {
+      const result = await stableClient.submitWorkflowAction(revision.id, body)
+      if (!result.ok) {
+        setActionError(`⚠️ ${result.error.message}`)
+        return
+      }
+      setRevision(result.value.revision)
+      setHistory((prev) => [...prev, result.value.workflowAction])
+      setComment('')
+    } catch (error: unknown) {
+      setActionError(`⚠️ 通信に失敗しました: ${error instanceof Error ? error.message : String(error)}`)
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  return (
+    <div style={pageRootStyle}>
+      <header style={pageHeaderStyle}>
+        <div>
+          <div style={pageTitleStyle}>照査・承認</div>
+          <div style={pageSubtitleStyle}>改訂の照査依頼・照査・承認・差戻し・廃止（実改訂データ連携・詳細設計仕様書 §19）</div>
+        </div>
+        <div style={{ flex: 1 }} />
+        <div style={roleSwitchWrapStyle}>
+          <span style={{ fontSize: 11.5, color: 'var(--muted)' }}>実行ロール（Access identity）</span>
+          <span style={statusBadgeStyle('#2E5AAC', '#E9F0FB')}>{ROLE_LABEL[role]}</span>
+        </div>
+      </header>
+
+      <main style={pageMainStyle}>
+        <div
+          style={{
+            display: 'grid',
+            gridTemplateColumns: 'minmax(0,1fr) minmax(0,1.35fr)',
+            gap: 16,
+            alignItems: 'start',
+          }}
+        >
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 16, minWidth: 0 }}>
+            <div style={panelStyle}>
+              <div style={panelHeaderStyle}>ワークフロー</div>
+              <div style={{ padding: '16px 18px', display: 'flex', flexWrap: 'wrap', gap: 8 }}>
+                {WORKFLOW_STEPS.map((step) => {
+                  const active = status === step.status
+                  const meta = STATUS_META[step.status]
+                  return (
+                    <span
+                      key={step.status}
+                      style={{
+                        ...statusBadgeStyle(active ? meta.color : 'var(--muted)', active ? meta.bg : 'var(--subtle)'),
+                        padding: '5px 10px',
+                      }}
+                    >
+                      {step.label}
+                    </span>
+                  )
+                })}
+              </div>
+            </div>
+
+            <div style={panelStyle}>
+              <div style={panelHeaderStyle}>対象改訂</div>
+              <div style={{ padding: '16px 18px', display: 'flex', flexDirection: 'column', gap: 12 }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                  <span style={{ ...monoStyle, fontSize: 15, fontWeight: 600, color: 'var(--ink)' }}>
+                    Rev.{revision.revisionNumber}
+                  </span>
+                  <span style={statusBadgeStyle(statusMeta.color, statusMeta.bg)}>{statusMeta.label}</span>
+                </div>
+                <div style={{ ...monoStyle, fontSize: 11, color: 'var(--muted)' }}>
+                  checksum: {revision.contentChecksum} ・ v{revision.contentVersion}
+                </div>
+                <div style={{ fontSize: 11.5, color: 'var(--muted)' }}>
+                  サーバー側でも Access identity の実行ロールで認可されます（表示上の活性判定は補助）。
+                </div>
+              </div>
+            </div>
+
+            <div style={panelStyle}>
+              <div style={panelHeaderStyle}>操作</div>
+              <div style={{ padding: '16px 18px', display: 'flex', flexDirection: 'column', gap: 12 }}>
+                <label style={{ display: 'flex', flexDirection: 'column', gap: 5 }}>
+                  <span style={{ fontSize: 11.5, color: 'var(--muted)' }}>
+                    コメント / 理由（差戻し・廃止・編集再開は必須）
+                  </span>
+                  <input
+                    value={comment}
+                    onChange={(e) => setComment(e.target.value)}
+                    aria-label="コメント / 理由"
+                    placeholder="差戻し理由・照査/承認コメントなど"
+                    style={{
+                      border: '1px solid var(--line)',
+                      borderRadius: 8,
+                      padding: '8px 11px',
+                      font: 'inherit',
+                      fontSize: 12.5,
+                      color: 'var(--ink)',
+                      background: 'var(--surface)',
+                      outline: 'none',
+                    }}
+                  />
+                </label>
+
+                <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
+                  {actions.length === 0 ? (
+                    <span style={{ fontSize: 12, color: 'var(--muted)' }}>
+                      この状態（{statusMeta.label}）から実行できる操作はありません
+                    </span>
+                  ) : (
+                    actions.map((action) => {
+                      const enabled = isActionEnabled(status, action, actor) && !busy
+                      return (
+                        <button
+                          key={action}
+                          type="button"
+                          disabled={!enabled}
+                          onClick={() => void runAction(action)}
+                          style={actionButtonStyle(action, enabled)}
+                        >
+                          {ACTION_LABEL[action]}
+                        </button>
+                      )
+                    })
+                  )}
+                </div>
+
+                {actionError !== null && (
+                  <div
+                    role="alert"
+                    style={{
+                      fontSize: 12,
+                      color: '#C5392F',
+                      background: '#FBEAE9',
+                      border: '1px solid #F1C9C5',
+                      borderRadius: 8,
+                      padding: '9px 12px',
+                    }}
+                  >
+                    {actionError}
+                  </div>
+                )}
+              </div>
+            </div>
+          </div>
+
+          <div style={panelStyle}>
+            <div style={panelHeaderStyle}>操作履歴（サーバー記録）</div>
+            <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 12.5 }}>
+              <thead>
+                <tr>
+                  <th style={thStyle}>日時</th>
+                  <th style={thStyle}>操作</th>
+                  <th style={thStyle}>実行者</th>
+                  <th style={thStyle}>コメント</th>
+                </tr>
+              </thead>
+              <tbody>
+                {history.length === 0 ? (
+                  <tr>
+                    <td style={{ ...tdStyle, color: 'var(--muted)' }} colSpan={4}>
+                      履歴はまだありません
+                    </td>
+                  </tr>
+                ) : (
+                  history.map((entry, i) => (
+                    <tr key={`${entry.id}-${i}`}>
+                      <td style={{ ...tdStyle, ...monoStyle, color: 'var(--ink2)', whiteSpace: 'nowrap' }}>
+                        {entry.occurredAt.replace('T', ' ').slice(0, 19)}
+                      </td>
+                      <td style={tdStyle}>{ACTION_LABEL[entry.action as RevisionAction] ?? entry.action}</td>
+                      <td style={tdStyle}>{entry.actorId}</td>
                       <td style={{ ...tdStyle, color: 'var(--ink2)' }}>{entry.comment ?? '—'}</td>
                     </tr>
                   ))

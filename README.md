@@ -14,6 +14,24 @@
 
 ---
 
+## 🚀 公開URL・デモ確認（MVP / Prototype）
+
+| 用途 | URL | 状態 |
+| --- | --- | --- |
+| 本番 | `https://civildraft-web-cad.mirai-dx-platform.com` | Cloudflare Access 保護（未認証 302 → ログイン）。実案件データのみ表示 |
+| プレビュー（暫定） | `https://civildraft-web-cad.kensan1969.workers.dev` | SPA 表示可。API は認証 fail-closed（401）のためブラウザ内デモ・ローカル保存の確認に限定 |
+| MVP/Prototype（計画） | `https://civildraft-web-cad-mvp.mirai-dx-platform.com` | カスタムドメイン追加は公開 DNS 変更のため人間承認待ち（手順は [mvp-preview.md](docs/operations/mvp-preview.md)） |
+
+デモ確認（架空ダミーデータ・実在情報不使用・再生成可能）:
+
+- 本番ビルドでも `?demo=1`（例 `/#/home?demo=1`）でデモ表示。画面上部に「⚠️ デモ表示」バナーが出る
+- ローカル: `npm ci && npm run dev` → `http://localhost:5173/#/home?demo=1`
+- ダミーデータ出所: `src/app/demoData.ts` / `HomePage.tsx`（架空案件一覧） / `CrossSectionPage.tsx`（サンプル断面） / `ReviewApprovalPage.tsx`（デモ改訂）
+
+詳細: [docs/operations/mvp-preview.md](docs/operations/mvp-preview.md)
+
+---
+
 ## 👋 CivilDraftとは
 
 CivilDraftは、土木工事の日常業務で使う施工図や計画図を、Webブラウザ上で作成・編集・照査する2D CADです。
@@ -848,12 +866,12 @@ flowchart LR
 | --- | --- | --- |
 | `Lint / Typecheck / Test / Build`（quality） | ESLint → `tsc --noEmit` → マイグレーション静的検証 → Vitest（node/jsdom 2プロジェクト）→ `vite build`を直列実行 | ✅ mainブランチ保護で必須 |
 | `Dependency Audit`（security） | `npm audit --audit-level=high` → secret候補スキャン | ✅ mainブランチ保護で必須 |
-| `Browser E2E`（e2e） | Playwright（Chromium）でホーム・新規案件・CAD編集・監査ログHTML出力・照査承認ワークフローの最小スモークを確認 | ⚠️ ブランチ保護は未設定（PRマージ前に人間がgreenを個別確認） |
-| `SBOM / Notices`（compliance） | SBOM（CycloneDX）生成・drift確認、THIRD-PARTY-NOTICES生成・drift確認 | ⚠️ ブランチ保護は未設定（npm CLIバージョン差によるドリフト誤検知の実績があるため、安定性を継続確認してから必須化を検討） |
+| `Browser E2E`（e2e） | Playwright（Chromium）でホーム・新規案件・CAD編集・監査ログHTML出力・照査承認ワークフローの最小スモークを確認 | ✅ mainブランチ保護で必須 |
+| `SBOM / Notices`（compliance） | SBOM（CycloneDX）生成・drift確認、THIRD-PARTY-NOTICES生成・drift確認 | ✅ mainブランチ保護で必須（生成はnpm 11.6.2固定） |
 
-`main`ブランチはPR必須・レビュー承認1件必須・quality/securityの成功必須（`strict`のためブランチ最新化も要求）・force push禁止・削除禁止で保護されています。e2e/complianceは必須チェック未設定のため、PRマージ前に人間が個別にgreenを確認する運用でカバーしています。
+`main`ブランチはPR必須・必須ステータスチェック4件（Lint / Typecheck / Test / Build・Dependency Audit・Browser E2E・SBOM / Notices、`strict`のためブランチ最新化も要求）・レビュー承認0件（2026-08-04に1→0へ恒久変更・ユーザー承認済み）・force push禁止・削除禁止で保護されています（2026-08-13 実測）。
 
-> 2026-07-22時点のローカル検証では、`npm run test -- --reporter=dot` が105ファイル・1212テストpass（Neon実接続が必要な結合テスト1ファイル2件はskip）で完走しています。NAS/Windows環境ではjsdomテストの起動コストが大きいため、Vitestは `node`（domain/shared/workers/cloud client）と `jsdom`（app/infrastructure/integration）に分離しています。
+> 2026-08-13時点のローカル検証では、`npm test` が143ファイル・1555テストpass（Neon実接続が必要な結合テスト1ファイル2件はskip）で完走しています。NAS/Windows環境ではjsdomテストの起動コストが大きいため、Vitestは `node`（domain/shared/workers/cloud client）と `jsdom`（app/infrastructure/integration）に分離しています。
 
 ---
 

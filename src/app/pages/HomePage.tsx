@@ -125,6 +125,15 @@ function statusBadge(color: string, bg: string): CSSProperties {
   return { display: 'inline-block', padding: '2px 8px', borderRadius: 6, fontSize: 11, fontWeight: 600, color, background: bg }
 }
 
+/** ダッシュボードのステータス分布チャート（表示順・配色はステータスバッジと一致）。 */
+const STATUS_DISTRIBUTION: readonly { readonly label: string; readonly color: string }[] = [
+  { label: '進行中', color: '#2E5AAC' },
+  { label: '照査待ち', color: '#B5701A' },
+  { label: '承認待ち', color: '#6B45B0' },
+  { label: '承認済み', color: '#1F8255' },
+  { label: '差戻し', color: '#C5392F' },
+]
+
 function metricProjects(metric: MetricKey, projects: readonly ProjectRow[]): readonly ProjectRow[] {
   const source = projects.length > 0 ? projects : PROJECTS
   if (metric === 'active') return source.filter((p) => p.status === '進行中')
@@ -212,6 +221,14 @@ export function HomePage({
   const reviewCount = projects.filter((project) => project.status === '照査待ち').length
   const approvalCount = projects.filter((project) => project.status === '承認待ち').length
   const recoveryCount = snapshot !== null ? 1 : 0
+  const statusCounts = useMemo(
+    () =>
+      STATUS_DISTRIBUTION.map((item) => ({
+        ...item,
+        count: projects.filter((project) => project.status === item.label).length,
+      })),
+    [projects],
+  )
 
   const restoreSnapshot = () => {
     if (snapshot === null) return
@@ -390,6 +407,52 @@ export function HomePage({
             <div style={cardTitleRow}><div style={cardTitleStyle}>自動保存の復旧候補</div><span style={{ width: 8, height: 8, borderRadius: 3, background: '#C5392F' }} /></div>
             <div style={cardValueStyle}>{recoveryCount}</div><div style={{ fontSize: 11, fontWeight: 500, color: recoveryCount > 0 ? '#C5392F' : 'var(--muted)' }}>{recoveryCount > 0 ? '未確定の下書きあり' : '未確定の下書きなし'}</div>
           </button>
+        </div>
+
+        <div style={{ ...panelStyle, marginBottom: 16 }}>
+          <div style={{ padding: '15px 18px', borderBottom: '1px solid var(--line2)', fontSize: 14, fontWeight: 600 }}>
+            案件ステータス分布
+          </div>
+          <div
+            style={{ padding: '16px 18px', display: 'flex', flexDirection: 'column', gap: 10 }}
+            role="img"
+            aria-label={`案件ステータス分布: ${statusCounts.map((item) => `${item.label} ${item.count}件`).join('、')}`}
+          >
+            {projects.length === 0 ? (
+              <div style={{ fontSize: 12, color: 'var(--muted)' }}>表示できる案件がありません。</div>
+            ) : (
+              statusCounts.map((item) => {
+                const percent = Math.round((item.count / projects.length) * 100)
+                return (
+                  <div
+                    key={item.label}
+                    style={{
+                      display: 'grid',
+                      gridTemplateColumns: '88px 1fr 42px',
+                      alignItems: 'center',
+                      gap: 10,
+                      fontSize: 11.5,
+                    }}
+                  >
+                    <span style={{ color: 'var(--ink2)', fontWeight: 500 }}>{item.label}</span>
+                    <div style={{ height: 12, background: 'var(--subtle)', borderRadius: 6, overflow: 'hidden' }}>
+                      <div style={{ width: `${percent}%`, height: '100%', background: item.color, borderRadius: 6 }} />
+                    </div>
+                    <span
+                      style={{
+                        fontFamily: "'IBM Plex Mono'",
+                        fontSize: 11,
+                        color: 'var(--ink2)',
+                        textAlign: 'right',
+                      }}
+                    >
+                      {item.count}件
+                    </span>
+                  </div>
+                )
+              })
+            )}
+          </div>
         </div>
 
         {mode === 'new' && (

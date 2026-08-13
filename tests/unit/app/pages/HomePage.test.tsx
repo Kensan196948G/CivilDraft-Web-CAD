@@ -36,6 +36,21 @@ describe('HomePage', () => {
     expect(screen.getByText('未確定の下書きなし')).toBeInTheDocument()
   })
 
+  it('ダッシュボードに案件ステータス分布チャートを表示する', async () => {
+    const store = createEditorStore()
+    render(
+      <EditorStoreProvider store={store}>
+        <HomePage autosaveStore={new MemoryAutosaveStore()} onOpenEditor={() => {}} />
+      </EditorStoreProvider>,
+    )
+
+    expect(await screen.findByText('案件ステータス分布')).toBeInTheDocument()
+    expect(screen.getByRole('img', { name: /進行中 \d+件/ })).toBeInTheDocument()
+    expect(screen.getByRole('img', { name: /照査待ち \d+件/ })).toBeInTheDocument()
+    expect(screen.getByRole('img', { name: /承認待ち \d+件/ })).toBeInTheDocument()
+    expect(screen.getByRole('img', { name: /差戻し \d+件/ })).toBeInTheDocument()
+  })
+
   it('保存済み下書きがあると復旧候補として表示され、復元でエディタへ読み込まれる', async () => {
     const autosave = new MemoryAutosaveStore()
     await autosave.save({

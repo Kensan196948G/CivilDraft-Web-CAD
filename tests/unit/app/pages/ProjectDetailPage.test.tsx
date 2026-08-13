@@ -87,6 +87,7 @@ describe('ProjectDetailPage / 実データ版（Issue #62）', () => {
       getProject: vi.fn(async () => ({ ok: true, value: realProject })),
       listProjectDrawings: vi.fn(async () => ({ ok: true, value: realDrawings })),
       listProjectMembers: vi.fn(async () => ({ ok: true, value: realMembers })),
+      listAuditLogs: vi.fn(async () => ({ ok: true, value: { auditLogs: [], total: 0 } })),
       updateProject: vi.fn(async (_projectId, input) => ({
         ok: true,
         value: { ...realProject, ...input },
@@ -134,7 +135,7 @@ describe('ProjectDetailPage / 実データ版（Issue #62）', () => {
     expect(screen.getByText('施工ヤード計画図')).toBeInTheDocument()
     expect(screen.getAllByText('engineer@example.test').length).toBeGreaterThanOrEqual(1)
     expect(screen.getByText('管理者')).toBeInTheDocument()
-    expect(screen.getByText(/活動履歴の取得は未実装/)).toBeInTheDocument()
+    expect(await screen.findByText('この案件の活動履歴はまだありません。')).toBeInTheDocument()
     expect(screen.queryByText('国道245号 道路拡幅工事')).not.toBeInTheDocument()
 
     fireEvent.click(screen.getByText('DWG-001'))
