@@ -260,13 +260,19 @@ function AppShell() {
         />
       ),
       compare: <DrawingComparePage autosaveStore={autosaveStore} />,
-      approval: <ReviewApprovalPage enableCloudData={import.meta.env.MODE === 'production'} />,
+      approval: (
+        <ReviewApprovalPage
+          enableCloudData={import.meta.env.MODE === 'production'}
+          revisionId={cloudDraftSession.revisionId}
+          initialRole={role}
+        />
+      ),
       print: <PrintExportPage enableSampleHistory={import.meta.env.MODE !== 'production'} />,
       delivery: <EdeliveryPage />,
       audit: <AuditLogPage enableSampleFallback={import.meta.env.MODE !== 'production'} />,
       settings: <SystemSettingsPage enableSampleData={import.meta.env.MODE !== 'production'} />,
     }),
-    [autosaveStore, canEdit, cloudDraftSession, fieldRevisionStatus, selectedProjectId, navigate, openEditor],
+    [autosaveStore, canEdit, cloudDraftSession, fieldRevisionStatus, role, selectedProjectId, navigate, openEditor],
   )
 
   const implementedViews: readonly AppView[] = [

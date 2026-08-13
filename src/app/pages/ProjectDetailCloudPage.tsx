@@ -16,6 +16,8 @@ import type { CSSProperties } from 'react'
 import type { CloudDraftSession } from './CadEditorPage'
 import {
   createCivilDraftApiClient,
+  type CloudAuditLog,
+  type CloudAuditLogPage,
   type CloudDrawing,
   type CloudProject,
   type CloudProjectMember,
@@ -121,6 +123,10 @@ export interface ProjectDetailCloudClient {
   getProject(projectId: string): Promise<Result<CloudProject, ValidationIssue>>
   listProjectDrawings(projectId: string): Promise<Result<readonly CloudDrawing[], ValidationIssue>>
   listProjectMembers(projectId: string): Promise<Result<readonly CloudProjectMember[], ValidationIssue>>
+  listAuditLogs(params?: {
+    readonly projectId?: string
+    readonly limit?: number
+  }): Promise<Result<CloudAuditLogPage, ValidationIssue>>
   updateProject(
     projectId: string,
     input: {
@@ -140,6 +146,34 @@ export interface ProjectDetailCloudClient {
       readonly settings?: unknown
     },
   ): Promise<Result<CloudDrawing, ValidationIssue>>
+}
+
+/** 監査イベント名の日本語ラベル（未登録のイベントは生のイベント名を表示）。 */
+const AUDIT_EVENT_LABELS: Readonly<Record<string, string>> = {
+  'project.created': '案件作成',
+  'project.updated': '案件更新',
+  'project.member.added': 'メンバー追加',
+  'project.member.removed': 'メンバー削除',
+  'project.member.roleChanged': 'ロール変更',
+  'drawing.created': '図面作成',
+  'drawing.updated': '図面更新',
+  'drawing.checkout': 'チェックアウト',
+  'drawing.checkin': 'チェックイン',
+  'revision.created': '改訂作成',
+  'revision.content.updated': '内容更新',
+  'revision.quantities.updated': '数量更新',
+  'revision.sections.updated': '断面更新',
+  'export.created': '出力作成',
+  'workflow.submitReview': '照査依頼',
+  'workflow.completeReview': '照査完了',
+  'workflow.approve': '承認',
+  'workflow.return': '差戻し',
+  'workflow.resumeEditing': '編集再開',
+  'workflow.obsolete': '廃止',
+}
+
+function auditEventLabel(eventName: string): string {
+  return AUDIT_EVENT_LABELS[eventName] ?? eventName
 }
 
 export interface ProjectDetailCloudPageProps {
@@ -191,6 +225,15 @@ export function ProjectDetailCloudPage({
   const [draftStatus, setDraftStatus] = useState<'active' | 'archived'>('active')
   const [newDrawingName, setNewDrawingName] = useState('新規施工ヤード計画図')
   const [newDrawingType, setNewDrawingType] = useState<DrawingType>('施工ヤード図')
+  const [activity, setActivity] = useState<readonly CloudAuditLog[] | null>(null)
+  const [activityError, setActivityError] = useState<string | null>(null)
+  // projectId が変わったら render 中にリセットする（effect 内の同期 setState を避ける）。
+  const [activityProjectId, setActivityProjectId] = useState<string | undefined>(projectId)
+  if (activityProjectId !== projectId) {
+    setActivityProjectId(projectId)
+    setActivity(null)
+    setActivityError(null)
+  }
 
   useEffect(() => {
     if (projectId === undefined) {
@@ -226,6 +269,23 @@ export function ProjectDetailCloudPage({
         if (cancelled) return
         setLoadError(error instanceof Error ? error.message : String(error))
       })
+    return () => {
+      cancelled = true
+    }
+  }, [apiClient, projectId])
+
+  // 最近のアクティビティ（監査ログ API・GET /api/v1/audit-logs?projectId=...）。
+  useEffect(() => {
+    if (projectId === undefined) return
+    let cancelled = false
+    void apiClient.listAuditLogs({ projectId, limit: 10 }).then((result) => {
+      if (cancelled) return
+      if (!result.ok) {
+        setActivityError(result.error.message)
+        return
+      }
+      setActivity(result.value.auditLogs)
+    })
     return () => {
       cancelled = true
     }
@@ -679,8 +739,45 @@ export function ProjectDetailCloudPage({
 
             <div style={panelStyle}>
               <div style={panelHeaderStyle}>最近のアクティビティ</div>
-              <div style={{ padding: '16px 18px', fontSize: 12, color: 'var(--muted)' }}>
-                活動履歴の取得は未実装です（監査ログAPI連携は別Issue）。
+              <div style={{ padding: '8px 0' }}>
+                {activityError !== null ? (
+                  <div style={{ padding: '12px 18px', fontSize: 12, color: '#C5392F' }}>
+                    ⚠️ 活動履歴を取得できませんでした: {activityError}
+                  </div>
+                ) : activity === null ? (
+                  <div style={{ padding: '12px 18px', fontSize: 12, color: 'var(--muted)' }}>
+                    活動履歴を読み込み中…
+                  </div>
+                ) : activity.length === 0 ? (
+                  <div style={{ padding: '12px 18px', fontSize: 12, color: 'var(--muted)' }}>
+                    この案件の活動履歴はまだありません。
+                  </div>
+                ) : (
+                  activity.map((entry, index) => (
+                    <div
+                      key={entry.id}
+                      style={{
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: 10,
+                        padding: '9px 18px',
+                        borderBottom: index === activity.length - 1 ? 'none' : '1px solid var(--line2)',
+                        fontSize: 12,
+                      }}
+                    >
+                      <span style={{ flex: 1, fontWeight: 500, color: 'var(--ink2)' }}>
+                        {auditEventLabel(entry.eventName)}
+                        {entry.result === 'failure' && (
+                          <span style={{ color: '#C5392F', marginLeft: 6 }}>（失敗）</span>
+                        )}
+                      </span>
+                      <span style={{ fontSize: 11, color: 'var(--muted)' }}>{entry.actorId}</span>
+                      <span style={{ ...monoStyle, fontSize: 11, color: 'var(--muted)', whiteSpace: 'nowrap' }}>
+                        {entry.occurredAt.replace('T', ' ').slice(0, 16)}
+                      </span>
+                    </div>
+                  ))
+                )}
               </div>
             </div>
           </div>
