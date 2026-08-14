@@ -151,7 +151,10 @@ describe('§25.1 共通ヘッダー検証', () => {
       ASSETS: {
         fetch: async () =>
           new Response('<html><body>index</body></html>', {
-            headers: { 'Content-Type': 'text/html; charset=utf-8' },
+            headers: {
+              'Content-Type': 'text/html; charset=utf-8',
+              'Cache-Control': 'public, max-age=0, must-revalidate',
+            },
           }),
       },
     }

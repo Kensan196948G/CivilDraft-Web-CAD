@@ -109,7 +109,7 @@ function withSecurityHeaders(response: Response): Response {
   // SPA の index.html は都度最新化する（デプロイ後に古いバンドルが残らないように）。
   // ハッシュ付きアセット（js/css）はアセット側のキャッシュを維持する。
   const contentType = headers.get('Content-Type') ?? ''
-  if (contentType.includes('text/html') && !headers.has('Cache-Control')) {
+  if (contentType.includes('text/html')) {
     headers.set('Cache-Control', 'no-store, no-cache, must-revalidate')
   }
   return new Response(response.body, {
