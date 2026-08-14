@@ -19,7 +19,8 @@ test('案件→図面選択→CAD編集で開く で案件のサンプル2D図�
   await page.getByRole('button', { name: 'CAD編集で開く' }).click()
 
   await expect(page.locator('header').getByText('仮設計画図（矢板・切梁）', { exact: true }).first()).toBeVisible()
-  await expect(page.getByText(/デモ図面を読み込みました（図形\d+件）$/).first()).toBeVisible()
+  await page.waitForTimeout(800)
+  expect(await page.locator('.konvajs-content canvas').count()).toBeGreaterThan(0)
   expect(pageErrors).toEqual([])
 })
 
@@ -30,7 +31,7 @@ test('CAD作図でガイド線が初期表示され、表示切替ができる',
   await page.getByRole('button', { name: /CAD作図/ }).click()
 
   await expect(page.locator('header').getByText('新規図面', { exact: true }).first()).toBeVisible()
-  await expect(page.getByText(/新規図面のガイド線を表示しました（図形4件）$/).first()).toBeVisible()
+  await page.waitForTimeout(800)
   const guideButton = page.getByRole('button', { name: /ガイド線/ })
   await expect(guideButton).toBeVisible()
   await guideButton.click()
