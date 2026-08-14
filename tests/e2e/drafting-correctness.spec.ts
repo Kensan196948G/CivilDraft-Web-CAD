@@ -46,6 +46,18 @@ test('新規作図: ガイド線・描画・Undo/Redo・グリッド/ガイド�
   await guideButton.click()
   await expect(page.getByRole('button', { name: /ガイド線\s*👁/ })).toBeVisible()
 
+  // 円（中心＋半径点）を最初に描画し、DXFへCIRCLEとして出力されることを確認
+  await page.locator('button[aria-label="円"]').click()
+  const canvasBox = await canvas.boundingBox()
+  expect(canvasBox).not.toBeNull()
+  await page.mouse.click(canvasBox!.x + 600, canvasBox!.y + 120)
+  await page.mouse.click(canvasBox!.x + 660, canvasBox!.y + 180)
+  const circleDxf = await exportDxf(page)
+  expect(circleDxf).toContain('CIRCLE')
+  // 出力画面からCAD編集へ戻る
+  await page.getByRole('button', { name: '作図編集' }).click()
+  await expect(page.getByTestId('canvas-stage-container')).toBeVisible()
+
   // 線分（2クリック確定）
   await page.getByRole('button', { name: '線分' }).click()
   await canvas.click({ position: { x: 200, y: 150 } })
@@ -58,13 +70,6 @@ test('新規作図: ガイド線・描画・Undo/Redo・グリッド/ガイド�
   await expect(page.getByTitle('やり直す')).toBeEnabled()
   await page.getByTitle('やり直す').click()
   await expect(undo).toBeEnabled()
-
-  // 円（中心＋半径点）
-  await page.locator('button[aria-label="円"]').click()
-  const canvasBox = await canvas.boundingBox()
-  expect(canvasBox).not.toBeNull()
-  await page.mouse.click(canvasBox!.x + 480, canvasBox!.y + 180)
-  await page.mouse.click(canvasBox!.x + 540, canvasBox!.y + 250)
 
   // 矩形（対角2点）
   await page.getByRole('button', { name: '矩形' }).click()
