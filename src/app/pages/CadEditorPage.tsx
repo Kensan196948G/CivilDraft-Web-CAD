@@ -179,12 +179,13 @@ const sectionLabelStyle: CSSProperties = {
 }
 
 const headerBarStyle: CSSProperties = {
-  height: 56,
+  minHeight: 56,
   flexShrink: 0,
   display: 'flex',
+  flexWrap: 'wrap',
   alignItems: 'center',
   gap: 14,
-  padding: '0 18px',
+  padding: '8px 18px',
   background: 'var(--surface)',
   borderBottom: '1px solid var(--line)',
 }
