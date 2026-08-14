@@ -4,6 +4,13 @@
 
 ## [Unreleased]
 
+### 🚀 本番デプロイ（2026-08-14 JST・Worker Version `965335d9`・main `5e2fa71`）
+
+- Konvaノード登録・bufferCanvas競合・CSP・ヘッダー折返し修正（#204）を `npx wrangler deploy` で本番反映
+- dev / 本番ビルド両方の Browser E2E で、案件→図面→CAD編集で開く・CAD作図ガイド線・左パネル折りたたみを実ブラウザ検証（ページエラーゼロ）
+- 実測: MVP/workers.dev は SPA 200（`Cache-Control: no-store`・CSPにCloudflare Insights許可）・`/api/health` 401 fail-closed、本番ドメインは 302 → Cloudflare Access（保護維持）
+- 直前バージョン `c8fafc4a` へ rollback 可能
+
 ### 修正 / 追加
 - 2026-08-14: 本番ビルドで図形が描画されない問題を修正（Konvaノード登録）
   - 本番ビルドでKonvaのLine/Text等が未登録になり図形が描画されない問題に対し、使用形状モジュールを副作用importで明示登録（`src/app/canvas/registerKonvaNodes.ts`）
