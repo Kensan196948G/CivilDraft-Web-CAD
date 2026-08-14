@@ -80,12 +80,11 @@ test('新規作図: 円を作図してDXFへCIRCLEとして出力できる', asy
   await expect(page.getByTestId('canvas-stage-container')).toBeVisible()
 
   const canvas = page.getByTestId('canvas-stage-container')
-  await page.locator('button[aria-label="円"]').click()
-  await page.waitForTimeout(300)
-  const box = await canvas.boundingBox()
-  expect(box).not.toBeNull()
-  await page.mouse.click(box!.x + 520, box!.y + 120)
-  await page.mouse.click(box!.x + 580, box!.y + 180)
+  // 数字キー4（円ツールのショートカット）で確実にツールを切替える
+  await canvas.focus()
+  await page.keyboard.press('4')
+  await canvas.click({ position: { x: 520, y: 120 } })
+  await canvas.click({ position: { x: 580, y: 180 } })
   await expect(page.getByTitle('元に戻す')).toBeEnabled()
 
   const dxf = await exportDxf(page)
