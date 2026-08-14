@@ -64,6 +64,9 @@ export function PaperBoundary({ paperSize, paperOrientation, colors }: PaperBoun
       shadowOffset={{ x: 2 / zoom, y: 4 / zoom }}
       shadowOpacity={1}
       listening={false}
+      perfectDrawEnabled={false}
+      shadowForStrokeEnabled={false}
+      strokeScaleEnabled={false}
     />
   )
 }
