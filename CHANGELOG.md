@@ -4,6 +4,13 @@
 
 ## [Unreleased]
 
+### 修正 / 追加
+- 2026-08-14: サイドバーとKonva登録の最終対応
+  - サイドバーを全セクション初期展開に変更し、「CAD作図/CAD編集」を「新規作図/作図編集」へリネーム（作図導線が見えない問題を解消）
+  - `registerKonvaNodes` で Konva Core のレジストリへ形状クラスを明示代入（副作用importだけに頼らない保険）
+  - Service Worker v2 のfetchハンドラを修正（ナビゲーションはSWを介さず、FetchEventのnetwork errorを解消）
+  - E2EにKonva系コンソールエラー検出を追加
+
 ### 🚀 本番デプロイ（2026-08-14 JST・Worker Version `a4244ab6`・main `c0a1986`）
 
 - Service Worker v2（HTML非キャッシュ）とE2E内容検証（#206）を `npx wrangler deploy` で本番反映

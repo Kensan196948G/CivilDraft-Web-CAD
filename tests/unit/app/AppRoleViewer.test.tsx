@@ -83,14 +83,12 @@ describe('App ロール連動', () => {
     expect(await screen.findByText('閲覧者')).toBeInTheDocument()
     expect(screen.getByText('閲覧 太郎')).toBeInTheDocument()
 
-    await userEvent.click(screen.getByRole('button', { name: /^作図›?$/ }))
-    expect(screen.queryByText('CAD作図')).not.toBeInTheDocument()
-    expect(screen.queryByText('CAD編集')).not.toBeInTheDocument()
+    expect(screen.queryByText('新規作図')).not.toBeInTheDocument()
+    expect(screen.queryByText('作図編集')).not.toBeInTheDocument()
     expect(screen.queryByText('図面設定')).not.toBeInTheDocument()
     expect(screen.queryByText('土木部材パレット')).not.toBeInTheDocument()
     expect(screen.getByText('測点・座標一覧')).toBeInTheDocument()
 
-    await userEvent.click(screen.getByRole('button', { name: /^集計・照査›?$/ }))
     expect(screen.queryByText('照査・承認')).not.toBeInTheDocument()
     expect(screen.getByText('現場説明モード')).toBeInTheDocument()
 
@@ -101,8 +99,8 @@ describe('App ロール連動', () => {
     mockFetchAccessIdentity.mockResolvedValue(ENGINEER_IDENTITY)
     render(<App />)
     expect(await screen.findByText('技術者')).toBeInTheDocument()
-    await userEvent.click(screen.getByRole('button', { name: /^作図›?$/ }))
-    expect(screen.getByText('CAD編集')).toBeInTheDocument()
+    expect(screen.getByText('新規作図')).toBeInTheDocument()
+    expect(screen.getByText('作図編集')).toBeInTheDocument()
     expect(screen.getByRole('button', { name: '＋ 新規案件・図面' })).toBeInTheDocument()
   })
 
@@ -130,7 +128,6 @@ describe('App ロール連動', () => {
     render(<App />)
     expect(await screen.findByPlaceholderText('案件名・図面番号で検索')).toBeInTheDocument()
 
-    await userEvent.click(screen.getByRole('button', { name: /^集計・照査›?$/ }))
     await userEvent.click(screen.getByRole('button', { name: /現場説明モード/ }))
 
     expect(mockGetRevision).toHaveBeenCalledWith('rev-1')
@@ -150,7 +147,6 @@ describe('App ロール連動', () => {
     render(<App />)
     expect(await screen.findByPlaceholderText('案件名・図面番号で検索')).toBeInTheDocument()
 
-    await userEvent.click(screen.getByRole('button', { name: /^集計・照査›?$/ }))
     await userEvent.click(screen.getByRole('button', { name: /現場説明モード/ }))
 
     expect(

@@ -4,6 +4,11 @@ import { expect, test, type Page } from '@playwright/test'
 function collectPageErrors(page: Page): string[] {
   const errors: string[] = []
   page.on('pageerror', (error) => errors.push(error.stack ?? String(error)))
+  page.on('console', (message) => {
+    if (message.type() === 'error' && /Konva|getParent|bufferCanvas|no node/i.test(message.text())) {
+      errors.push(message.text())
+    }
+  })
   return errors
 }
 
@@ -24,11 +29,10 @@ test('案件→図面選択→CAD編集で開く で案件のサンプル2D図�
   await expect(page.getByTestId('canvas-stage-container')).toBeVisible()
 })
 
-test('CAD作図でガイド線が初期表示され、表示切替ができる', async ({ page }) => {
+test('新規作図でガイド線が初期表示され、表示切替ができる', async ({ page }) => {
   const pageErrors = collectPageErrors(page)
   await page.goto('/?demo=1#/home')
-  await page.getByRole('button', { name: /^作図/ }).click()
-  await page.getByRole('button', { name: /CAD作図/ }).click()
+  await page.getByRole('button', { name: /新規作図/ }).click()
 
   await expect(page.locator('header').getByText('新規図面', { exact: true }).first()).toBeVisible()
   await expect(page.getByText(/新規図面のガイド線を表示しました（図形4件）/).first()).toBeVisible({ timeout: 10000 })
@@ -39,11 +43,10 @@ test('CAD作図でガイド線が初期表示され、表示切替ができる',
   await expect(page.getByRole('button', { name: /ガイド線\s*─/ })).toBeVisible()
 })
 
-test('CAD編集の左ツールパネルは折りたたみセクションで整理されている', async ({ page }) => {
+test('作図編集の左ツールパネルは折りたたみセクションで整理されている', async ({ page }) => {
   const pageErrors = collectPageErrors(page)
   await page.goto('/?demo=1#/home')
-  await page.getByRole('button', { name: /^作図/ }).click()
-  await page.getByRole('button', { name: /CAD編集/ }).click()
+  await page.getByRole('button', { name: /作図編集/ }).click()
 
   await expect(page.getByRole('toolbar', { name: '作図ツール' })).toBeVisible()
   await expect(page.getByRole('toolbar', { name: '編集ツール' })).toBeVisible()
