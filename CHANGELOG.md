@@ -4,6 +4,16 @@
 
 ## [Unreleased]
 
+### 修正
+- 2026-08-14: 作図中に印刷・出力など他画面へ移動して戻ると作図内容が消える問題を修正
+  - 同一図面の再マウント（シードキー一致）では既読込内容を保持し、別図面を開いた場合のみ置換するように改善
+
+### 追加
+- 2026-08-14: 作図機能の正常性E2Eを追加（`tests/e2e/drafting-correctness.spec.ts`）
+  - 新規作図: ガイド線・線分/円/矩形の描画・Undo/Redo・ガイド線切替・DXF出力（LINE/CIRCLE）・自動保存→復元
+  - 作図編集: 案件図面の読込・追記・Undo・レイヤー切替・DXF出力
+  - dev と本番ビルド（`playwright.prod.config.ts`）の両方で実行
+
 ### 🚀 本番デプロイ（2026-08-14 JST・Worker Version `c7021c57`・main `2c9702c`）
 
 - 図形描画の最終根因（RulerをKonva Stage内に配置していた）を修正した #208 を `npx wrangler deploy` で本番反映

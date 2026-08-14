@@ -436,6 +436,9 @@ function isDocumentContent(content: unknown): content is {
 
 const DEMO_NEW_DRAWING_VALUE = '__new__'
 
+/** アプリ内で最後にシードしたデモ図面キー（コンポーネント再マウントを跨いで保持）。 */
+let lastSeededDemoKey: string | null = null
+
 /** 現在のセッションに対応するデモ図面選択値を返す（新規・不明は新規作成）。 */
 function demoDrawingSelectionValue(session: CloudDraftSession): string {
   if (!session.projectNumber.startsWith('P-DEMO')) return DEMO_NEW_DRAWING_VALUE
@@ -607,13 +610,12 @@ export function CadEditorPage({
     const isLocalSession = cloudDraftSession.projectNumber === 'LOCAL'
     const isNewDraftSession =
       isLocalSession && cloudDraftSession.drawingNumber.startsWith('NEW-')
-    // ホームの復元候補（LOCAL）だけはマウント直後の既読込内容を保護する。
-    // 案件図面（P-DEMO）や新規作図（NEW-）は、選択・再選択のたびに該当内容へ置換する。
+    // 同一図面の再マウント（印刷・出力へ移動して戻る等）と、ホームの復元候補（LOCAL）は
+    // 既読込内容を保護する。別の図面を開いた場合（キー不一致）のみ置換する。
     const preserveExisting =
-      !isNewDraftSession &&
-      isLocalSession &&
       seededDemoSessionRef.current === null &&
-      currentGeometries.length > 0
+      currentGeometries.length > 0 &&
+      (sessionKey === lastSeededDemoKey || (!isNewDraftSession && isLocalSession))
     if (preserveExisting) {
       seededDemoSessionRef.current = sessionKey
       return
@@ -637,6 +639,7 @@ export function CadEditorPage({
       if (cancelled) return
       seededDemoSessionRef.current = sessionKey
       storeApi.getState().replaceDocument(content.geometries, content.layers)
+      lastSeededDemoKey = sessionKey
       // サンプル図形はmm座標（数m〜200m規模）のため、初期ビュー（zoom=1・原点中心）では
       // 画面外になる。全体が収まるようにズーム・パンで表示する。
       storeApi.getState().zoomFit(800, 600)
