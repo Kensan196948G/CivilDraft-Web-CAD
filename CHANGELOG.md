@@ -4,6 +4,12 @@
 
 ## [Unreleased]
 
+### 追加
+- 2026-08-14: 作図機能の正常性E2Eを追加（`tests/e2e/drafting-correctness.spec.ts`）
+  - 新規作図: ガイド線・線分/円/矩形の描画・Undo/Redo・ガイド線切替・DXF出力（LINE/CIRCLE）・自動保存→復元
+  - 作図編集: 案件図面の読込・追記・Undo・レイヤー切替・DXF出力
+  - dev と本番ビルド（`playwright.prod.config.ts`）の両方で実行
+
 ### 🚀 本番デプロイ（2026-08-14 JST・Worker Version `c7021c57`・main `2c9702c`）
 
 - 図形描画の最終根因（RulerをKonva Stage内に配置していた）を修正した #208 を `npx wrangler deploy` で本番反映

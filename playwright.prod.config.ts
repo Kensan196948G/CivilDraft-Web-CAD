@@ -7,7 +7,7 @@ import { defineConfig, devices } from '@playwright/test'
  */
 export default defineConfig({
   testDir: './tests/e2e',
-  testMatch: '**/demo-drawing-flow.spec.ts',
+  testMatch: '**/{demo-drawing-flow,drafting-correctness}.spec.ts',
   timeout: 30_000,
   expect: { timeout: 10_000 },
   retries: process.env.CI ? 2 : 0,
