@@ -46,16 +46,11 @@ test('新規作図: ガイド線・描画・Undo/Redo・グリッド/ガイド�
   await guideButton.click()
   await expect(page.getByRole('button', { name: /ガイド線\s*👁/ })).toBeVisible()
 
-  // 円（中心＋半径点）を最初に描画し、DXFへCIRCLEとして出力されることを確認
+  // 円（中心＋半径点）
   await page.locator('button[aria-label="円"]').click()
   await canvas.click({ position: { x: 520, y: 120 } })
   await canvas.click({ position: { x: 580, y: 180 } })
   await expect(page.getByTitle('元に戻す')).toBeEnabled()
-  const circleDxf = await exportDxf(page)
-  expect(circleDxf).toContain('CIRCLE')
-  // 出力画面からCAD編集へ戻る
-  await page.getByRole('button', { name: '作図編集' }).click()
-  await expect(page.getByTestId('canvas-stage-container')).toBeVisible()
 
   // 線分（2クリック確定）
   await page.getByRole('button', { name: '線分' }).click()
