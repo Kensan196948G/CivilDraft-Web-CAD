@@ -451,11 +451,11 @@ export function CanvasStage({ paperSize = 'A3', paperOrientation = 'landscape' }
             <GeometryRenderer geometry={previewGeometry} isPreview />
           )}
         </Layer>
-        {/* 5. OverlayLayer: ルーラー（screen座標系） */}
-        <Layer listening={false}>
-          <Ruler zoom={zoom} panX={panX} panY={panY} width={size.width} height={size.height} />
-        </Layer>
       </Stage>
+      {/* 5. ルーラー（DOM/SVG・screen座標系）は Konva Stage の外に置く。
+          Stage 内に DOM コンポーネントを置くと react-konva が unknown node として
+          Group 化し、Text の文字列子で描画がクラッシュする（実機コンソールで特定）。 */}
+      <Ruler zoom={zoom} panX={panX} panY={panY} width={size.width} height={size.height} />
     </div>
   )
 }
