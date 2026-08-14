@@ -5,13 +5,12 @@
  * - ナビゲーション（HTML）はネットワークファースト、オフライン時はキャッシュ済み index へフォールバック
  * - キャッシュ名にバージョンを含め、新デプロイ時に旧キャッシュを整理
  */
-const CACHE_NAME = 'civildraft-v1'
+const CACHE_NAME = 'civildraft-v2'
 
 self.addEventListener('install', (event) => {
-  event.waitUntil(
-    caches.open(CACHE_NAME).then((cache) => cache.addAll(['/'])).catch(() => undefined),
-  )
-  self.skipWaiting()
+  // HTML はキャッシュしない（サーバーの Cache-Control: no-store を尊重し、
+  // デプロイ後の旧バンドル表示を防止する）。ハッシュ付きアセットのみ後から蓄積する。
+  event.waitUntil(self.skipWaiting())
 })
 
 self.addEventListener('activate', (event) => {
@@ -49,16 +48,9 @@ self.addEventListener('fetch', (event) => {
     return
   }
 
-  // ナビゲーション: ネットワーク優先 + オフラインフォールバック
+  // ナビゲーション: 常にネットワークから取得（HTMLはキャッシュしない）。
+  // オフライン時は以前のバージョンが残っていてもフォールバックしない（最新表示を優先）。
   event.respondWith(
-    fetch(request)
-      .then((response) => {
-        if (response.ok) {
-          const copy = response.clone()
-          caches.open(CACHE_NAME).then((cache) => cache.put('/', copy))
-        }
-        return response
-      })
-      .catch(() => caches.match('/')),
+    fetch(request).catch(() => caches.match(request)),
   )
 })

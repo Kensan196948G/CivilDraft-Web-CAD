@@ -4,6 +4,11 @@
 
 ## [Unreleased]
 
+### 修正
+- 2026-08-14: Service Workerの旧バンドル配信を防止し、E2Eで図形投入を直接検証
+  - `public/sw.js` を v2 へ更新: HTMLはキャッシュしない（`Cache-Control: no-store` を尊重）。ハッシュ付きアセットのみキャッシュ。旧キャッシュはactivate時に削除
+  - E2Eに「デモ図面を読み込みました（図形N件）」「新規図面のガイド線を表示しました（図形4件）」の表示検証を復元（シード実行と描画状態を実ブラウザで確認）
+
 ### 🚀 本番デプロイ（2026-08-14 JST・Worker Version `965335d9`・main `5e2fa71`）
 
 - Konvaノード登録・bufferCanvas競合・CSP・ヘッダー折返し修正（#204）を `npx wrangler deploy` で本番反映
