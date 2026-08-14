@@ -4,6 +4,12 @@
 
 ## [Unreleased]
 
+### 🚀 本番デプロイ（2026-08-14 JST・Worker Version `188149b7`・main `6f7758b`）
+
+- CAD編集の図形全体表示・シード上書き防止・ヘッダーずれ修正（#195）を `npx wrangler deploy` で本番反映
+- 実測: MVP/workers.dev は SPA 200（新バンドル配信）・`/api/health` 401 fail-closed、本番ドメインは 302 → Cloudflare Access（保護維持）
+- 直前バージョン `c17f6d1c` へ rollback 可能
+
 ### 修正
 - 2026-08-14: CAD編集の表示不具合を修正
   - サンプル図形（mm座標）投入後に `zoomFit` で全体表示し、「CAD編集で開く」で図形が画面外になって空に見える問題を解消
