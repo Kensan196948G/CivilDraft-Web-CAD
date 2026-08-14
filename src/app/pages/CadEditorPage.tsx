@@ -618,7 +618,6 @@ export function CadEditorPage({
       seededDemoSessionRef.current = sessionKey
       return
     }
-    seededDemoSessionRef.current = sessionKey
     const demoProject = DEMO_PROJECTS.find(
       (project) => project.projectNumber === cloudDraftSession.projectNumber,
     )
@@ -636,6 +635,7 @@ export function CadEditorPage({
     let cancelled = false
     const rafId = requestAnimationFrame(() => {
       if (cancelled) return
+      seededDemoSessionRef.current = sessionKey
       storeApi.getState().replaceDocument(content.geometries, content.layers)
       // サンプル図形はmm座標（数m〜200m規模）のため、初期ビュー（zoom=1・原点中心）では
       // 画面外になる。全体が収まるようにズーム・パンで表示する。
