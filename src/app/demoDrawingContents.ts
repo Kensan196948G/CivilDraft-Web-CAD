@@ -47,6 +47,7 @@ function layer(
   order: number,
   strokeColor: string,
   lineType: GeometryStyle['lineType'] = 'continuous',
+  strokeWidth = 1,
 ): DrawingLayer {
   return {
     id: id as LayerId,
@@ -55,7 +56,7 @@ function layer(
     visible: true,
     locked: false,
     printable: true,
-    defaultStyle: style(strokeColor, lineType),
+    defaultStyle: style(strokeColor, lineType, { strokeWidth }),
   }
 }
 
@@ -67,7 +68,7 @@ const LAYERS: readonly DrawingLayer[] = [
   layer('l-center', '中心線', 4, '#C5392F', 'dashDot'),
   layer('l-hatch', 'ハッチ', 5, '#7C8B9F'),
   layer('l-text', '文字・注記', 6, '#141C29'),
-  layer('l-guide', 'ガイド線', 7, '#94A3B8', 'dashed'),
+  layer('l-guide', 'ガイド線', 7, '#475569', 'continuous', 2),
 ]
 
 const byName: Readonly<Record<string, DrawingLayer>> = Object.fromEntries(

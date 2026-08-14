@@ -206,6 +206,40 @@ describe('CadEditorPage cloud save', () => {
     }
   })
 
+  it('新規作図はデモ表示でなくてもガイド線が初期表示される', () => {
+    const store = createEditorStore()
+    const cloudApiClient: CloudSaveClient = { saveDraft: vi.fn(), getRevisionContent: vi.fn() }
+    renderPage(store, cloudApiClient, {
+      projectNumber: 'LOCAL',
+      projectName: 'ローカル編集（案件未選択）',
+      drawingNumber: 'NEW-456',
+      drawingName: '新規図面',
+      drawingType: 'blank',
+      revisionNumber: 'Rev.1',
+    })
+    expect(store.getState().geometries.length).toBeGreaterThanOrEqual(3)
+    expect(store.getState().layers.some((layer) => layer.name === 'ガイド線')).toBe(true)
+  })
+
+  it('左ツールパネルのセクションは折りたたみ可能で、補助設定は既定で閉じている', async () => {
+    const store = createEditorStore()
+    const cloudApiClient: CloudSaveClient = { saveDraft: vi.fn(), getRevisionContent: vi.fn() }
+    renderPage(store, cloudApiClient)
+
+    expect(screen.getByRole('toolbar', { name: '作図ツール' })).toBeInTheDocument()
+    expect(screen.getByRole('toolbar', { name: '編集ツール' })).toBeInTheDocument()
+    expect(screen.queryByLabelText('スナップ許容差px')).not.toBeInTheDocument()
+
+    await userEvent.click(screen.getByRole('button', { name: /^編集/ }))
+    expect(screen.queryByRole('toolbar', { name: '編集ツール' })).not.toBeInTheDocument()
+
+    await userEvent.click(screen.getByRole('button', { name: /^編集/ }))
+    expect(screen.getByRole('toolbar', { name: '編集ツール' })).toBeInTheDocument()
+
+    await userEvent.click(screen.getByRole('button', { name: /^スナップ\s*›/ }))
+    expect(screen.getByLabelText('スナップ許容差px')).toBeInTheDocument()
+  })
+
   it('デモ表示ではヘッダーの図面切替から既存図面を開き、新規図面も選択できる', async () => {
     window.history.replaceState({}, '', '/?demo=1')
     try {
@@ -370,6 +404,7 @@ describe('CadEditorPage cloud save', () => {
     store.getState().dispatchCommand(createAddGeometryCommand(line('g-2'), defaultCreationContext))
     const cloudApiClient: CloudSaveClient = { saveDraft: vi.fn(), getRevisionContent: vi.fn() }
     renderPage(store, cloudApiClient)
+    await userEvent.click(screen.getByRole('button', { name: /^コマンドライン/ }))
 
     const input = screen.getByLabelText('CADコマンドライン')
     fireEvent.change(input, { target: { value: 'undo' } })
@@ -389,10 +424,11 @@ describe('CadEditorPage cloud save', () => {
     expect(screen.getByRole('dialog', { name: 'ショートカットとコマンド一覧' })).toBeInTheDocument()
   })
 
-  it('不明なコマンドはエラーメッセージを表示する（Issue #47）', () => {
+  it('不明なコマンドはエラーメッセージを表示する（Issue #47）', async () => {
     const store = createEditorStore()
     const cloudApiClient: CloudSaveClient = { saveDraft: vi.fn(), getRevisionContent: vi.fn() }
     renderPage(store, cloudApiClient)
+    await userEvent.click(screen.getByRole('button', { name: /^コマンドライン/ }))
 
     const input = screen.getByLabelText('CADコマンドライン')
     fireEvent.change(input, { target: { value: 'foo bar' } })
