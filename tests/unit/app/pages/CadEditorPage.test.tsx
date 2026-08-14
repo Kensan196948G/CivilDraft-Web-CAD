@@ -165,6 +165,47 @@ describe('CadEditorPage cloud save', () => {
     expect(store.getState().geometries.some((item) => item.type === 'hatch')).toBe(true)
   })
 
+  it('案件図面セッションでは既存内容があっても対象図面のサンプル図形へ置換される', () => {
+    const store = createEditorStore()
+    store.getState().addGeometries([line('g-old')])
+    const cloudApiClient: CloudSaveClient = { saveDraft: vi.fn(), getRevisionContent: vi.fn() }
+    renderPage(store, cloudApiClient, {
+      projectNumber: 'P-DEMO-2026-002',
+      projectName: '第二湾岸 雨水ポンプ場整備工事',
+      drawingNumber: 'DWG-006',
+      drawingName: 'ポンプ場平面配置図',
+      drawingType: 'temporary-plan',
+      revisionNumber: 'Rev.2',
+    })
+    expect(store.getState().geometries.map((item) => item.id)).not.toContain('g-old')
+    expect(store.getState().geometries.length).toBeGreaterThan(10)
+    expect(store.getState().zoom).toBeLessThan(1)
+  })
+
+  it('新規作図セッションではガイド線が入り、ヘッダーの切替で表示を設定できる', async () => {
+    window.history.replaceState({}, '', '/?demo=1')
+    try {
+      const store = createEditorStore()
+      const cloudApiClient: CloudSaveClient = { saveDraft: vi.fn(), getRevisionContent: vi.fn() }
+      renderPage(store, cloudApiClient, {
+        projectNumber: 'LOCAL',
+        projectName: 'ローカル編集（案件未選択）',
+        drawingNumber: 'NEW-123',
+        drawingName: '新規図面',
+        drawingType: 'blank',
+        revisionNumber: 'Rev.1',
+      })
+      const guideLayer = store.getState().layers.find((layer) => layer.name === 'ガイド線')
+      expect(guideLayer?.visible).toBe(true)
+      expect(store.getState().geometries.length).toBeGreaterThanOrEqual(3)
+
+      await userEvent.click(screen.getByRole('button', { name: /ガイド線/ }))
+      expect(store.getState().layers.find((layer) => layer.name === 'ガイド線')?.visible).toBe(false)
+    } finally {
+      window.history.replaceState({}, '', '/')
+    }
+  })
+
   it('デモ表示ではヘッダーの図面切替から既存図面を開き、新規図面も選択できる', async () => {
     window.history.replaceState({}, '', '/?demo=1')
     try {

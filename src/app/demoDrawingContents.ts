@@ -67,6 +67,7 @@ const LAYERS: readonly DrawingLayer[] = [
   layer('l-center', '中心線', 4, '#C5392F', 'dashDot'),
   layer('l-hatch', 'ハッチ', 5, '#7C8B9F'),
   layer('l-text', '文字・注記', 6, '#141C29'),
+  layer('l-guide', 'ガイド線', 7, '#94A3B8', 'dashed'),
 ]
 
 const byName: Readonly<Record<string, DrawingLayer>> = Object.fromEntries(
@@ -805,7 +806,34 @@ export function createDemoDrawingContent(
       case 'quantity-basis':
         return quantityBasis(drawingNumber, context.drawingName)
       case 'blank':
-        return { geometries: [], layers: [LAYERS[0]!] }
+        // 新規作図: グリッド内（初期ビュー付近）にガイド線を表示する。
+        // ガイド線は専用レイヤー「ガイド線」に置き、レイヤーパネルから表示を切替可能。
+        return {
+          geometries: [
+            {
+              ...base('ng-horizontal', 'l-guide'),
+              type: 'line',
+              start: { x: 60, y: 220 },
+              end: { x: 520, y: 220 },
+            },
+            {
+              ...base('ng-vertical', 'l-guide'),
+              type: 'line',
+              start: { x: 220, y: 80 },
+              end: { x: 220, y: 420 },
+            },
+            {
+              ...base('ng-frame', 'l-guide'),
+              type: 'rectangle',
+              origin: { x: 80, y: 90 },
+              width: 280,
+              height: 260,
+              rotationDeg: 0,
+            },
+            text('ng-label', 'l-guide', { x: 92, y: 398 }, 'ガイド線（レイヤー表示で切替可）', 18),
+          ],
+          layers: LAYERS,
+        }
       default:
         return generalSample(drawingNumber, context.drawingName)
     }

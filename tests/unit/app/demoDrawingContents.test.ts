@@ -26,11 +26,15 @@ describe('demoDrawingContents（図面ごとのダミー図形）', () => {
     expect(content.geometries.some((item) => item.type === 'circle')).toBe(true)
   })
 
-  it('blank 種別は新規図面用の空コンテンツを返す', () => {
+  it('blank 種別は新規図面用のガイド線コンテンツを返す', () => {
     const content = createDemoDrawingContent('blank', 'NEW-1')
-    expect(content.geometries).toHaveLength(0)
-    expect(content.layers).toHaveLength(1)
-    expect(content.layers[0]?.name).toBe('レイヤー0')
+    expect(content.geometries.length).toBeGreaterThanOrEqual(3)
+    expect(content.geometries.some((item) => item.type === 'line')).toBe(true)
+    expect(content.geometries.some((item) => item.type === 'rectangle')).toBe(true)
+    expect(content.layers.some((layer) => layer.name === 'ガイド線')).toBe(true)
+    for (const geometry of content.geometries) {
+      expect(content.layers.some((layer) => layer.id === geometry.layerId)).toBe(true)
+    }
   })
 
   it('案件テーマに応じて案件固有の図形を追記する', () => {

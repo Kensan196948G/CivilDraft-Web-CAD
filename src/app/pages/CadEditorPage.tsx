@@ -531,7 +531,17 @@ export function CadEditorPage({
     const sessionKey = `${cloudDraftSession.drawingNumber}:${cloudDraftSession.drawingType ?? ''}`
     if (seededDemoSessionRef.current === sessionKey) return
     const currentGeometries = storeApi.getState().geometries
-    if (seededDemoSessionRef.current === null && currentGeometries.length > 0) {
+    const isLocalSession = cloudDraftSession.projectNumber === 'LOCAL'
+    const isNewDraftSession =
+      isLocalSession && cloudDraftSession.drawingNumber.startsWith('NEW-')
+    // ホームの復元候補（LOCAL）だけはマウント直後の既読込内容を保護する。
+    // 案件図面（P-DEMO）や新規作図（NEW-）は、選択・再選択のたびに該当内容へ置換する。
+    const preserveExisting =
+      !isNewDraftSession &&
+      isLocalSession &&
+      seededDemoSessionRef.current === null &&
+      currentGeometries.length > 0
+    if (preserveExisting) {
       seededDemoSessionRef.current = sessionKey
       return
     }
@@ -1419,6 +1429,17 @@ export function CadEditorPage({
             </option>
           ))}
         </select>
+        {layers.some((layer) => layer.name === 'ガイド線') && (
+          <button
+            style={ghostButtonStyle}
+            onClick={() => {
+              const guideLayer = layers.find((layer) => layer.name === 'ガイド線')
+              if (guideLayer !== undefined) storeApi.getState().toggleLayerVisible(guideLayer.id)
+            }}
+          >
+            ガイド線 {layers.find((layer) => layer.name === 'ガイド線')?.visible ? '👁' : '─'}
+          </button>
+        )}
         <button style={ghostButtonStyle} onClick={() => storeApi.getState().setGridVisible(!gridVisible)}>
           表示
         </button>
