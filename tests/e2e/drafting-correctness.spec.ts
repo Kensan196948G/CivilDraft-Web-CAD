@@ -60,7 +60,7 @@ test('新規作図: ガイド線・描画・Undo/Redo・グリッド/ガイド�
   await expect(undo).toBeEnabled()
 
   // 円（中心＋半径点）
-  await page.getByRole('button', { name: /^○\s*円$/ }).click()
+  await page.locator('button[aria-label="円"]').click()
   await canvas.click({ position: { x: 480, y: 180 } })
   await canvas.click({ position: { x: 540, y: 250 } })
 
