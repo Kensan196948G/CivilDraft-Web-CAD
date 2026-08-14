@@ -46,7 +46,7 @@ function circle(gid: string, cx: number, cy: number, r: number): Geometry {
 }
 
 describe('CanvasStage', () => {
-  it('§9.1のレイヤー構成（用紙/グリッド/図形/選択/ガイド/オーバーレイ=6 Konva Layer）で描画される', () => {
+  it('§9.1のレイヤー構成（用紙/グリッド/図形/選択/ガイド=5 Konva Layer）で描画される', () => {
     const store = createEditorStore()
     render(
       <EditorStoreProvider store={store}>
@@ -54,7 +54,7 @@ describe('CanvasStage', () => {
       </EditorStoreProvider>,
     )
     expect(screen.getByTestId('stage')).toBeInTheDocument()
-    expect(screen.getAllByTestId('layer')).toHaveLength(6)
+    expect(screen.getAllByTestId('layer')).toHaveLength(5)
   })
 
   it('図形と選択状態を持つstoreでも例外なく描画される', () => {

@@ -32,7 +32,6 @@ test('案件→図面選択→CAD編集で開く で案件のサンプル2D図�
 test('新規作図でガイド線が初期表示され、表示切替ができる', async ({ page }) => {
   const pageErrors = collectPageErrors(page)
   await page.goto('/?demo=1#/home')
-  await page.getByRole('button', { name: /^作図/ }).click()
   await page.getByRole('button', { name: /新規作図/ }).click()
 
   await expect(page.locator('header').getByText('新規図面', { exact: true }).first()).toBeVisible()
@@ -47,7 +46,6 @@ test('新規作図でガイド線が初期表示され、表示切替ができ�
 test('作図編集の左ツールパネルは折りたたみセクションで整理されている', async ({ page }) => {
   const pageErrors = collectPageErrors(page)
   await page.goto('/?demo=1#/home')
-  await page.getByRole('button', { name: /^作図/ }).click()
   await page.getByRole('button', { name: /作図編集/ }).click()
 
   await expect(page.getByRole('toolbar', { name: '作図ツール' })).toBeVisible()

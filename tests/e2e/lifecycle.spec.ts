@@ -19,7 +19,6 @@ test('作成→作図→自動保存→復元→DXF/PDF出力の一連フロー'
   await page.getByRole('button', { name: '案件と図面を作成' }).click()
   await expect(page.getByText('案件詳細: E2Eライフサイクル')).toBeVisible()
 
-  await page.getByRole('button', { name: /^作図/ }).click()
   await page.getByRole('button', { name: '✏️ 作図編集' }).click()
   await expect(page.getByRole('button', { name: '共有保存' })).toBeVisible()
 

@@ -31,7 +31,6 @@ test('ホーム読込・エディタ初回描画・Undo/Redo操作の性能メ�
   await page.getByLabel('初期図面名').fill('E2E性能計測図')
   await page.getByRole('button', { name: '案件と図面を作成' }).click()
   await expect(page.getByText('案件詳細: E2E性能計測')).toBeVisible()
-  await page.getByRole('button', { name: /^作図/ }).click()
   await page.getByRole('button', { name: '✏️ 作図編集' }).click()
 
   const renderStart = Date.now()
