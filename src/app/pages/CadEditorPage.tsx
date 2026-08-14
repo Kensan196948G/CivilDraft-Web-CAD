@@ -1386,7 +1386,7 @@ export function CadEditorPage({
           : '選択なし'}
       </div>
       <header style={headerBarStyle}>
-        <div style={{ display: 'flex', flexDirection: 'column', lineHeight: 1.3, minWidth: 0 }}>
+        <div style={{ display: 'flex', flexDirection: 'column', lineHeight: 1.3, minWidth: 180, flex: '1 1 220px' }}>
           <span style={{ fontSize: 11, color: 'var(--muted)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{cloudDraftSession.projectName}</span>
           <span style={{ fontSize: 14.5, fontWeight: 600, color: 'var(--ink)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{cloudDraftSession.drawingName}</span>
         </div>
