@@ -48,10 +48,9 @@ test('新規作図: ガイド線・描画・Undo/Redo・グリッド/ガイド�
 
   // 円（中心＋半径点）を最初に描画し、DXFへCIRCLEとして出力されることを確認
   await page.locator('button[aria-label="円"]').click()
-  const canvasBox = await canvas.boundingBox()
-  expect(canvasBox).not.toBeNull()
-  await page.mouse.click(canvasBox!.x + 600, canvasBox!.y + 120)
-  await page.mouse.click(canvasBox!.x + 660, canvasBox!.y + 180)
+  await canvas.click({ position: { x: 520, y: 120 } })
+  await canvas.click({ position: { x: 580, y: 180 } })
+  await expect(page.getByTitle('元に戻す')).toBeEnabled()
   const circleDxf = await exportDxf(page)
   expect(circleDxf).toContain('CIRCLE')
   // 出力画面からCAD編集へ戻る
