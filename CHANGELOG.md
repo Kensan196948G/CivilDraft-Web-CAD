@@ -4,6 +4,12 @@
 
 ## [Unreleased]
 
+### 🚀 本番デプロイ（2026-08-14 JST・Worker Version `c8fafc4a`・main `15eb150`）
+
+- HTMLの `Cache-Control: no-store` 強制化と本番実図面のCAD編集有効化（#201/#202）を `npx wrangler deploy` で本番反映
+- 実測: MVP/workers.dev の HTML 応答が `no-store, no-cache, must-revalidate`・`/api/health` 401 fail-closed、本番ドメインは 302 → Cloudflare Access（保護維持）
+- 直前バージョン `f13828f3` へ rollback 可能
+
 ### 修正 / 追加
 - 2026-08-14: キャッシュ起因の旧バンドル表示と本番実図面のCAD編集を解消
   - WorkerのSPA index.html応答に `Cache-Control: no-store` を付与し、デプロイ後に古いバンドルが残らないようにした（ハッシュ付きJS/CSSは従来キャッシュを維持）
