@@ -580,8 +580,12 @@ export function ProjectDetailCloudPage({
                   {canEdit && (
                     <button
                       style={primaryButtonStyle}
-                      disabled
-                      title="実図面のCAD編集は改訂更新APIの実装後に利用可能になります（Issue #62 後続）"
+                      disabled={selectedDrawing.activeRevisionId === undefined}
+                      title={
+                        selectedDrawing.activeRevisionId === undefined
+                          ? 'この図面には改訂がありません（CAD編集で共有保存すると改訂が生成されます）'
+                          : '実図面をCAD編集で開きます'
+                      }
                       onClick={() => onOpenEditor?.(toCloudSession(selectedDrawing))}
                     >
                       CAD編集で開く
@@ -597,7 +601,9 @@ export function ProjectDetailCloudPage({
                   <div><b>更新者</b><br />{selectedDrawing.updatedBy ?? '未設定'}</div>
                 </div>
                 <div style={{ padding: '0 18px 16px', fontSize: 11.5, color: 'var(--muted)' }}>
-                  ※ 実図面のCAD編集・共有保存は既存図面への改訂更新API（後続Issue）で対応予定です。
+                  {selectedDrawing.activeRevisionId === undefined
+                    ? '※ この図面にはまだ改訂がありません。「CAD編集で開く」は改訂のある図面で利用できます。'
+                    : '※ 実図面をCAD編集で開きます。内容・数量の反映は「共有保存」で行います。'}
                 </div>
               </div>
             )}

@@ -145,6 +145,27 @@ describe('matchRoute', () => {
 })
 
 describe('§25.1 共通ヘッダー検証', () => {
+  it('SPA の index.html には最新化のため Cache-Control を付与し、セキュリティヘッダーも付く', async () => {
+    const env: WorkerEnv = {
+      ...testEnv(),
+      ASSETS: {
+        fetch: async () =>
+          new Response('<html><body>index</body></html>', {
+            headers: { 'Content-Type': 'text/html; charset=utf-8' },
+          }),
+      },
+    }
+    const res = await worker.fetch(
+      new Request('https://app.example.com/'),
+      env,
+      {} as ExecutionContext,
+    )
+    expect(res.status).toBe(200)
+    expect(res.headers.get('Cache-Control')).toBe('no-store, no-cache, must-revalidate')
+    expect(res.headers.get('X-Content-Type-Options')).toBe('nosniff')
+    expect(res.headers.get('Content-Security-Policy')).toContain('default-src')
+  })
+
   it('Cf-Access-Jwt-Assertion が無いと 401 CD-AUTH-001', async () => {
     const req = new Request('https://api.example.com/api/v1/projects', { method: 'GET' })
     const res = await handleRequest(req, testEnv())
