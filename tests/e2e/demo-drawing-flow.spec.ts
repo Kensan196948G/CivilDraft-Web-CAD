@@ -10,8 +10,8 @@ test('案件→図面選択→CAD編集で開く で案件のサンプル2D図�
   await page.getByText('DWG-011', { exact: true }).first().click()
   await page.getByRole('button', { name: 'CAD編集で開く' }).click()
 
-  await expect(page.getByText('仮設計画図（矢板・切梁）')).toBeVisible()
-  await expect(page.getByText(/デモ図面を読み込みました（図形\d+件）/)).toBeVisible()
+  await expect(page.locator('header').getByText('仮設計画図（矢板・切梁）')).toBeVisible()
+  await expect(page.getByText(/デモ図面を読み込みました（図形\d+件）$/).first()).toBeVisible()
 })
 
 test('CAD作図でガイド線が初期表示され、表示切替ができる', async ({ page }) => {
@@ -19,8 +19,8 @@ test('CAD作図でガイド線が初期表示され、表示切替ができる',
   await page.getByRole('button', { name: /^作図/ }).click()
   await page.getByRole('button', { name: /CAD作図/ }).click()
 
-  await expect(page.getByText('新規図面')).toBeVisible()
-  await expect(page.getByText(/新規図面のガイド線を表示しました（図形4件）/)).toBeVisible()
+  await expect(page.locator('header').getByText('新規図面')).toBeVisible()
+  await expect(page.getByText(/新規図面のガイド線を表示しました（図形4件）$/).first()).toBeVisible()
   const guideButton = page.getByRole('button', { name: /ガイド線/ })
   await expect(guideButton).toBeVisible()
   await guideButton.click()
@@ -35,7 +35,7 @@ test('CAD編集の左ツールパネルは折りたたみセクションで整�
   await expect(page.getByRole('toolbar', { name: '作図ツール' })).toBeVisible()
   await expect(page.getByRole('toolbar', { name: '編集ツール' })).toBeVisible()
   await expect(page.getByLabel('スナップ許容差px')).not.toBeVisible()
-  await page.getByRole('button', { name: /^スナップ/ }).click()
+  await page.getByRole('button', { name: /^スナップ\s*›/ }).click()
   await expect(page.getByLabel('スナップ許容差px')).toBeVisible()
   await page.getByRole('button', { name: /^編集/ }).click()
   await expect(page.getByRole('toolbar', { name: '編集ツール' })).not.toBeVisible()
