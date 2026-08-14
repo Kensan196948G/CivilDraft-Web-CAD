@@ -28,18 +28,6 @@ async function exportDxf(page: Page): Promise<string> {
   return readFile(await download.path(), 'utf8')
 }
 
-/** Konvaの再描画で要素が差し替わっても安定してクリックできるよう、座標で直接クリックする。 */
-async function clickCanvas(
-  page: Page,
-  canvas: ReturnType<Page['getByTestId']>,
-  x: number,
-  y: number,
-): Promise<void> {
-  const box = await canvas.boundingBox()
-  expect(box).not.toBeNull()
-  await page.mouse.click(box!.x + x, box!.y + y)
-}
-
 test('新規作図: ガイド線・描画・Undo/Redo・グリッド/ガイド切替・DXF出力が正しく動作する', async ({ page }) => {
   const pageErrors = collectErrors(page)
   await page.goto('/?demo=1#/home')
@@ -58,16 +46,10 @@ test('新規作図: ガイド線・描画・Undo/Redo・グリッド/ガイド�
   await guideButton.click()
   await expect(page.getByRole('button', { name: /ガイド線\s*👁/ })).toBeVisible()
 
-  // 円（中心＋半径点）
-  await page.locator('button[aria-label="円"]').click()
-  await clickCanvas(page, canvas, 520, 120)
-  await clickCanvas(page, canvas, 580, 180)
-  await expect(page.getByTitle('元に戻す')).toBeEnabled()
-
   // 線分（2クリック確定）
   await page.getByRole('button', { name: '線分' }).click()
-  await clickCanvas(page, canvas, 200, 150)
-  await clickCanvas(page, canvas, 380, 240)
+  await canvas.click({ position: { x: 200, y: 150 } })
+  await canvas.click({ position: { x: 380, y: 240 } })
   const undo = page.getByTitle('元に戻す')
   await expect(undo).toBeEnabled()
 
@@ -79,15 +61,35 @@ test('新規作図: ガイド線・描画・Undo/Redo・グリッド/ガイド�
 
   // 矩形（対角2点）
   await page.getByRole('button', { name: '矩形' }).click()
-  await clickCanvas(page, canvas, 240, 320)
-  await clickCanvas(page, canvas, 380, 400)
+  await canvas.click({ position: { x: 240, y: 320 } })
+  await canvas.click({ position: { x: 380, y: 400 } })
 
-  // DXF出力に LINE（ガイド線＋線分＋矩形）と CIRCLE が含まれる
+  // DXF出力に LINE（ガイド線＋線分）と LWPOLYLINE（矩形）が含まれる
   const dxf = await exportDxf(page)
   expect(dxf).toContain('ENTITIES')
   expect(dxf).toContain('LINE')
-  expect(dxf).toContain('CIRCLE')
+  expect(dxf).toContain('LWPOLYLINE')
 
+  expect(pageErrors).toEqual([])
+})
+
+test('新規作図: 円を作図してDXFへCIRCLEとして出力できる', async ({ page }) => {
+  const pageErrors = collectErrors(page)
+  await page.goto('/?demo=1#/home')
+  await page.getByRole('button', { name: '新規作図' }).click()
+  await expect(page.getByTestId('canvas-stage-container')).toBeVisible()
+
+  const canvas = page.getByTestId('canvas-stage-container')
+  await page.locator('button[aria-label="円"]').click()
+  await page.waitForTimeout(300)
+  const box = await canvas.boundingBox()
+  expect(box).not.toBeNull()
+  await page.mouse.click(box!.x + 520, box!.y + 120)
+  await page.mouse.click(box!.x + 580, box!.y + 180)
+  await expect(page.getByTitle('元に戻す')).toBeEnabled()
+
+  const dxf = await exportDxf(page)
+  expect(dxf).toContain('CIRCLE')
   expect(pageErrors).toEqual([])
 })
 
@@ -106,8 +108,8 @@ test('作図編集: 案件図面の読込・追記・Undo・レイヤー切替�
 
   // 既存図面へ線分を追記し、Undoで戻せる
   await page.getByRole('button', { name: '線分' }).click()
-  await clickCanvas(page, canvas, 300, 200)
-  await clickCanvas(page, canvas, 420, 280)
+  await canvas.click({ position: { x: 300, y: 200 } })
+  await canvas.click({ position: { x: 420, y: 280 } })
   const undo = page.getByTitle('元に戻す')
   await expect(undo).toBeEnabled()
   await undo.click()
@@ -132,8 +134,8 @@ test('新規作図: 自動保存→リロード→復元で作図内容が保持
   const canvas = page.getByTestId('canvas-stage-container')
   await expect(canvas).toBeVisible()
   await page.getByRole('button', { name: '線分' }).click()
-  await clickCanvas(page, canvas, 220, 160)
-  await clickCanvas(page, canvas, 360, 220)
+  await canvas.click({ position: { x: 220, y: 160 } })
+  await canvas.click({ position: { x: 360, y: 220 } })
   await expect(page.getByText(/自動保存済み/).first()).toBeVisible({ timeout: 15_000 })
 
   await page.reload()
