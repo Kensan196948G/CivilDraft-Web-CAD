@@ -14,7 +14,7 @@
  * Undo/Redo 履歴へ積まれ、取込前の図面へ1度で戻せる。
  */
 import { useEffect, useMemo, useRef, useState } from 'react'
-import type { CSSProperties } from 'react'
+import type { CSSProperties, ReactNode } from 'react'
 import { createDemoDrawingContent } from '@/app/demoDrawingContents'
 import { isDemoMode } from '@/app/mode'
 import {
@@ -198,6 +198,61 @@ const toolPanelStyle: CSSProperties = {
   background: 'var(--surface)',
   overflow: 'auto',
   padding: '16px 14px',
+}
+
+const panelSectionButtonStyle: CSSProperties = {
+  display: 'flex',
+  alignItems: 'center',
+  justifyContent: 'space-between',
+  width: '100%',
+  border: 'none',
+  background: 'transparent',
+  cursor: 'pointer',
+  font: 'inherit',
+  padding: 0,
+  color: 'var(--side-label)',
+  fontSize: 11,
+  fontWeight: 600,
+  letterSpacing: 0.4,
+  textAlign: 'left',
+}
+
+type EditorPanelSection = 'drawing' | 'editing' | 'snap' | 'command' | 'parts' | 'layers'
+
+/** 左ツールパネルの折りたたみ可能なセクション。 */
+function PanelSection({
+  label,
+  open,
+  onToggle,
+  aside,
+  children,
+}: {
+  readonly label: string
+  readonly open: boolean
+  readonly onToggle: () => void
+  readonly aside?: ReactNode
+  readonly children: ReactNode
+}) {
+  return (
+    <div style={{ marginBottom: 14 }}>
+      <div
+        style={{
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'space-between',
+          gap: 6,
+          marginBottom: open ? 8 : 0,
+        }}
+      >
+        <button type="button" style={panelSectionButtonStyle} aria-expanded={open} onClick={onToggle}>
+          <span>{label}</span>
+          <span style={{ fontSize: 10, opacity: 0.8 }}>{open ? '⌄' : '›'}</span>
+        </button>
+        {aside}
+      </div>
+      {open && children}
+    </div>
+  )
 }
 
 const canvasColumnStyle: CSSProperties = {
@@ -468,17 +523,34 @@ export function CadEditorPage({
   const [loadedQuantityVersion, setLoadedQuantityVersion] = useState<number | undefined>(undefined)
   const loadedRevisionRef = useRef<string | null>(null)
   const seededDemoSessionRef = useRef<string | null>(null)
+  const [openPanelSections, setOpenPanelSections] = useState<ReadonlySet<EditorPanelSection>>(
+    () => new Set<EditorPanelSection>(['drawing', 'editing', 'layers']),
+  )
+  const togglePanelSection = (id: EditorPanelSection) => {
+    setOpenPanelSections((current) => {
+      const next = new Set(current)
+      if (next.has(id)) {
+        next.delete(id)
+      } else {
+        next.add(id)
+      }
+      return next
+    })
+  }
   const checkoutKey = `cd:checkout:${cloudDraftSession.drawingNumber}`
   /** 実案件未選択のローカル編集セッション（共有保存は無効化して誤作成を防ぐ）。 */
   const isLocalCloudSession = cloudDraftSession.projectNumber === 'LOCAL'
   /** 既存改訂を開いている（改訂更新モード）。 */
   const isExistingRevision = cloudDraftSession.revisionId !== undefined
+  /** 新規作図（ガイド線入りの空白図面）はデモ/本番を問わず初期表示する。 */
+  const isBlankDraftSession = cloudDraftSession.drawingType === 'blank'
   /** デモ表示中のみ、ヘッダーに図面切替（新規作成・既存図面を開く）を表示する。 */
   const demoUi = isDemoMode()
   /** デモ案件の図面セッション（空キャンバスではなく種別ごとのサンプル図形を投入する）。 */
   const isDemoDrawingSession =
     cloudDraftSession.projectNumber.startsWith('P-DEMO') ||
-    (isDemoMode() && isLocalCloudSession)
+    (isDemoMode() && isLocalCloudSession) ||
+    isBlankDraftSession
 
   // 実図面（既存改訂）を開いた場合は、内容と数量をサーバから読み込む（改訂更新の前提）。
   useEffect(() => {
@@ -564,7 +636,9 @@ export function CadEditorPage({
     storeApi.getState().zoomFit(800, 600)
     setCloudSaveStatus({
       ok: true,
-      text: `デモ図面を読み込みました（図形${content.geometries.length}件）`,
+      text: isBlankDraftSession
+        ? `新規図面のガイド線を表示しました（図形${content.geometries.length}件）`
+        : `デモ図面を読み込みました（図形${content.geometries.length}件）`,
     })
   }, [
     cloudDraftSession.drawingNumber,
@@ -572,6 +646,7 @@ export function CadEditorPage({
     cloudDraftSession.drawingName,
     cloudDraftSession.projectNumber,
     cloudDraftSession.revisionId,
+    isBlankDraftSession,
     isDemoDrawingSession,
     storeApi,
   ])
@@ -1622,8 +1697,11 @@ export function CadEditorPage({
 
       <div style={bodyRowStyle}>
         <aside style={toolPanelStyle}>
-          <div style={{ marginBottom: 20 }}>
-            <div style={sectionLabelStyle}>作図・編集</div>
+          <PanelSection
+            label="作図・編集"
+            open={openPanelSections.has('drawing')}
+            onToggle={() => togglePanelSection('drawing')}
+          >
             <div
               role="toolbar"
               aria-label="作図ツール"
@@ -1642,10 +1720,13 @@ export function CadEditorPage({
                 </button>
               ))}
             </div>
-          </div>
+          </PanelSection>
 
-          <div style={{ marginBottom: 20 }}>
-            <div style={sectionLabelStyle}>編集</div>
+          <PanelSection
+            label="編集"
+            open={openPanelSections.has('editing')}
+            onToggle={() => togglePanelSection('editing')}
+          >
             <div
               role="toolbar"
               aria-label="編集ツール"
@@ -1738,11 +1819,13 @@ export function CadEditorPage({
                 )}
               </div>
             )}
-          </div>
+          </PanelSection>
 
-          <div style={{ marginBottom: 20 }}>
-            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 6 }}>
-              <div style={sectionLabelStyle}>スナップ</div>
+          <PanelSection
+            label="スナップ"
+            open={openPanelSections.has('snap')}
+            onToggle={() => togglePanelSection('snap')}
+            aside={
               <button
                 type="button"
                 aria-label="スナップ有効"
@@ -1752,7 +1835,8 @@ export function CadEditorPage({
               >
                 {snapEnabled ? 'ON' : 'OFF'}
               </button>
-            </div>
+            }
+          >
             <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 6 }}>
               <span style={{ fontSize: 11.5, color: 'var(--ink2)', whiteSpace: 'nowrap' }}>許容差</span>
               <input
@@ -1801,10 +1885,13 @@ export function CadEditorPage({
                 )
               })}
             </div>
-          </div>
+          </PanelSection>
 
-          <div style={{ marginBottom: 20 }}>
-            <div style={sectionLabelStyle}>コマンドライン</div>
+          <PanelSection
+            label="コマンドライン"
+            open={openPanelSections.has('command')}
+            onToggle={() => togglePanelSection('command')}
+          >
             <div style={{ display: 'flex', gap: 6 }}>
               <input
                 type="text"
@@ -1828,7 +1915,7 @@ export function CadEditorPage({
                 ?
               </button>
             </div>
-          </div>
+          </PanelSection>
 
           {activeTool === 'text' && draftPoints.length >= 1 && (
             <div style={{ marginBottom: 20, padding: '12px 14px', borderRadius: 8, background: 'var(--subtle)', border: '1px solid var(--line)' }}>
@@ -1863,8 +1950,11 @@ export function CadEditorPage({
             </div>
           )}
 
-          <div style={{ marginBottom: 20 }}>
-            <div style={sectionLabelStyle}>土木部材</div>
+          <PanelSection
+            label="土木部材"
+            open={openPanelSections.has('parts')}
+            onToggle={() => togglePanelSection('parts')}
+          >
             {getCategories().map((category) => (
               <div key={category} style={{ marginBottom: 10 }}>
                 <div style={{ fontSize: 11.5, color: 'var(--ink2)', marginBottom: 4 }}>{category}</div>
@@ -1880,18 +1970,21 @@ export function CadEditorPage({
             <button style={{ ...ghostButtonStyle, width: '100%', marginTop: 4 }} onClick={() => onNavigate('parts')}>
               すべての部材を見る →
             </button>
-          </div>
+          </PanelSection>
 
-          <div>
-            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 8 }}>
-              <div style={sectionLabelStyle}>レイヤー</div>
+          <PanelSection
+            label="レイヤー"
+            open={openPanelSections.has('layers')}
+            onToggle={() => togglePanelSection('layers')}
+            aside={
               <button
                 style={{ ...ghostButtonStyle, padding: '2px 8px', fontSize: 11 }}
                 onClick={() => storeApi.getState().addLayer(`レイヤー${layers.length + 1}`)}
               >
                 + 新規
               </button>
-            </div>
+            }
+          >
             <div style={{ display: 'flex', gap: 4, alignItems: 'center', marginBottom: 8 }}>
               <select
                 aria-label="レイヤーテンプレート"
@@ -2008,7 +2101,7 @@ export function CadEditorPage({
                 )}
               </div>
             ))}
-          </div>
+          </PanelSection>
         </aside>
 
         <div style={canvasColumnStyle}>
