@@ -403,6 +403,7 @@ export function CanvasStage({ paperSize = 'A3', paperOrientation = 'landscape' }
               opacity={line.kind === 'major' ? GRID_MAJOR_OPACITY : GRID_MINOR_OPACITY}
               strokeWidth={1}
               listening={false}
+              perfectDrawEnabled={false}
             />
           ))}
         </Layer>
@@ -425,6 +426,7 @@ export function CanvasStage({ paperSize = 'A3', paperOrientation = 'landscape' }
               strokeWidth={1 / zoom}
               dash={[4 / zoom, 4 / zoom]}
               listening={false}
+              perfectDrawEnabled={false}
             />
           ))}
           {highlightBBoxes.map(({ id, bbox }) => (
@@ -438,6 +440,7 @@ export function CanvasStage({ paperSize = 'A3', paperOrientation = 'landscape' }
               strokeWidth={2 / zoom}
               dash={[8 / zoom, 5 / zoom]}
               listening={false}
+              perfectDrawEnabled={false}
             />
           ))}
         </Layer>

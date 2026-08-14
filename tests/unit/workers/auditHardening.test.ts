@@ -91,7 +91,7 @@ const EXPECTED_SECURITY_HEADERS: Readonly<Record<string, string>> = {
   'permissions-policy': 'camera=(), microphone=(), geolocation=(), payment=(), usb=()',
   'strict-transport-security': 'max-age=31536000',
   'content-security-policy':
-    "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; " +
+    "default-src 'self'; script-src 'self' https://static.cloudflareinsights.com; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; " +
     "font-src 'self' data: https://fonts.gstatic.com; img-src 'self' data: blob:; connect-src 'self'; " +
     "object-src 'none'; base-uri 'self'; frame-ancestors 'none'; form-action 'self'",
 }

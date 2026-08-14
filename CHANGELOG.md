@@ -4,6 +4,13 @@
 
 ## [Unreleased]
 
+### 修正 / 追加
+- 2026-08-14: 本番ビルドで図形が描画されない問題を修正（Konvaノード登録）
+  - 本番ビルドでKonvaのLine/Text等が未登録になり図形が描画されない問題に対し、使用形状モジュールを副作用importで明示登録（`src/app/canvas/registerKonvaNodes.ts`）
+  - 本番ビルド専用のPlaywright E2E（`playwright.prod.config.ts`）とCI実行を追加し、ページエラーゼロを検証
+  - CSPの`script-src`へCloudflare Insights（`static.cloudflareinsights.com`）を追加しビーコン遮断エラーを解消
+  - CAD編集ヘッダーを折り返し対応（縦長ウィンドウでボタンが切れないように）
+
 ### 🚀 本番デプロイ（2026-08-14 JST・Worker Version `c8fafc4a`・main `15eb150`）
 
 - HTMLの `Cache-Control: no-store` 強制化と本番実図面のCAD編集有効化（#201/#202）を `npx wrangler deploy` で本番反映

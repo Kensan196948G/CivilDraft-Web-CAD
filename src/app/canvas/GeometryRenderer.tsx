@@ -240,6 +240,7 @@ function GeometryRendererImpl({
           fill={stroke}
           opacity={opacity}
           listening={false}
+          perfectDrawEnabled={false}
         />
       )
 
@@ -297,6 +298,8 @@ function GeometryRendererImpl({
             fill={stroke}
             opacity={opacity}
             listening={false}
+            perfectDrawEnabled={false}
+            strokeScaleEnabled={false}
           />
           <Line
             points={[start.x, start.y, lx1, ly1]}
@@ -305,6 +308,8 @@ function GeometryRendererImpl({
             dash={[4, 4]}
             opacity={opacity}
             listening={false}
+            perfectDrawEnabled={false}
+            strokeScaleEnabled={false}
           />
           <Line
             points={[end.x, end.y, lx2, ly2]}
@@ -313,6 +318,8 @@ function GeometryRendererImpl({
             dash={[4, 4]}
             opacity={opacity}
             listening={false}
+            perfectDrawEnabled={false}
+            strokeScaleEnabled={false}
           />
           <Text
             x={tx}
@@ -322,6 +329,7 @@ function GeometryRendererImpl({
             fill={stroke}
             opacity={opacity}
             listening={false}
+            perfectDrawEnabled={false}
           />
         </>
       )
@@ -344,12 +352,14 @@ function GeometryRendererImpl({
             pointerLength={6}
             pointerWidth={5}
             strokeScaleEnabled={false}
+            perfectDrawEnabled={false}
           />
           <Line
             points={[elbowX, elbowY, textAnchorX, end.y]}
             stroke={stroke}
             strokeWidth={strokeWidth}
             strokeScaleEnabled={false}
+            perfectDrawEnabled={false}
           />
           <Text
             x={end.x > start.x ? textAnchorX + 3 : textAnchorX - 3}
@@ -358,6 +368,7 @@ function GeometryRendererImpl({
             fontSize={textHeight}
             fill={stroke}
             align={end.x > start.x ? 'left' : 'right'}
+            perfectDrawEnabled={false}
           />
         </Group>
       )
@@ -407,6 +418,8 @@ function GeometryRendererImpl({
             strokeWidth={strokeWidth}
             fill="transparent"
             opacity={opacity}
+            perfectDrawEnabled={false}
+            strokeScaleEnabled={false}
           />
           {lines.map((l, i) => (
             <Line
@@ -416,6 +429,8 @@ function GeometryRendererImpl({
               strokeWidth={baseStrokeWidth * 0.5}
               opacity={isPreview ? 0.4 : 0.7}
               listening={false}
+              perfectDrawEnabled={false}
+              strokeScaleEnabled={false}
             />
           ))}
         </Group>
@@ -447,6 +462,8 @@ function GeometryRendererImpl({
                   points={[...p.data]}
                   stroke={stroke}
                   strokeWidth={symbolStrokeWidth}
+                  perfectDrawEnabled={false}
+                  strokeScaleEnabled={false}
                 />
               )
             }
@@ -462,17 +479,21 @@ function GeometryRendererImpl({
                   stroke={stroke}
                   strokeWidth={symbolStrokeWidth}
                   fill={p.fill ? stroke : 'transparent'}
+                  perfectDrawEnabled={false}
+                  strokeScaleEnabled={false}
                 />
               )
             }
             return (
-              <Line
-                key={i}
+                <Line
+                  key={i}
                 points={[...p.data]}
                 closed={p.closed}
                 stroke={stroke}
                 strokeWidth={symbolStrokeWidth}
                 fill={p.fill ? `${stroke}44` : 'transparent'}
+                perfectDrawEnabled={false}
+                strokeScaleEnabled={false}
               />
             )
           })}

@@ -92,7 +92,7 @@ describe('CadEditorPage cloud save', () => {
     expect(screen.getByRole('button', { name: '共有保存' })).toBeDisabled()
   })
 
-  it('デモ案件の図面セッションでは種別に応じたサンプル図形を初期表示する', () => {
+  it('デモ案件の図面セッションでは種別に応じたサンプル図形を初期表示する', async () => {
     const store = createEditorStore()
     const cloudApiClient: CloudSaveClient = { saveDraft: vi.fn(), getRevisionContent: vi.fn() }
     renderPage(store, cloudApiClient, {
@@ -104,15 +104,17 @@ describe('CadEditorPage cloud save', () => {
       revisionNumber: 'Rev.3',
     })
 
-    const geometries = store.getState().geometries
-    expect(geometries.length).toBeGreaterThan(10)
-    expect(geometries.some((item) => item.type === 'circle')).toBe(true)
-    expect(geometries.some((item) => item.type === 'rectangle')).toBe(true)
-    expect(geometries.some((item) => item.type === 'text')).toBe(true)
-    expect(geometries.some((item) => item.type === 'dimension')).toBe(true)
-    expect(store.getState().layers.length).toBeGreaterThan(1)
-    // サンプル図形（mm座標）が画面外にならないよう、全体が収まるズームに調整される。
-    expect(store.getState().zoom).toBeLessThan(1)
+    await waitFor(() => {
+      const geometries = store.getState().geometries
+      expect(geometries.length).toBeGreaterThan(10)
+      expect(geometries.some((item) => item.type === 'circle')).toBe(true)
+      expect(geometries.some((item) => item.type === 'rectangle')).toBe(true)
+      expect(geometries.some((item) => item.type === 'text')).toBe(true)
+      expect(geometries.some((item) => item.type === 'dimension')).toBe(true)
+      expect(store.getState().layers.length).toBeGreaterThan(1)
+      // サンプル図形（mm座標）が画面外にならないよう、全体が収まるズームに調整される。
+      expect(store.getState().zoom).toBeLessThan(1)
+    })
   })
 
   it('デモモードでもホームの復元候補など既に読み込まれた内容は上書きしない', () => {
@@ -129,7 +131,7 @@ describe('CadEditorPage cloud save', () => {
     }
   })
 
-  it('デモ図面セッションの切替で新しい図面のサンプル図形へ置換される', () => {
+  it('デモ図面セッションの切替で新しい図面のサンプル図形へ置換される', async () => {
     const store = createEditorStore()
     const cloudApiClient: CloudSaveClient = { saveDraft: vi.fn(), getRevisionContent: vi.fn() }
     const sessionA: CloudDraftSession = {
@@ -148,8 +150,8 @@ describe('CadEditorPage cloud save', () => {
       revisionNumber: 'Rev.2',
     }
     const view = renderPage(store, cloudApiClient, sessionA)
+    await waitFor(() => expect(store.getState().geometries.length).toBeGreaterThan(10))
     const firstCount = store.getState().geometries.length
-    expect(firstCount).toBeGreaterThan(10)
 
     view.rerender(
       <EditorStoreProvider store={store}>
@@ -161,11 +163,13 @@ describe('CadEditorPage cloud save', () => {
         />
       </EditorStoreProvider>,
     )
-    expect(store.getState().geometries.length).not.toBe(firstCount)
-    expect(store.getState().geometries.some((item) => item.type === 'hatch')).toBe(true)
+    await waitFor(() => {
+      expect(store.getState().geometries.length).not.toBe(firstCount)
+      expect(store.getState().geometries.some((item) => item.type === 'hatch')).toBe(true)
+    })
   })
 
-  it('案件図面セッションでは既存内容があっても対象図面のサンプル図形へ置換される', () => {
+  it('案件図面セッションでは既存内容があっても対象図面のサンプル図形へ置換される', async () => {
     const store = createEditorStore()
     store.getState().addGeometries([line('g-old')])
     const cloudApiClient: CloudSaveClient = { saveDraft: vi.fn(), getRevisionContent: vi.fn() }
@@ -177,9 +181,11 @@ describe('CadEditorPage cloud save', () => {
       drawingType: 'temporary-plan',
       revisionNumber: 'Rev.2',
     })
-    expect(store.getState().geometries.map((item) => item.id)).not.toContain('g-old')
-    expect(store.getState().geometries.length).toBeGreaterThan(10)
-    expect(store.getState().zoom).toBeLessThan(1)
+    await waitFor(() => {
+      expect(store.getState().geometries.map((item) => item.id)).not.toContain('g-old')
+      expect(store.getState().geometries.length).toBeGreaterThan(10)
+      expect(store.getState().zoom).toBeLessThan(1)
+    })
   })
 
   it('新規作図セッションではガイド線が入り、ヘッダーの切替で表示を設定できる', async () => {
@@ -195,9 +201,9 @@ describe('CadEditorPage cloud save', () => {
         drawingType: 'blank',
         revisionNumber: 'Rev.1',
       })
+      await waitFor(() => expect(store.getState().geometries.length).toBeGreaterThanOrEqual(3))
       const guideLayer = store.getState().layers.find((layer) => layer.name === 'ガイド線')
       expect(guideLayer?.visible).toBe(true)
-      expect(store.getState().geometries.length).toBeGreaterThanOrEqual(3)
 
       await userEvent.click(screen.getByRole('button', { name: /ガイド線/ }))
       expect(store.getState().layers.find((layer) => layer.name === 'ガイド線')?.visible).toBe(false)
@@ -206,7 +212,7 @@ describe('CadEditorPage cloud save', () => {
     }
   })
 
-  it('新規作図はデモ表示でなくてもガイド線が初期表示される', () => {
+  it('新規作図はデモ表示でなくてもガイド線が初期表示される', async () => {
     const store = createEditorStore()
     const cloudApiClient: CloudSaveClient = { saveDraft: vi.fn(), getRevisionContent: vi.fn() }
     renderPage(store, cloudApiClient, {
@@ -217,8 +223,10 @@ describe('CadEditorPage cloud save', () => {
       drawingType: 'blank',
       revisionNumber: 'Rev.1',
     })
-    expect(store.getState().geometries.length).toBeGreaterThanOrEqual(3)
-    expect(store.getState().layers.some((layer) => layer.name === 'ガイド線')).toBe(true)
+    await waitFor(() => {
+      expect(store.getState().geometries.length).toBeGreaterThanOrEqual(3)
+      expect(store.getState().layers.some((layer) => layer.name === 'ガイド線')).toBe(true)
+    })
   })
 
   it('左ツールパネルのセクションは折りたたみ可能で、補助設定は既定で閉じている', async () => {
