@@ -111,6 +111,58 @@ describe('CadEditorPage cloud save', () => {
     expect(geometries.some((item) => item.type === 'text')).toBe(true)
     expect(geometries.some((item) => item.type === 'dimension')).toBe(true)
     expect(store.getState().layers.length).toBeGreaterThan(1)
+    // サンプル図形（mm座標）が画面外にならないよう、全体が収まるズームに調整される。
+    expect(store.getState().zoom).toBeLessThan(1)
+  })
+
+  it('デモモードでもホームの復元候補など既に読み込まれた内容は上書きしない', () => {
+    window.history.replaceState({}, '', '/?demo=1')
+    try {
+      const store = createEditorStore()
+      store.getState().addGeometries([line('g-restored')])
+      const cloudApiClient: CloudSaveClient = { saveDraft: vi.fn(), getRevisionContent: vi.fn() }
+      renderPage(store, cloudApiClient)
+      expect(store.getState().geometries.map((item) => item.id)).toEqual(['g-restored'])
+      expect(store.getState().zoom).toBe(1)
+    } finally {
+      window.history.replaceState({}, '', '/')
+    }
+  })
+
+  it('デモ図面セッションの切替で新しい図面のサンプル図形へ置換される', () => {
+    const store = createEditorStore()
+    const cloudApiClient: CloudSaveClient = { saveDraft: vi.fn(), getRevisionContent: vi.fn() }
+    const sessionA: CloudDraftSession = {
+      projectNumber: 'P-DEMO-2026-001',
+      projectName: 'みらい台地区 市道拡幅工事',
+      drawingNumber: 'DWG-014',
+      drawingName: '施工ヤード計画図',
+      drawingType: 'temporary-yard-plan',
+      revisionNumber: 'Rev.3',
+    }
+    const sessionB: CloudDraftSession = {
+      ...sessionA,
+      drawingNumber: 'DWG-022',
+      drawingName: '標準横断図 No.20',
+      drawingType: 'earthwork-plan',
+      revisionNumber: 'Rev.2',
+    }
+    const view = renderPage(store, cloudApiClient, sessionA)
+    const firstCount = store.getState().geometries.length
+    expect(firstCount).toBeGreaterThan(10)
+
+    view.rerender(
+      <EditorStoreProvider store={store}>
+        <CadEditorPage
+          autosaveStore={new MemoryAutosaveStore()}
+          onNavigate={() => {}}
+          cloudApiClient={cloudApiClient}
+          cloudDraftSession={sessionB}
+        />
+      </EditorStoreProvider>,
+    )
+    expect(store.getState().geometries.length).not.toBe(firstCount)
+    expect(store.getState().geometries.some((item) => item.type === 'hatch')).toBe(true)
   })
 
   it('デモ表示ではヘッダーの図面切替から既存図面を開き、新規図面も選択できる', async () => {

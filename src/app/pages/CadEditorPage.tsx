@@ -524,11 +524,17 @@ export function CadEditorPage({
   }, [apiClient, cloudDraftSession.revisionId, storeApi])
 
   // デモ図面セッションでは、図面種別に応じたサンプル図形を初期表示する。
-  // 同じセッションの再レンダーでは再投入しない（利用者が作図した内容を保持する）。
+  // - 同じセッションの再レンダーでは再投入しない（利用者が作図した内容を保持する）。
+  // - マウント直後にホームの復元候補など別経路で読み込まれた内容がある場合は上書きしない。
   useEffect(() => {
     if (!isDemoDrawingSession || cloudDraftSession.revisionId !== undefined) return
     const sessionKey = `${cloudDraftSession.drawingNumber}:${cloudDraftSession.drawingType ?? ''}`
     if (seededDemoSessionRef.current === sessionKey) return
+    const currentGeometries = storeApi.getState().geometries
+    if (seededDemoSessionRef.current === null && currentGeometries.length > 0) {
+      seededDemoSessionRef.current = sessionKey
+      return
+    }
     seededDemoSessionRef.current = sessionKey
     const demoProject = DEMO_PROJECTS.find(
       (project) => project.projectNumber === cloudDraftSession.projectNumber,
@@ -543,6 +549,9 @@ export function CadEditorPage({
       },
     )
     storeApi.getState().replaceDocument(content.geometries, content.layers)
+    // サンプル図形はmm座標（数m〜200m規模）のため、初期ビュー（zoom=1・原点中心）では
+    // 画面外になる。全体が収まるようにズーム・パンで表示する。
+    storeApi.getState().zoomFit(800, 600)
     setCloudSaveStatus({
       ok: true,
       text: `デモ図面を読み込みました（図形${content.geometries.length}件）`,
@@ -1292,36 +1301,11 @@ export function CadEditorPage({
           : '選択なし'}
       </div>
       <header style={headerBarStyle}>
-        <div style={{ display: 'flex', flexDirection: 'column', lineHeight: 1.3 }}>
-          <span style={{ fontSize: 11, color: 'var(--muted)' }}>{cloudDraftSession.projectName}</span>
-          <span style={{ fontSize: 14.5, fontWeight: 600, color: 'var(--ink)' }}>{cloudDraftSession.drawingName}</span>
+        <div style={{ display: 'flex', flexDirection: 'column', lineHeight: 1.3, minWidth: 0 }}>
+          <span style={{ fontSize: 11, color: 'var(--muted)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{cloudDraftSession.projectName}</span>
+          <span style={{ fontSize: 14.5, fontWeight: 600, color: 'var(--ink)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{cloudDraftSession.drawingName}</span>
         </div>
         <span style={{ ...monoStyle, fontSize: 12, color: 'var(--muted)' }}>{cloudDraftSession.revisionNumber}</span>
-        {demoUi && (
-          <label style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 12, color: 'var(--muted)' }}>
-            図面
-            <select
-              aria-label="デモ図面を開く"
-              value={demoDrawingSelectionValue(cloudDraftSession)}
-              onChange={(event) => {
-                const session = demoDrawingSessionFromSelection(event.target.value)
-                if (session !== null) onOpenDrawing?.(session)
-              }}
-              style={stepSelectStyle}
-            >
-              <option value={DEMO_NEW_DRAWING_VALUE}>＋ 新規図面（空白）</option>
-              {DEMO_PROJECTS.map((project) => (
-                <optgroup key={project.id} label={project.name}>
-                  {project.drawings.map((drawing) => (
-                    <option key={`${project.id}:${drawing.no}`} value={`${project.id}:${drawing.no}`}>
-                      {drawing.no} {drawing.name} {drawing.rev}
-                    </option>
-                  ))}
-                </optgroup>
-              ))}
-            </select>
-          </label>
-        )}
         {checkout?.status === 'checkedOut' && (
           <span
             style={statusBadgeStyle(
@@ -1385,6 +1369,40 @@ export function CadEditorPage({
           ⌘K
         </button>
         <span style={{ flex: 1 }} />
+        {demoUi && (
+          <label
+            style={{
+              display: 'flex',
+              alignItems: 'center',
+              gap: 6,
+              fontSize: 12,
+              color: 'var(--muted)',
+              whiteSpace: 'nowrap',
+            }}
+          >
+            図面
+            <select
+              aria-label="デモ図面を開く"
+              value={demoDrawingSelectionValue(cloudDraftSession)}
+              onChange={(event) => {
+                const session = demoDrawingSessionFromSelection(event.target.value)
+                if (session !== null) onOpenDrawing?.(session)
+              }}
+              style={{ ...stepSelectStyle, maxWidth: 280 }}
+            >
+              <option value={DEMO_NEW_DRAWING_VALUE}>＋ 新規図面（空白）</option>
+              {DEMO_PROJECTS.map((project) => (
+                <optgroup key={project.id} label={project.name}>
+                  {project.drawings.map((drawing) => (
+                    <option key={`${project.id}:${drawing.no}`} value={`${project.id}:${drawing.no}`}>
+                      {drawing.no} {drawing.name} {drawing.rev}
+                    </option>
+                  ))}
+                </optgroup>
+              ))}
+            </select>
+          </label>
+        )}
         <select
           value={currentStepId ?? ''}
           style={stepSelectStyle}
