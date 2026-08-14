@@ -14,18 +14,15 @@ describe('Sidebar', () => {
       expect(screen.getByText(section)).toBeInTheDocument()
     }
     expect(screen.getByRole('button', { name: /^案件⌄?$/ })).toHaveAttribute('aria-expanded', 'true')
-    expect(screen.getByRole('button', { name: /^作図›?$/ })).toHaveAttribute('aria-expanded', 'false')
-    expect(screen.getByRole('button', { name: /^集計・照査›?$/ })).toHaveAttribute('aria-expanded', 'false')
-    expect(screen.getByRole('button', { name: /^出力・管理›?$/ })).toHaveAttribute('aria-expanded', 'false')
-
-    await userEvent.click(screen.getByRole('button', { name: /^作図›?$/ }))
-    await userEvent.click(screen.getByRole('button', { name: /^集計・照査›?$/ }))
-    await userEvent.click(screen.getByRole('button', { name: /^出力・管理›?$/ }))
+    expect(screen.getByRole('button', { name: /^作図/ })).toHaveAttribute('aria-expanded', 'true')
+    expect(screen.getByRole('button', { name: /^集計・照査/ })).toHaveAttribute('aria-expanded', 'true')
+    expect(screen.getByRole('button', { name: /^出力・管理/ })).toHaveAttribute('aria-expanded', 'true')
 
     for (const item of [
       'ホーム・案件一覧',
       '案件詳細',
-      'CAD編集',
+      '新規作図',
+      '作図編集',
       '図面設定',
       '測点・座標一覧',
       '土木部材パレット',
@@ -49,10 +46,8 @@ describe('Sidebar', () => {
     render(
       <Sidebar activeView="home" theme="light" implementedViews={['home', 'editor']} onNavigate={onNavigate} onToggleTheme={() => {}} />,
     )
-    await userEvent.click(screen.getByRole('button', { name: /^作図›?$/ }))
-    await userEvent.click(screen.getByRole('button', { name: /CAD編集/ }))
+    await userEvent.click(screen.getByRole('button', { name: /作図編集/ }))
     expect(onNavigate).toHaveBeenCalledWith('editor')
-    await userEvent.click(screen.getByRole('button', { name: /^集計・照査›?$/ }))
     expect(screen.getByRole('button', { name: /数量集計/ })).toBeDisabled()
   })
 
@@ -60,8 +55,7 @@ describe('Sidebar', () => {
     render(
       <Sidebar activeView="editor" theme="light" implementedViews={['home', 'editor']} onNavigate={() => {}} onToggleTheme={() => {}} />,
     )
-    await userEvent.click(screen.getByRole('button', { name: /^作図›?$/ }))
-    expect(screen.getByRole('button', { name: /CAD編集/ })).not.toHaveStyle({
+    expect(screen.getByRole('button', { name: /作図編集/ })).not.toHaveStyle({
       borderLeft: '3px solid #E08A2B',
     })
   })
@@ -70,7 +64,6 @@ describe('Sidebar', () => {
     render(
       <Sidebar activeView="home" theme="light" implementedViews={['home', 'print', 'audit', 'settings']} onNavigate={() => {}} onToggleTheme={() => {}} />,
     )
-    await userEvent.click(screen.getByRole('button', { name: /^出力・管理›?$/ }))
     const print = screen.getByRole('button', { name: /印刷・出力/ })
     const audit = screen.getByRole('button', { name: /監査ログ/ })
     const settings = screen.getByRole('button', { name: /システム設定/ })
@@ -110,17 +103,15 @@ describe('Sidebar', () => {
     expect(screen.getByText('協力会社')).toBeInTheDocument()
     expect(screen.getByText('閲覧者')).toBeInTheDocument()
 
-    await userEvent.click(screen.getByRole('button', { name: /^作図›?$/ }))
-    expect(screen.queryByText('CAD編集')).not.toBeInTheDocument()
+    expect(screen.queryByText('新規作図')).not.toBeInTheDocument()
+    expect(screen.queryByText('作図編集')).not.toBeInTheDocument()
     expect(screen.queryByText('図面設定')).not.toBeInTheDocument()
     expect(screen.queryByText('土木部材パレット')).not.toBeInTheDocument()
     expect(screen.getByText('測点・座標一覧')).toBeInTheDocument()
 
-    await userEvent.click(screen.getByRole('button', { name: /^集計・照査›?$/ }))
     expect(screen.queryByText('照査・承認')).not.toBeInTheDocument()
     expect(screen.getByText('現場説明モード')).toBeInTheDocument()
 
-    await userEvent.click(screen.getByRole('button', { name: /^出力・管理›?$/ }))
     expect(screen.queryByText('監査ログ')).not.toBeInTheDocument()
     expect(screen.queryByText('システム設定')).not.toBeInTheDocument()
     expect(screen.getByText('印刷・出力')).toBeInTheDocument()
@@ -139,9 +130,8 @@ describe('Sidebar', () => {
       />,
     )
     expect(screen.getByText('技術者')).toBeInTheDocument()
-    await userEvent.click(screen.getByRole('button', { name: /^作図›?$/ }))
-    expect(screen.getByText('CAD編集')).toBeInTheDocument()
-    await userEvent.click(screen.getByRole('button', { name: /^出力・管理›?$/ }))
+    expect(screen.getByText('新規作図')).toBeInTheDocument()
+    expect(screen.getByText('作図編集')).toBeInTheDocument()
     expect(screen.getByText('監査ログ')).toBeInTheDocument()
     expect(screen.getByText('システム設定')).toBeInTheDocument()
   })

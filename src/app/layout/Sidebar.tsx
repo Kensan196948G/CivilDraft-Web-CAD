@@ -63,8 +63,8 @@ const NAV_SECTIONS: readonly NavSection[] = [
   {
     heading: '作図',
     items: [
-      { icon: '🖊️', label: 'CAD作図', view: 'newDrawing' },
-      { icon: '✏️', label: 'CAD編集', view: 'editor' },
+      { icon: '🖊️', label: '新規作図', view: 'newDrawing' },
+      { icon: '✏️', label: '作図編集', view: 'editor' },
       { icon: '📐', label: '図面設定', view: 'drawingSettings' },
       { icon: '📍', label: '測点・座標一覧', view: 'survey' },
       { icon: '🧱', label: '土木部材パレット', view: 'parts' },
@@ -172,7 +172,9 @@ export function Sidebar({
   onNavigate,
   onToggleTheme,
 }: SidebarProps) {
-  const [openSections, setOpenSections] = useState<ReadonlySet<string>>(() => new Set(['案件']))
+  const [openSections, setOpenSections] = useState<ReadonlySet<string>>(
+    () => new Set(NAV_SECTIONS.map((section) => section.heading)),
+  )
 
   const toggleSection = (heading: string) => {
     setOpenSections((current) => {

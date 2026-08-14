@@ -52,7 +52,7 @@ test('10,000図形・10MB級DXFの取込→エディタ描画性能', async ({ p
   await expect(page.getByText('案件詳細: E2E-DXF性能')).toBeVisible()
 
   await page.getByRole('button', { name: /^作図/ }).click()
-  await page.getByRole('button', { name: '✏️ CAD編集' }).click()
+  await page.getByRole('button', { name: '✏️ 作図編集' }).click()
   await expect(page.getByRole('button', { name: '共有保存' })).toBeVisible()
 
   mkdirSync(resultsDir, { recursive: true })

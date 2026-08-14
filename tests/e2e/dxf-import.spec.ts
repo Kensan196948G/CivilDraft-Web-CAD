@@ -38,7 +38,7 @@ test('DXF取込ボタンからファイルを読み込み、図形がキャン�
   await expect(page.getByText('案件詳細: E2E-DXF取込')).toBeVisible()
 
   await page.getByRole('button', { name: /^作図/ }).click()
-  await page.getByRole('button', { name: '✏️ CAD編集' }).click()
+  await page.getByRole('button', { name: '✏️ 作図編集' }).click()
   await expect(page.getByRole('button', { name: '共有保存' })).toBeVisible()
 
   const fileInput = page.locator('input[type="file"]')

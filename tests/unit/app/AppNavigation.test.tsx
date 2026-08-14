@@ -58,11 +58,8 @@ describe('App ナビゲーション統合', () => {
 
   it.each(NAV_EXPECTATIONS)(
     'サイドバー「$nav」クリックで対応コンテンツが右側に表示される',
-    async ({ nav, expectText, section }) => {
+    async ({ nav, expectText }) => {
       render(<App />)
-      if (section !== '案件') {
-        await userEvent.click(screen.getByRole('button', { name: new RegExp(`^${section}›?$`) }))
-      }
       await userEvent.click(screen.getByRole('button', { name: new RegExp(nav) }))
       // Issue #26: 業務ページは遅延読み込み（React.lazy）のため非同期に表示される
       // 並列実行時の遅延ロードに耐えるため 5 秒まで待つ（デフォルトは 1 秒で flaky）。
@@ -72,17 +69,15 @@ describe('App ナビゲーション統合', () => {
 
   it('CAD編集クリックでエディタへ遷移し、サイドバーのホームで戻れる', async () => {
     render(<App />)
-    await userEvent.click(screen.getByRole('button', { name: /^作図›?$/ }))
-    await userEvent.click(screen.getByRole('button', { name: /CAD編集/ }))
+    await userEvent.click(screen.getByRole('button', { name: /作図編集/ }))
     expect(await screen.findByTestId('canvas-stage', {}, { timeout: 5000 })).toBeInTheDocument()
     await userEvent.click(screen.getByRole('button', { name: /ホーム・案件一覧/ }))
     expect(screen.getByPlaceholderText('案件名・図面番号で検索')).toBeInTheDocument()
   })
 
-  it('サイドバーの「CAD作図」で新規図面のCAD編集画面を開く', async () => {
+  it('サイドバーの「新規作図」で新規図面のCAD編集画面を開く', async () => {
     render(<App />)
-    await userEvent.click(screen.getByRole('button', { name: /^作図›?$/ }))
-    await userEvent.click(screen.getByRole('button', { name: /CAD作図/ }))
+    await userEvent.click(screen.getByRole('button', { name: /新規作図/ }))
     expect(await screen.findByTestId('canvas-stage', {}, { timeout: 5000 })).toBeInTheDocument()
     expect(screen.getByText('新規図面')).toBeInTheDocument()
     expect(window.location.hash).toBe('#/newDrawing')
