@@ -4,6 +4,12 @@
 
 ## [Unreleased]
 
+### 🚀 本番デプロイ（2026-08-14 JST・Worker Version `a4244ab6`・main `c0a1986`）
+
+- Service Worker v2（HTML非キャッシュ）とE2E内容検証（#206）を `npx wrangler deploy` で本番反映
+- 実測: MVP/workers.dev は `sw.js` v2 配信（HTMLキャッシュなし）・`/api/health` 401 fail-closed、本番ドメインは 302 → Cloudflare Access（保護維持）
+- 直前バージョン `965335d9` へ rollback 可能
+
 ### 修正
 - 2026-08-14: Service Workerの旧バンドル配信を防止し、E2Eで図形投入を直接検証
   - `public/sw.js` を v2 へ更新: HTMLはキャッシュしない（`Cache-Control: no-store` を尊重）。ハッシュ付きアセットのみキャッシュ。旧キャッシュはactivate時に削除
