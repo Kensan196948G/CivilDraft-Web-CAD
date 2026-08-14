@@ -4,6 +4,13 @@
 
 ## [Unreleased]
 
+### 🚀 本番デプロイ（2026-08-14 JST・Worker Version `c7021c57`・main `2c9702c`）
+
+- 図形描画の最終根因（RulerをKonva Stage内に配置していた）を修正した #208 を `npx wrangler deploy` で本番反映
+- dev / 本番ビルド両方の Browser E2E で、図形読込・ガイド線・ページ/Konvaコンソールエラーゼロを実ブラウザ検証
+- 実測: MVP/workers.dev は SPA 200（新規作図/作図編集・ガイド線を含む新バンドル）・`/api/health` 401 fail-closed、本番ドメインは 302 → Cloudflare Access（保護維持）
+- 直前バージョン `a4244ab6` へ rollback 可能
+
 ### 修正 / 追加
 - 2026-08-14: サイドバーとKonva登録の最終対応
   - サイドバーを全セクション初期展開に変更し、「CAD作図/CAD編集」を「新規作図/作図編集」へリネーム（作図導線が見えない問題を解消）
