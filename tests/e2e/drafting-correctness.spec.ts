@@ -61,8 +61,10 @@ test('新規作図: ガイド線・描画・Undo/Redo・グリッド/ガイド�
 
   // 円（中心＋半径点）
   await page.locator('button[aria-label="円"]').click()
-  await canvas.click({ position: { x: 480, y: 180 } })
-  await canvas.click({ position: { x: 540, y: 250 } })
+  const canvasBox = await canvas.boundingBox()
+  expect(canvasBox).not.toBeNull()
+  await page.mouse.click(canvasBox!.x + 480, canvasBox!.y + 180)
+  await page.mouse.click(canvasBox!.x + 540, canvasBox!.y + 250)
 
   // 矩形（対角2点）
   await page.getByRole('button', { name: '矩形' }).click()
