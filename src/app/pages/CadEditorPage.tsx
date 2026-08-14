@@ -631,16 +631,26 @@ export function CadEditorPage({
         drawingName: cloudDraftSession.drawingName,
       },
     )
-    storeApi.getState().replaceDocument(content.geometries, content.layers)
-    // サンプル図形はmm座標（数m〜200m規模）のため、初期ビュー（zoom=1・原点中心）では
-    // 画面外になる。全体が収まるようにズーム・パンで表示する。
-    storeApi.getState().zoomFit(800, 600)
-    setCloudSaveStatus({
-      ok: true,
-      text: isBlankDraftSession
-        ? `新規図面のガイド線を表示しました（図形${content.geometries.length}件）`
-        : `デモ図面を読み込みました（図形${content.geometries.length}件）`,
+    // 初回マウント直後に大量の図形を一括投入すると Konva の描画と競合するため、
+    // 次のアニメーションフレームでStageが確定してから投入する。
+    let cancelled = false
+    const rafId = requestAnimationFrame(() => {
+      if (cancelled) return
+      storeApi.getState().replaceDocument(content.geometries, content.layers)
+      // サンプル図形はmm座標（数m〜200m規模）のため、初期ビュー（zoom=1・原点中心）では
+      // 画面外になる。全体が収まるようにズーム・パンで表示する。
+      storeApi.getState().zoomFit(800, 600)
+      setCloudSaveStatus({
+        ok: true,
+        text: isBlankDraftSession
+          ? `新規図面のガイド線を表示しました（図形${content.geometries.length}件）`
+          : `デモ図面を読み込みました（図形${content.geometries.length}件）`,
+      })
     })
+    return () => {
+      cancelled = true
+      cancelAnimationFrame(rafId)
+    }
   }, [
     cloudDraftSession.drawingNumber,
     cloudDraftSession.drawingType,

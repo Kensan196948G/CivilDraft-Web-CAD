@@ -3,7 +3,7 @@ import { expect, test, type Page } from '@playwright/test'
 /** ページ内の未処理エラーを収集し、テスト末尾で空であることを検証する。 */
 function collectPageErrors(page: Page): string[] {
   const errors: string[] = []
-  page.on('pageerror', (error) => errors.push(String(error)))
+  page.on('pageerror', (error) => errors.push(error.stack ?? String(error)))
   return errors
 }
 
