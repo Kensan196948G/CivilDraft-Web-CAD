@@ -4,6 +4,13 @@
 
 ## [Unreleased]
 
+### 🚀 本番デプロイ（2026-08-14 JST・Worker Version `c13babd0`・main `1e2d47a`）
+
+- 作図内容消失の修正と作図機能の正常性E2E（#210）を `npx wrangler deploy` で本番反映
+- dev / 本番ビルド両方の Browser E2E で、線・円・矩形の作図、Undo/Redo、DXF出力、ガイド線切替、自動保存→復元を実ブラウザ検証
+- 実測: 3URL（MVP / workers.dev / 本番）を確認。MVP・workers.dev は SPA 200、本番は 302 → Cloudflare Access（保護維持）・`/api/health` 401 fail-closed
+- 直前バージョン `c7021c57` へ rollback 可能
+
 ### 修正
 - 2026-08-14: 作図中に印刷・出力など他画面へ移動して戻ると作図内容が消える問題を修正
   - 同一図面の再マウント（シードキー一致）では既読込内容を保持し、別図面を開いた場合のみ置換するように改善
