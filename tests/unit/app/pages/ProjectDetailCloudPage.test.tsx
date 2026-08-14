@@ -212,8 +212,31 @@ describe('ProjectDetailCloudPage', () => {
     const editButton = screen.getByRole('button', { name: 'CAD編集で開く' })
     expect(editButton).toBeDisabled()
     expect(
-      screen.getByText(/実図面のCAD編集・共有保存は既存図面への改訂更新API（後続Issue）で対応予定です/),
+      screen.getByText(/この図面にはまだ改訂がありません/),
     ).toBeInTheDocument()
+  })
+
+  it('改訂のある実図面は「CAD編集で開く」が有効になり、改訂IDを含むセッションを渡す', async () => {
+    const withRevision: CloudDrawing = { ...DRAWING, activeRevisionId: 'rev-1' }
+    const client = makeClient({
+      listProjectDrawings: vi.fn(async () => ({ ok: true, value: [withRevision] })),
+    })
+    const onOpenEditor = vi.fn()
+    render(
+      <ProjectDetailCloudPage
+        projectId="p-1"
+        cloudApiClient={client}
+        onOpenEditor={onOpenEditor}
+      />,
+    )
+    await screen.findByText('DWG-001')
+    await userEvent.click(screen.getByText('施工ヤード計画図'))
+    const editButton = screen.getByRole('button', { name: 'CAD編集で開く' })
+    expect(editButton).toBeEnabled()
+    await userEvent.click(editButton)
+    expect(onOpenEditor).toHaveBeenCalledWith(
+      expect.objectContaining({ drawingId: 'd-1', revisionId: 'rev-1' }),
+    )
   })
 
   it('図面一覧が空の場合は空状態を表示する', async () => {
