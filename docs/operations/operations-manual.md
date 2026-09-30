@@ -101,13 +101,15 @@ flowchart LR
 
 | CI ジョブ | トリガー | 必須チェック |
 | --- | --- | --- |
-| `Lint / Typecheck / Test / Build`（quality） | `main` への push / PR | ✅ ブランチ保護で必須 |
-| `Dependency Audit`（security） | `main` への push / PR | ✅ ブランチ保護で必須 |
-| `Browser E2E`（e2e） | `main` への push / PR | ⚠️ ブランチ保護は未設定（運用上は§3.5手順⑤でCI green確認の対象に含め、人間承認前に確認する） |
-| `SBOM / Notices`（compliance） | `main` への push / PR | ⚠️ ブランチ保護は未設定（同上。npm CLIバージョン差によるドリフト誤検知の実績があるため、安定性を継続確認してから必須化を検討） |
+| `Lint / Typecheck / Test / Build`（quality） | `main` への push / PR | ✅ Required Check |
+| `Dependency Audit`（security） | `main` への push / PR | ✅ Required Check |
+| `Browser E2E`（e2e） | `main` への push / PR | ✅ Required Check |
+| `SBOM / Notices`（compliance） | `main` への push / PR | ✅ Required Check（npm CLIバージョン差によるドリフト誤検知の実績あり。誤検知時は原因を修正して再実行する） |
+| `Performance Benchmarks`（performance） | `main` への push / PR | ✅ Required Check |
+| `Neon roundtrip (real connection)`（Neon Integration Tests） | `main` への push / PR | ✅ Required Check |
 
-> `main` は PR 必須・レビュー承認1件必須・必須チェック（quality/security）success 必須（strict でブランチ最新化要求）・force push / 削除禁止。
-> e2e/compliance は必須チェック未設定のため、PRマージ前に人間が個別に green を確認する運用でカバーしている（CodeRabbit指摘、2026-07-17時点）。
+> `main` は PR 必須・レビュー承認は不要（0件）・force push / 削除禁止。マージの条件は Required Checks（`Lint / Typecheck / Test / Build`、`Dependency Audit`、`Browser E2E`、`SBOM / Notices`、`Performance Benchmarks`、`Neon roundtrip (real connection)`）の全成功（strict でブランチ最新化要求）と merge conflict がないことだけとする。e2e は CI ジョブ `Browser E2E`、compliance は CI ジョブ `SBOM / Notices` で実施し、いずれも Required Check に登録済みのため、人間による個別の green 確認は行わない（2026-09-30 時点の ruleset で確認）。
+> PR は `gh pr merge --auto --squash` で自動マージを予約する。人間の Y/N・選択・Approve を待たない。`--admin` による迂回は禁止する。Release・本番デプロイ・秘密情報の変更・不可逆な削除は、コードのマージとは別に Human Gate とする。（正本: 中央ポリシー `GITHUB_POLICY.md` v2）
 
 ### 3.4 typecheck が並列作業で不安定なとき
 
@@ -191,16 +193,16 @@ flowchart LR
     A["① Issue 確認<br>Projects 状態更新"] --> B["② ブランチで実装"]
     B --> C["③ 品質ゲート<br>ローカル全 green"]
     C --> D["④ PR 作成<br>Verify へ"]
-    D --> E["⑤ CI green<br>人間承認"]
-    E --> F["⑥ マージ<br>Done へ"]
+    D --> E["⑤ Required Checks<br>全 green"]
+    E --> F["⑥ 自動マージ<br>Done へ"]
 ```
 
 1. Issue と Projects の状態を確認し、着手対象を決める。
 2. ブランチ（または WorkTree）で実装・テスト追加する（`main` 直 push 禁止）。
 3. ローカルで品質ゲートを全 green にする（§3.2）。
 4. PR を作成し、変更内容・テスト結果・影響範囲・残課題を記載する。
-5. CI の quality / e2e / security / compliance が success であることと、人間承認を得る（`main` 宛）。
-6. マージし、Projects を Done へ更新、README / 文書を同期する。
+5. `gh pr merge --auto --squash` で自動マージを予約し、Required Checks（quality / e2e / security / compliance / performance / Neon roundtrip）の全成功を待つ（人間承認は不要。`--admin` 禁止）。
+6. 自動マージ後、Projects を Done へ更新、README / 文書を同期する。
 
 ---
 
