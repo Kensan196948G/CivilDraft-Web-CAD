@@ -60,7 +60,7 @@ npm run release:audit
 | 12 | 依存衛生・ライセンス最終判断 | `docs/operations/dependency-hygiene.md` の手順 | 🚫 人間がリリース可否を判断（本書は判断を代替しない） |
 | 13 | README 最新化 | `README.md` の進捗・CI 実態・コマンド表 | 実装と乖離が無い（CLAUDE.md §17 基準） |
 | 14 | CI green | GitHub Actions（`.github/workflows/ci.yml`） | `quality` / `e2e` / `security` / `compliance` 各ジョブ success |
-| 15 | PR 承認 | 対象 PR | ⚠️ `main` 宛は人間承認1件必須・必須チェック成功・ブランチ最新（strict） |
+| 15 | PR マージ | 対象 PR | `gh pr merge --auto --squash` で自動マージ予約。条件は Required Checks 全成功・merge conflict なしのみ（人間の Y/N・Approve は不要、`--admin` 迂回禁止。正本: 中央ポリシー `GITHUB_POLICY.md` v2） |
 | 16 | DB migration確認 | `migrations/README.md` | `0001` → `0002` の順序、dev検証、人間承認境界が明記済み |
 | 17 | 永続化モード確認 | `tests/unit/workers/persistence.test.ts` | `neon-r2` 未接続時にメモリへフォールバックせず 503 で停止 |
 | 18 | ブラウザ側API契約確認 | `tests/unit/infrastructure/cloud/civilDraftApiClient.test.ts` / `tests/unit/app/pages/CadEditorPage.test.tsx` | 実Workersハンドラ差し込みで保存・再読込・Export作成が成功し、CAD編集画面の共有保存/再読込UIが成功/失敗を表示 |
