@@ -64,7 +64,7 @@ flowchart TB
    npm run lint && npm run typecheck && npm test && npm run build
    ```
 5. **PR を作成**し、変更内容・切り戻し理由・影響範囲・残課題を記載する。
-6. ⚠️ **人間承認後にマージ**する（`main` 宛は承認1件必須・CI 必須チェック成功）。
+6. **`gh pr merge --auto --squash` で自動マージを予約**する（マージ条件は Required Checks の全成功と merge conflict がないことだけで、人間の Y/N・Approve は待たない。`--admin` 迂回禁止。正本: 中央ポリシー `GITHUB_POLICY.md` v2）。本番への再配置は §3.2 等の Human Gate に従う。
 7. **リグレッションの再発防止**として、原因と再現条件を Issue 化し、再現テストを追加する。
 
 ### 3.2 方式 B: 直前タグへ再ビルド・再配置

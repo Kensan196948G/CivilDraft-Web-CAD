@@ -107,9 +107,9 @@ wrangler secret put CIVILDRAFT_ACCESS_AUD
 `0003`→`0004` を `psql -v ON_ERROR_STOP=1` により適用成功、roundtrip 結合テスト 2 件 pass
 （persistX 配線済みコード経由・sources/jsonb/数値型正規化を含む全項目一致）。
 
-### 3.2 本番適用（🚫 人間決裁 / PR マージ `Y` の承認範囲で実施）
+### 3.2 本番適用（🚫 人間決裁 / Human Gate）
 
-- Neon **本番（main）ブランチ**への適用は、対象・影響・rollback を明記した PR のマージ承認（`Y`）の範囲でのみ実施する（CLAUDE.md §16）。
+- Neon **本番（main）ブランチ**への適用は、対象・影響・rollback を明記したうえで、PR のマージとは別の Human Gate（本番適用への人間の明示承認）を得た範囲でのみ実施する（PR のマージ自体は Required Checks 全成功・conflict なしで自動。正本: 中央ポリシー `GITHUB_POLICY.md` v2）。
 - 手順: 検証ブランチで適用済みの `0003`→`0004` を、承認後に本番 main へ番号順に適用（`psql -v ON_ERROR_STOP=1` または `run_sql_transaction`）。
 - 適用後に Worker を再デプロイする（**順序厳守**: migration → deploy。逆順は新コードが旧スキーマへ書き込み失敗する）。
 - 切り戻しは [`rollback-procedure.md`](./rollback-procedure.md) §4.1（Neon ブランチ / PITR）。0004 の逆変換条件は migration ヘッダ参照（アプリ書き込み発生前のみ）。
@@ -162,7 +162,7 @@ JWKS は Worker が `<team-domain>/cdn-cgi/access/certs` から自動取得・�
 | 1 | 品質ゲート全 green | `npm run release:audit` | CTO | ✅ 完了（105ファイル/1191テストpass） |
 | 2 | CI 必須チェック成功（quality/E2E/audit/SBOM） | GitHub PR checks | CTO | ✅ 完了（PR#65で5チェック全pass） |
 | 3 | migration 0001→0004 を検証ブランチで検証 | Neon 検証ブランチで実適用 + roundtrip 結合テスト | CTO | ✅ 完了（2026-07-21、`verify-pr67-migrations-0003-0004`） |
-| 4 | 本番 migration 適用（`0003`→`0004`） | Neon main（PR マージ `Y` 承認後） | 🚫 人間承認（`Y`） | `0001`+`0002` ✅適用済み／`0003`・`0004` ❌未適用（本PRの承認範囲） |
+| 4 | 本番 migration 適用（`0003`→`0004`） | Neon main（本番適用の Human Gate 承認後） | 🚫 人間承認（`Y`） | `0001`+`0002` ✅適用済み／`0003`・`0004` ❌未適用（本PRの承認範囲） |
 | 5 | R2 バケット作成・binding 設定（**任意**・§4.1） | `wrangler r2 bucket list` | 🚫 人間 | ➖ 対象外（ADR-0014でNeon直接保存へ転換） |
 | 6 | Access Application・ポリシー設定 | Cloudflare dashboard | 🚫 人間 | ⚠️ 未確認（§7参照。本番API無認証GETはHTTP 401でfail-closedの503ではない） |
 | 7 | Secret/変数を登録 | `wrangler secret list` | 🚫 人間 | `API_MODE`(vars)/`NEON_CONNECTION`(secret) ✅確認済み／`ACCESS_TEAM_DOMAIN`・`ACCESS_AUD` ❌**未登録確定**（2026-07-21 `wrangler secret list` で名前一覧照会。登録は人間実施） |
